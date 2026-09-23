@@ -35,8 +35,6 @@ export interface RestOptions {
 export interface LatestQuery {
   readonly selector: string;
   readonly quality?: "RT" | "DL" | "EOD";
-  /** Request a licensed, unadjusted canonical source field alongside customer export blocks. */
-  readonly source_field?: string;
   readonly block_mask?: bigint | string;
   /** Adjust prices and quantities for confirmed splits; raw is the default. */
   readonly adjustment?: "raw" | "split";
