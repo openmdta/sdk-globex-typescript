@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "customerId": "globex",
+  "projectId": "globex",
+  "requestId": "globex-typescript-20260923-016d409590a9",
+  "releaseId": "globex-production-20260921.1",
+  "configurationCommit": "64a8a4039b71ab2b8a01ceb23bdf3c488a6f8b79",
+  "languages": {
+    "typescript": "016d409590a9de4e868511682a83251393f08f14b2fcac88b1a31b18ce1597e1"
+  }
+}
