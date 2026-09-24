@@ -1,11 +1,13 @@
 {
-  "configurationCommit": "64a8a4039b71ab2b8a01ceb23bdf3c488a6f8b79",
   "customerId": "globex",
+  "datasetsSha256": "58030c493aaa92fa4e3e02ae159ecd6f0ec251f2a5af3fc2e644576100480c9f",
+  "environmentRevision": "globex-sharded-catalog-3",
   "languages": {
-    "typescript": "bad64575699a9ccea084d1a47a04f46a28432a88c8b809c8a65ccec234c41272"
+    "typescript": "4210b56efd2f5fbde99f0eebef69b0dd6be0bf473aeed8d1182c4e8b8f7aa407"
   },
   "projectId": "globex",
-  "releaseId": "globex-production-20260921.1",
-  "requestId": "globex-sdk-20260924-aee7b5f1-dist",
-  "version": 1
+  "requestId": "sdk-a2f63d6bd2ebf48885ecfc0e",
+  "rulesetSha256": "124a3b207ba6d116295061c79f7303894d879c5e7a02d41db7feed83841b6e5e",
+  "sdkInputsSha256": "13431e724a245e8794789ba81f8343789b7d14378ff9993af181ea7c60298227",
+  "version": 2
 }
