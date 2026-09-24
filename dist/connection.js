@@ -123,30 +123,32 @@ class ReconnectingConnection {
     get dataset() {
         const get = (id) => ({
             id,
-            read: (parameters) => this.#startCatalog(id, [selectorExpression(parameters.selector)], parameters.fields ?? "*", parameters.trace, new Map([[selectorExpression(parameters.selector), parameters.selector]])),
-            search: parameters => this.catalogSearch(id, parameters),
-            lookup: parameters => this.catalogLookup(id, parameters),
-            latest: parameters => this.latest({ ...parameters, dataset: id }),
-            latestBatched: parameters => this.latestBatched({ ...parameters, dataset: id }),
-            latestStream: parameters => this.latestStream({ ...parameters, dataset: id }),
-            latestStreamBatched: parameters => this.latestStreamBatched({ ...parameters, dataset: id }),
-            timeseries: parameters => this.tsRaw({ ...parameters, dataset: id }),
-            timeseriesBatched: parameters => this.tsRawBatched({ ...parameters, dataset: id }),
+            read: (selector, options = {}) => this.#startCatalog(id, [selectorExpression(selector)], options.fields ?? "*", options.trace, new Map([[selectorExpression(selector), selector]])),
+            search: parameters => this.#catalogSearch(id, parameters),
+            lookup: (query, options) => this.#catalogLookup(id, {
+                ...(typeof query === "string" ? { expression: query } : { dimensions: query }),
+                ...options,
+            }),
+            latest: (selector, options) => this.latest(selector, { ...options, dataset: id }),
+            latestBatched: (selector, options) => this.latestBatched(selector, { ...options, dataset: id }),
+            latestStream: (selector, options) => this.latestStream(selector, { ...options, dataset: id }),
+            latestStreamBatched: (selector, options) => this.latestStreamBatched(selector, { ...options, dataset: id }),
+            timeseries: (selector, from, through, options) => this.tsRaw(selector, from, through, { ...options, dataset: id }),
+            timeseriesBatched: (selector, from, through, options) => this.tsRawBatched(selector, from, through, { ...options, dataset: id }),
         });
         return Object.freeze({
             ...Object.fromEntries(Object.entries(DATASETS).map(([alias, id]) => [alias, get(id)])),
-            get,
         });
     }
     select(selection) {
         const selected = (selector) => Object.freeze({
-            read: (parameters = {}) => this.#startCatalog("", [selectorExpression(selector)], parameters.fields ?? "*", parameters.trace, new Map([[selectorExpression(selector), selector]])),
-            latest: (parameters = {}) => this.latest({ ...parameters, selector }),
-            latestBatched: (parameters = {}) => this.latestBatched({ ...parameters, selector }),
-            latestStream: (parameters = {}) => this.latestStream({ ...parameters, selector }),
-            latestStreamBatched: (parameters = {}) => this.latestStreamBatched({ ...parameters, selector }),
-            timeseries: (parameters) => this.tsRaw({ ...parameters, selector }),
-            timeseriesBatched: (parameters) => this.tsRawBatched({ ...parameters, selector }),
+            read: (options = {}) => this.#startCatalog("", [selectorExpression(selector)], options.fields ?? "*", options.trace, new Map([[selectorExpression(selector), selector]])),
+            latest: (options = {}) => this.latest(selector, options),
+            latestBatched: (options = {}) => this.latestBatched(selector, options),
+            latestStream: (options = {}) => this.latestStream(selector, options),
+            latestStreamBatched: (options = {}) => this.latestStreamBatched(selector, options),
+            timeseries: (from, through, options = {}) => this.tsRaw(selector, from, through, options),
+            timeseriesBatched: (from, through, options = {}) => this.tsRawBatched(selector, from, through, options),
         });
         if (!Array.isArray(selection))
             return selected(selection);
@@ -154,106 +156,106 @@ class ReconnectingConnection {
             throw new TypeError("select requires at least one selector");
         const clients = selection.map(selected);
         return Object.freeze({
-            read: (parameters = {}) => new MergedHandle(clients.map(client => client.read(parameters))),
-            latest: (parameters = {}) => new MergedHandle(clients.map(client => client.latest(parameters))),
-            latestBatched: (parameters = {}) => new MergedHandle(clients.map(client => client.latestBatched(parameters))),
-            latestStream: (parameters = {}) => new MergedHandle(clients.map(client => client.latestStream(parameters))),
-            latestStreamBatched: (parameters = {}) => new MergedHandle(clients.map(client => client.latestStreamBatched(parameters))),
+            read: (options = {}) => new MergedHandle(clients.map(client => client.read(options))),
+            latest: (options = {}) => new MergedHandle(clients.map(client => client.latest(options))),
+            latestBatched: (options = {}) => new MergedHandle(clients.map(client => client.latestBatched(options))),
+            latestStream: (options = {}) => new MergedHandle(clients.map(client => client.latestStream(options))),
+            latestStreamBatched: (options = {}) => new MergedHandle(clients.map(client => client.latestStreamBatched(options))),
         });
     }
-    latest(parameters) {
-        return this.#start("SNAPSHOT", parameters);
+    latest(selector, options = {}) {
+        return this.#start("SNAPSHOT", { selector, ...options });
     }
-    latestBatched(parameters) {
-        return this.#start("SNAPSHOT", parameters, undefined, true);
+    latestBatched(selector, options = {}) {
+        return this.#start("SNAPSHOT", { selector, ...options }, undefined, true);
     }
-    latestStream(parameters) {
-        return this.#start("STREAM", parameters);
+    latestStream(selector, options = {}) {
+        return this.#start("STREAM", { selector, ...options });
     }
-    latestStreamBatched(parameters) {
-        return this.#start("STREAM", parameters, undefined, true);
+    latestStreamBatched(selector, options = {}) {
+        return this.#start("STREAM", { selector, ...options }, undefined, true);
     }
-    tsRaw(parameters) {
-        if (parameters.from > parameters.through)
+    tsRaw(selector, from, through, options = {}) {
+        if (from > through)
             throw new RangeError("from must not exceed through");
-        const maxMessages = parameters.maxMessages ?? 100;
+        const maxMessages = options.maxMessages ?? 100;
         if (!Number.isInteger(maxMessages) || maxMessages < 1 || maxMessages > 10_000) {
             throw new RangeError("maxMessages must be an integer from 1 through 10000");
         }
-        this.#validateQuality(parameters.quality);
-        return this.#start("TS_RAW", parameters, { maxMessages });
+        this.#validateQuality(options.quality);
+        return this.#start("TS_RAW", { selector, from, through, ...options }, { maxMessages });
     }
-    tsRawBatched(parameters) {
-        if (parameters.from > parameters.through)
+    tsRawBatched(selector, from, through, options = {}) {
+        if (from > through)
             throw new RangeError("from must not exceed through");
-        const maxMessages = parameters.maxMessages ?? 100;
+        const maxMessages = options.maxMessages ?? 100;
         if (!Number.isInteger(maxMessages) || maxMessages < 1 || maxMessages > 10_000) {
             throw new RangeError("maxMessages must be an integer from 1 through 10000");
         }
-        this.#validateQuality(parameters.quality);
-        return this.#start("TS_RAW", parameters, { maxMessages }, true);
+        this.#validateQuality(options.quality);
+        return this.#start("TS_RAW", { selector, from, through, ...options }, { maxMessages }, true);
     }
-    tsCandle(parameters) {
-        if (parameters.from > parameters.through)
+    tsCandle(selector, from, through, cadenceMicros, options = {}) {
+        if (from > through)
             throw new RangeError("from must not exceed through");
-        if (parameters.cadenceMicros <= 0n)
+        if (cadenceMicros <= 0n)
             throw new RangeError("cadenceMicros must be positive");
-        this.#validateQuality(parameters.quality);
-        return this.#start("TS_CANDLE", parameters);
+        this.#validateQuality(options.quality);
+        return this.#start("TS_CANDLE", { selector, from, through, cadenceMicros, ...options });
     }
-    tsCandleBatched(parameters) {
-        if (parameters.from > parameters.through)
+    tsCandleBatched(selector, from, through, cadenceMicros, options = {}) {
+        if (from > through)
             throw new RangeError("from must not exceed through");
-        if (parameters.cadenceMicros <= 0n)
+        if (cadenceMicros <= 0n)
             throw new RangeError("cadenceMicros must be positive");
-        if (parameters.quality !== undefined && !["RT", "DL", "EOD"].includes(parameters.quality.trim().toUpperCase())) {
+        if (options.quality !== undefined && !["RT", "DL", "EOD"].includes(options.quality.trim().toUpperCase())) {
             throw new RangeError("quality must be RT, DL, or EOD");
         }
-        return this.#start("TS_CANDLE", parameters, undefined, true);
+        return this.#start("TS_CANDLE", { selector, from, through, cadenceMicros, ...options }, undefined, true);
     }
-    tsRawStream(parameters) {
-        if (parameters.from > parameters.through)
+    tsRawStream(selector, from, through, options = {}) {
+        if (from > through)
             throw new RangeError("from must not exceed through");
-        const maxMessages = parameters.maxMessages ?? 100;
+        const maxMessages = options.maxMessages ?? 100;
         if (!Number.isInteger(maxMessages) || maxMessages < 1 || maxMessages > 10_000) {
             throw new RangeError("maxMessages must be an integer from 1 through 10000");
         }
-        this.#validateQuality(parameters.quality, false);
-        return this.#start("TS_RAW_STREAM", parameters, { maxMessages });
+        this.#validateQuality(options.quality, false);
+        return this.#start("TS_RAW_STREAM", { selector, from, through, ...options }, { maxMessages });
     }
-    tsRawStreamBatched(parameters) {
-        if (parameters.from > parameters.through)
+    tsRawStreamBatched(selector, from, through, options = {}) {
+        if (from > through)
             throw new RangeError("from must not exceed through");
-        const maxMessages = parameters.maxMessages ?? 100;
+        const maxMessages = options.maxMessages ?? 100;
         if (!Number.isInteger(maxMessages) || maxMessages < 1 || maxMessages > 10_000) {
             throw new RangeError("maxMessages must be an integer from 1 through 10000");
         }
-        this.#validateQuality(parameters.quality, false);
-        return this.#start("TS_RAW_STREAM", parameters, { maxMessages }, true);
+        this.#validateQuality(options.quality, false);
+        return this.#start("TS_RAW_STREAM", { selector, from, through, ...options }, { maxMessages }, true);
     }
-    tsCandleStream(parameters) {
-        if (parameters.from > parameters.through)
+    tsCandleStream(selector, from, through, cadenceMicros, options = {}) {
+        if (from > through)
             throw new RangeError("from must not exceed through");
-        if (parameters.cadenceMicros <= 0n)
+        if (cadenceMicros <= 0n)
             throw new RangeError("cadenceMicros must be positive");
-        this.#validateQuality(parameters.quality, false);
-        const updateIntervalMillis = parameters.updateIntervalMillis ?? 1_000;
+        this.#validateQuality(options.quality, false);
+        const updateIntervalMillis = options.updateIntervalMillis ?? 1_000;
         if (!Number.isInteger(updateIntervalMillis) || updateIntervalMillis < 0 || updateIntervalMillis > 0xffff_ffff) {
             throw new RangeError("updateIntervalMillis must be an unsigned 32-bit integer");
         }
-        return this.#start("TS_CANDLE_STREAM", parameters, { updateIntervalMillis });
+        return this.#start("TS_CANDLE_STREAM", { selector, from, through, cadenceMicros, ...options }, { updateIntervalMillis });
     }
-    tsCandleStreamBatched(parameters) {
-        if (parameters.from > parameters.through)
+    tsCandleStreamBatched(selector, from, through, cadenceMicros, options = {}) {
+        if (from > through)
             throw new RangeError("from must not exceed through");
-        if (parameters.cadenceMicros <= 0n)
+        if (cadenceMicros <= 0n)
             throw new RangeError("cadenceMicros must be positive");
-        this.#validateQuality(parameters.quality, false);
-        const updateIntervalMillis = parameters.updateIntervalMillis ?? 1_000;
+        this.#validateQuality(options.quality, false);
+        const updateIntervalMillis = options.updateIntervalMillis ?? 1_000;
         if (!Number.isInteger(updateIntervalMillis) || updateIntervalMillis < 0 || updateIntervalMillis > 0xffff_ffff) {
             throw new RangeError("updateIntervalMillis must be an unsigned 32-bit integer");
         }
-        return this.#start("TS_CANDLE_STREAM", parameters, { updateIntervalMillis }, true);
+        return this.#start("TS_CANDLE_STREAM", { selector, from, through, cadenceMicros, ...options }, { updateIntervalMillis }, true);
     }
     #validateQuality(quality, allowEod = true) {
         if (quality === undefined)
@@ -262,12 +264,6 @@ class ReconnectingConnection {
         if (!["RT", "DL", "EOD"].includes(normalized) || (!allowEod && normalized === "EOD")) {
             throw new RangeError(allowEod ? "quality must be RT, DL, or EOD" : "streaming quality must be RT or DL");
         }
-    }
-    catalog(parameters) {
-        if (!parameters.catalog.trim())
-            throw new TypeError("Catalog name must not be empty");
-        const selection = parameters.fields === undefined ? "*" : parameters.fields.map(field => typeof field === "string" ? { label: field, decode: (payload) => payload } : field);
-        return this.#startCatalog(parameters.catalog, parameters.identifiers, selection, parameters.trace);
     }
     catalog_keyfigures(catalog) {
         if (!Object.hasOwn(KEYFIGURES_CONTRACTS, catalog))
@@ -333,7 +329,7 @@ class ReconnectingConnection {
             cancellation.resolve(false);
         this.#cancellations.clear();
     }
-    catalogSearch(catalog, parameters = {}) {
+    #catalogSearch(catalog, parameters = {}) {
         if (this.#closing)
             throw new ConnectionClosedError();
         const { trace, ...query } = parameters;
@@ -353,7 +349,7 @@ class ReconnectingConnection {
             this.#socket.send(active.encoded);
         return handle;
     }
-    catalogLookup(catalog, parameters) {
+    #catalogLookup(catalog, parameters) {
         if (this.#closing)
             throw new ConnectionClosedError();
         const { trace, ...query } = parameters;
@@ -373,21 +369,17 @@ class ReconnectingConnection {
             this.#socket.send(active.encoded);
         return handle;
     }
-    sourceProgress(parameters) {
-        const selector = { ...parameters, key: "", blocks: [], progressOnly: true };
-        return this.listingLatest(selector);
-    }
     listingLatest(parameters) {
         if (this.#closing)
             throw new ConnectionClosedError();
         const { trace, ...selector } = parameters;
-        if (!selector.dataset || (!selector.progressOnly && !selector.key) || new TextEncoder().encode(selector.key).length > 1024 || !["RT", "DL", "EOD"].includes(selector.quality) || (!selector.progressOnly && !selector.blocks.length) || (selector.progressOnly && (selector.key.length > 0 || selector.blocks.length > 0)) || selector.blocks.length > 64 || !selector.blocks.every(id => Number.isInteger(id) && id >= 0 && id <= 65535))
+        if (!selector.dataset || !selector.key || new TextEncoder().encode(selector.key).length > 1024 || !["RT", "DL", "EOD"].includes(selector.quality) || !selector.blocks.length || selector.blocks.length > 64 || !selector.blocks.every(id => Number.isInteger(id) && id >= 0 && id <= 65535))
             throw new TypeError("invalid listing selector");
         const id = this.#nextId++;
         const handle = new Handle(id, () => this.#cancel(id));
         const active = { command: "LISTING_LATEST", encoded: encodeRequest({ command: "LISTING_LATEST", id, parameters: JSON.stringify(selector), ...(trace ? { trace } : {}) }), handle: handle, decode: response => {
                 const event = decodeListingResponse(response);
-                if (!!event.source.progressOnly !== !!selector.progressOnly || event.source.dataset !== selector.dataset || event.source.quality !== selector.quality || event.source.key !== selector.key || event.source.blocks.length !== selector.blocks.length || event.source.blocks.some((id, index) => id !== selector.blocks[index]))
+                if (event.source.dataset !== selector.dataset || event.source.quality !== selector.quality || event.source.key !== selector.key || event.source.blocks.length !== selector.blocks.length || event.source.blocks.some((id, index) => id !== selector.blocks[index]))
                     throw new ProtocolError("listing source does not match request");
                 return event;
             } };
@@ -396,10 +388,10 @@ class ReconnectingConnection {
             this.#socket.send(active.encoded);
         return handle;
     }
-    streamMetadata(parameters) {
+    streamMetadata(dataset, quality, options = {}) {
         if (this.#closing)
             throw new ConnectionClosedError();
-        const { dataset, quality, trace } = parameters;
+        const { trace } = options;
         if (!dataset.trim() || new TextEncoder().encode(dataset).length > 256 || !["RT", "DL", "EOD"].includes(quality)) {
             throw new TypeError("Stream metadata requires dataset and RT/DL/EOD quality");
         }

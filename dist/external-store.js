@@ -13,27 +13,27 @@ export class MarketDataExternalStore {
         this.#catalogExpiry = options.catalogExpiryMillis ?? 3_600_000;
     }
     get dataset() {
-        const get = (id) => Object.freeze({
-            id,
-            read: (parameters) => this.#readDataset(id, parameters),
+        const get = (alias) => Object.freeze({
+            id: DATASETS[alias],
+            read: (selector, options = {}) => this.#readDataset(alias, selector, options),
         });
         return Object.freeze({
-            ...Object.fromEntries(Object.entries(DATASETS).map(([alias, id]) => [alias, get(id)])),
-            get,
+            ...Object.fromEntries(Object.keys(DATASETS).map(alias => [alias, get(alias)])),
         });
     }
-    #readDataset(dataset, parameters) {
-        const fieldKey = parameters.fields
+    #readDataset(alias, selector, options) {
+        const dataset = DATASETS[alias];
+        const fieldKey = options.fields
             ?.map(field => `${field.label}:${field.wireId ?? ""}:${field.fixedLength ?? ""}:${field.multiple ?? false}`)
             .join(",") ?? "*";
-        const key = `${dataset}\u0000${selectorExpression(parameters.selector)}\u0000${fieldKey}`;
+        const key = `${dataset}\u0000${selectorExpression(selector)}\u0000${fieldKey}`;
         const cached = this.#catalog.get(key);
         if (cached && cached.expiresAt > Date.now()) {
             return cached.value;
         }
         const value = (async () => {
             const records = [];
-            for await (const record of this.connection.dataset.get(dataset).read(parameters))
+            for await (const record of this.connection.dataset[alias].read(selector, options))
                 records.push(record);
             return Object.freeze(records);
         })();
@@ -141,10 +141,7 @@ export class MarketDataExternalStore {
         };
         if (entry.records.size || !entry.snapshot.pending)
             reset();
-        const handle = this.connection.latestStream({
-            selector: entry.selector,
-            ...(entry.blocks === undefined ? {} : { blocks: entry.blocks }),
-        });
+        const handle = this.connection.latestStream(entry.selector, entry.blocks === undefined ? {} : { blocks: entry.blocks });
         entry.handle = handle;
         const stopReplay = handle.onReplay(reset);
         void (async () => {

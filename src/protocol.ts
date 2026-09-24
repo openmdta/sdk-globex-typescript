@@ -605,7 +605,7 @@ const encodeMarketRequest = (request: Exclude<Request, { readonly command: "AUTH
   if (request.command === "LISTING_LATEST") {
     const value = new TextEncoder().encode(request.parameters);
     if (value.byteLength > 8192) throw new ProtocolError("listing selector too large");
-    const bytes = message(MARKET_SCHEMA_ID, 10, MARKET_TEMPLATE.LISTING_LATEST, 0, 4 + value.byteLength);
+    const bytes = message(MARKET_SCHEMA_ID, 15, MARKET_TEMPLATE.LISTING_LATEST, 0, 4 + value.byteLength);
     new DataView(bytes.buffer).setUint32(HEADER_LENGTH, value.byteLength, true);
     bytes.set(value, HEADER_LENGTH + 4);
     return bytes;
@@ -848,7 +848,7 @@ export function decodeStreamMetadata(response: StandardResponse): StreamMetadata
 
 export function decodeListingResponse(response: StandardResponse): ListingEvent {
   const message = response.message;
-  if (response.status !== "CONTINUE" || !message || message.format.schemaId !== MARKET_SCHEMA_ID || message.format.templateId !== 107 || message.format.version !== 10 || message.format.blockLength !== 0) throw new ProtocolError("unsupported listing response");
+  if (response.status !== "CONTINUE" || !message || message.format.schemaId !== MARKET_SCHEMA_ID || message.format.templateId !== 107 || message.format.version !== 15 || message.format.blockLength !== 0) throw new ProtocolError("unsupported listing response");
   const body = message.body;
   if (body.byteLength < 4 || new DataView(body.buffer, body.byteOffset, body.byteLength).getUint32(0, true) !== body.byteLength - 4) throw new ProtocolError("invalid listing response length");
   return decodeListingEvent(body.subarray(4));

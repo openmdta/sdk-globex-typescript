@@ -64,7 +64,9 @@ export const createRestClient = (options: RestOptions) => {
     });
   };
   return {
-    latest: (query: LatestQuery) => request("/api/v1/snapshot", query),
-    timeseries: (query: TimeseriesQuery) => request("/api/v1/timeseries", query),
+    latest: (selector: string, options: Omit<LatestQuery, "selector"> = {}) =>
+      request("/api/v1/snapshot", {selector, ...options}),
+    timeseries: (selector: string, from: bigint | string, through: bigint | string, options: Omit<TimeseriesQuery, "selector" | "from" | "through"> = {}) =>
+      request("/api/v1/timeseries", {selector, from, through, ...options}),
   };
 };

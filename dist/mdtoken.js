@@ -37,8 +37,8 @@ export const createRestClient = (options) => {
         });
     };
     return {
-        latest: (query) => request("/api/v1/snapshot", query),
-        timeseries: (query) => request("/api/v1/timeseries", query),
+        latest: (selector, options = {}) => request("/api/v1/snapshot", { selector, ...options }),
+        timeseries: (selector, from, through, options = {}) => request("/api/v1/timeseries", { selector, from, through, ...options }),
     };
 };
 //# sourceMappingURL=mdtoken.js.map

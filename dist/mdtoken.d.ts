@@ -30,7 +30,7 @@ export interface TimeseriesQuery extends LatestQuery {
 }
 /** Each request obtains a token; the provider may reuse one until its expiry. */
 export declare const createRestClient: (options: RestOptions) => {
-    latest: (query: LatestQuery) => Promise<Response>;
-    timeseries: (query: TimeseriesQuery) => Promise<Response>;
+    latest: (selector: string, options?: Omit<LatestQuery, "selector">) => Promise<Response>;
+    timeseries: (selector: string, from: bigint | string, through: bigint | string, options?: Omit<TimeseriesQuery, "selector" | "from" | "through">) => Promise<Response>;
 };
 //# sourceMappingURL=mdtoken.d.ts.map

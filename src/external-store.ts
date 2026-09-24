@@ -1,5 +1,5 @@
 import type {CatalogDescriptorSelection, CatalogFieldDescriptor} from "./catalog.js";
-import type {Connection, DatasetReadParameters, DatasetRecord, ResolvedMarketDataMessage, RequestHandle} from "./connection.js";
+import type {Connection, DatasetReadOptions, DatasetRecord, ResolvedMarketDataMessage, RequestHandle} from "./connection.js";
 import type {MarketDataFields, StreamBlockName} from "./generated/bindings.js";
 import type {MarketDataDatasetRecord} from "./protocol.js";
 import {DATASETS} from "./generated/datasets.js";
@@ -14,13 +14,11 @@ export interface ExternalStoreOptions {
 
 export interface CachedDatasetClient<C extends string> {
   readonly id: C;
-  read<const D extends readonly CatalogFieldDescriptor[]>(parameters: DatasetReadParameters<D>): Promise<readonly DatasetRecord<C, CatalogDescriptorSelection<D>>[]>;
+  read<const D extends readonly CatalogFieldDescriptor[]>(selector: MarketSelector, options?: DatasetReadOptions<D>): Promise<readonly DatasetRecord<C, CatalogDescriptorSelection<D>>[]>;
 }
 
 export type CachedDatasetNamespace = {
   readonly [Alias in keyof typeof DATASETS]: CachedDatasetClient<(typeof DATASETS)[Alias]>;
-} & {
-  get<C extends string>(dataset: C): CachedDatasetClient<C>;
 };
 
 export interface ExternalRecordSnapshot<N extends StreamBlockName = StreamBlockName> {
@@ -82,32 +80,33 @@ export class MarketDataExternalStore {
   }
 
   get dataset(): CachedDatasetNamespace {
-    const get = <C extends string>(id: C): CachedDatasetClient<C> => Object.freeze({
-      id,
-      read: <D extends readonly CatalogFieldDescriptor[]>(parameters: DatasetReadParameters<D>) =>
-        this.#readDataset(id, parameters),
+    const get = <A extends keyof typeof DATASETS>(alias: A): CachedDatasetClient<(typeof DATASETS)[A]> => Object.freeze({
+      id: DATASETS[alias],
+      read: <D extends readonly CatalogFieldDescriptor[]>(selector: MarketSelector, options: DatasetReadOptions<D> = {}) =>
+        this.#readDataset(alias, selector, options),
     });
     return Object.freeze({
-      ...Object.fromEntries(Object.entries(DATASETS).map(([alias, id]) => [alias, get(id)])),
-      get,
+      ...Object.fromEntries(Object.keys(DATASETS).map(alias => [alias, get(alias as keyof typeof DATASETS)])),
     }) as CachedDatasetNamespace;
   }
 
-  #readDataset<C extends string, D extends readonly CatalogFieldDescriptor[]>(
-    dataset: C,
-    parameters: DatasetReadParameters<D>,
-  ): Promise<readonly DatasetRecord<C, CatalogDescriptorSelection<D>>[]> {
-    const fieldKey = parameters.fields
+  #readDataset<A extends keyof typeof DATASETS, D extends readonly CatalogFieldDescriptor[]>(
+    alias: A,
+    selector: MarketSelector,
+    options: DatasetReadOptions<D>,
+  ): Promise<readonly DatasetRecord<(typeof DATASETS)[A], CatalogDescriptorSelection<D>>[]> {
+    const dataset = DATASETS[alias];
+    const fieldKey = options.fields
       ?.map(field => `${field.label}:${field.wireId ?? ""}:${field.fixedLength ?? ""}:${field.multiple ?? false}`)
       .join(",") ?? "*";
-    const key = `${dataset}\u0000${selectorExpression(parameters.selector)}\u0000${fieldKey}`;
+    const key = `${dataset}\u0000${selectorExpression(selector)}\u0000${fieldKey}`;
     const cached = this.#catalog.get(key);
     if (cached && cached.expiresAt > Date.now()) {
-      return cached.value as Promise<readonly DatasetRecord<C, CatalogDescriptorSelection<D>>[]>;
+      return cached.value as Promise<readonly DatasetRecord<(typeof DATASETS)[A], CatalogDescriptorSelection<D>>[]>;
     }
     const value = (async () => {
-      const records: DatasetRecord<C, CatalogDescriptorSelection<D>>[] = [];
-      for await (const record of this.connection.dataset.get(dataset).read(parameters)) records.push(record);
+      const records: DatasetRecord<(typeof DATASETS)[A], CatalogDescriptorSelection<D>>[] = [];
+      for await (const record of this.connection.dataset[alias].read(selector, options)) records.push(record);
       return Object.freeze(records);
     })();
     this.#catalog.set(key, {
@@ -209,10 +208,7 @@ export class MarketDataExternalStore {
       for (const listener of entry.listeners) listener();
     };
     if (entry.records.size || !entry.snapshot.pending) reset();
-    const handle = this.connection.latestStream({
-      selector: entry.selector,
-      ...(entry.blocks === undefined ? {} : {blocks: entry.blocks}),
-    });
+    const handle = this.connection.latestStream(entry.selector, entry.blocks === undefined ? {} : {blocks: entry.blocks});
     entry.handle = handle;
     const stopReplay = handle.onReplay(reset);
     void (async () => {

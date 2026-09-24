@@ -83,11 +83,8 @@ Use the matching `Batched` method when a chart engine should ingest arrays and
 receive transport gaps without one iteration per message:
 
 ```ts
-for await (const batch of con.tsRawBatched({
-  selector: requested,
+for await (const batch of con.tsRawBatched(requested, from, through, {
   blocks: ["BidAsk", "Trade"],
-  from,
-  through,
   maxMessages: 1_000,
 })) {
   chart.append(batch.messages);
@@ -109,7 +106,7 @@ Catalog field lists are projections. Leave `fields` out to request every field
 using the Dataset metadata:
 
 ```ts
-const records = con.dataset.globex.read({selector: requested});
+const records = con.dataset.globex.read(requested);
 for await (const record of records) {
   console.log(record.rawFields); // includes labels, subfields, codec descriptors and raw payloads
 }
@@ -124,12 +121,10 @@ source record. These requests use the same authenticated WSSBE connection:
 import {CatalogModels, catalogField} from "@globex/market-data";
 
 const page = await conn.dataset.xetra.lookup({
-  dimensions: {instrument: ["ISIN(CH0454664001)"], quotation_currency: ["CCY(USD)"]},
+  instrument: ["ISIN(CH0454664001)"], quotation_currency: ["CCY(USD)"],
 }).await();
 const fields = [catalogField("classification", CatalogModels.Classification)];
-for await (const record of conn.dataset.xetra.read({
-  selector: selector.raw("XETR@xetra", page.entries[0]!.key), fields,
-})) {
+for await (const record of conn.dataset.xetra.read(selector.raw("XETR@xetra", page.entries[0]!.key), {fields})) {
   // Typed scheme map, not a last-value-wins scalar.
   console.log(record.fields.classification?.cfi?.code);
 }
@@ -205,7 +200,7 @@ block list and returns the same selection object for the same request. React's
 subscription identity therefore stays stable even when the call is placed at a
 component use-site instead of exported from the shared connection module.
 Finite Catalog reads use the parallel Dataset namespace, for example
-`await marketData.dataset.globex.read({selector: selector.isin("DE0007100000")})`. They are
+`await marketData.dataset.globex.read(selector.isin("DE0007100000"))`. They are
 cached until `catalogExpiryMillis`; no Catalog subscription or upstream
 connection is retained.
 
@@ -260,7 +255,7 @@ pair and then its short name, falling back to long. It also accepts LegalEntityN
 ```ts
 const selected = selector.list("GER40").venue("XETR");
 const quotes = connection.select(selected).latestStream({blocks: ["BidAsk"]});
-const lusQuotes = connection.dataset.lus.latestStream({selector: selector.isin("DE0007100000"), blocks: ["BidAsk"]});
+const lusQuotes = connection.dataset.lus.latestStream(selector.isin("DE0007100000"), {blocks: ["BidAsk"]});
 ```
 
 The Gateway chooses the list source Dataset; selecting a market-data Dataset does

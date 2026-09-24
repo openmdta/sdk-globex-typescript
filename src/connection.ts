@@ -1,6 +1,6 @@
 import type {ListingSelector, ListingEvent} from "./generated/listing.js";
 import {DATASETS} from "./generated/datasets.js";
-import {decodeCatalogLookup, type CatalogLookupParameters, type CatalogLookupResult} from "./lookup.js";
+import {decodeCatalogLookup, type CatalogDimensions, type CatalogLookupParameters, type CatalogLookupResult} from "./lookup.js";
 import {decodeCatalogSearch, type CatalogSearchParameters, type CatalogSearchResult} from "./search.js";
 import type { StreamMetadata } from "./generated/activity.js";
 import { KEYFIGURES_CONTRACTS, decodeKeyfigures, type CatalogKeyfigures, type KeyfiguresCatalog, type KeyfiguresSearchParameters, type KeyfiguresPolicy, type SingleRequestHandle } from "./keyfigures.js";
@@ -19,10 +19,6 @@ import {
 import {
   type CatalogDescriptorSelection,
   type CatalogFieldDescriptor,
-  type CatalogFieldName,
-  type CatalogFieldSelection,
-  type CatalogName,
-  type CatalogValueMap,
 } from "./catalog.js";
 import {
   ProtocolError,
@@ -122,46 +118,12 @@ export interface TsCandleStreamParameters<B extends TsCandleStreamBlockName = Ts
 }
 
 type CatalogFieldWildcard = "*";
-
-type CatalogParameterValues<
-  C extends CatalogName,
-  F extends readonly CatalogFieldName<C>[] | CatalogFieldWildcard,
-> = F extends CatalogFieldWildcard
-  ? CatalogValueMap[C]
-  : F extends readonly CatalogFieldName<C>[]
-    ? CatalogFieldSelection<C, F[number]>
-    : never;
-
-type CatalogDescriptorValues<
-  C extends string,
-  D extends readonly CatalogFieldDescriptor[] | CatalogFieldWildcard,
-> = D extends CatalogFieldWildcard
-  ? C extends CatalogName
-    ? CatalogValueMap[C]
-    : Record<string, unknown>
-  : D extends readonly CatalogFieldDescriptor[]
-    ? CatalogDescriptorSelection<D>
-    : never;
-
-export interface CatalogParameters<
-  C extends CatalogName = CatalogName,
-  F extends readonly CatalogFieldName<C>[] = readonly CatalogFieldName<C>[],
-> {
-  readonly catalog: C;
-  readonly identifiers: readonly string[];
-  readonly fields?: F;
-  readonly trace?: TraceContext;
-}
-
-export interface CatalogDescriptorParameters<
-  C extends string,
-  D extends readonly CatalogFieldDescriptor[],
-> {
-  readonly catalog: C;
-  readonly identifiers: readonly string[];
-  readonly fields?: D;
-  readonly trace?: TraceContext;
-}
+export type LatestOptions<B extends SnapshotBlockName = SnapshotBlockName> = Omit<LatestParameters<B>, "selector">;
+export type LatestStreamOptions<B extends StreamBlockName = StreamBlockName> = Omit<LatestStreamParameters<B>, "selector">;
+export type TsRawOptions<B extends TsRawBlockName = TsRawBlockName> = Omit<TsRawParameters<B>, "selector" | "from" | "through">;
+export type TsRawStreamOptions<B extends TsRawStreamBlockName = TsRawStreamBlockName> = Omit<TsRawStreamParameters<B>, "selector" | "from" | "through">;
+export type TsCandleOptions<B extends TsCandleBlockName = TsCandleBlockName> = Omit<TsCandleParameters<B>, "selector" | "from" | "through" | "cadenceMicros">;
+export type TsCandleStreamOptions<B extends TsCandleStreamBlockName = TsCandleStreamBlockName> = Omit<TsCandleStreamParameters<B>, "selector" | "from" | "through" | "cadenceMicros">;
 
 export interface DatasetRecord<C extends string, V extends object> {
   readonly requestId: bigint;
@@ -189,52 +151,44 @@ export interface MultiRequestHandle<T> extends AsyncIterable<T> {
   cancel(): Promise<boolean>;
 }
 
-export interface DatasetReadParameters<D extends readonly CatalogFieldDescriptor[] = readonly CatalogFieldDescriptor[]> {
-  readonly selector: MarketSelector;
-  readonly fields?: D;
-  readonly trace?: TraceContext;
-}
-
-export interface SelectedReadParameters<D extends readonly CatalogFieldDescriptor[] = readonly CatalogFieldDescriptor[]> {
+export interface DatasetReadOptions<D extends readonly CatalogFieldDescriptor[] = readonly CatalogFieldDescriptor[]> {
   readonly fields?: D;
   readonly trace?: TraceContext;
 }
 
 export interface DatasetClient<C extends string> {
   readonly id: C;
-  read<const D extends readonly CatalogFieldDescriptor[]>(parameters: DatasetReadParameters<D>): RequestHandle<DatasetRecord<C, CatalogDescriptorSelection<D>>>;
+  read<const D extends readonly CatalogFieldDescriptor[]>(selector: MarketSelector, options?: DatasetReadOptions<D>): RequestHandle<DatasetRecord<C, CatalogDescriptorSelection<D>>>;
   search(parameters?: CatalogSearchParameters): SingleRequestHandle<CatalogSearchResult>;
-  lookup(parameters: CatalogLookupParameters): SingleRequestHandle<CatalogLookupResult>;
-  latest<const B extends SnapshotBlockName>(parameters: LatestParameters<B>): RequestHandle<ResolvedMarketDataMessage<B>>;
-  latestBatched<const B extends SnapshotBlockName>(parameters: LatestParameters<B>): RequestHandle<MarketDataBatch<B>>;
-  latestStream<const B extends StreamBlockName>(parameters: LatestStreamParameters<B>): RequestHandle<ResolvedMarketDataMessage<B>>;
-  latestStreamBatched<const B extends StreamBlockName>(parameters: LatestStreamParameters<B>): RequestHandle<MarketDataBatch<B>>;
-  timeseries<const B extends TsRawBlockName>(parameters: TsRawParameters<B>): RequestHandle<MarketDataMessage<B>>;
-  timeseriesBatched<const B extends TsRawBlockName>(parameters: TsRawParameters<B>): RequestHandle<MarketDataBatch<B>>;
+  lookup(query: string | CatalogDimensions, options?: Pick<CatalogLookupParameters, "cursor" | "limit" | "trace">): SingleRequestHandle<CatalogLookupResult>;
+  latest<const B extends SnapshotBlockName>(selector: MarketSelector, options?: LatestOptions<B>): RequestHandle<ResolvedMarketDataMessage<B>>;
+  latestBatched<const B extends SnapshotBlockName>(selector: MarketSelector, options?: LatestOptions<B>): RequestHandle<MarketDataBatch<B>>;
+  latestStream<const B extends StreamBlockName>(selector: MarketSelector, options?: LatestStreamOptions<B>): RequestHandle<ResolvedMarketDataMessage<B>>;
+  latestStreamBatched<const B extends StreamBlockName>(selector: MarketSelector, options?: LatestStreamOptions<B>): RequestHandle<MarketDataBatch<B>>;
+  timeseries<const B extends TsRawBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataMessage<B>>;
+  timeseriesBatched<const B extends TsRawBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataBatch<B>>;
 }
 
 export type DatasetNamespace = {
   readonly [Alias in keyof typeof DATASETS]: DatasetClient<(typeof DATASETS)[Alias]>;
-} & {
-  get<C extends string>(dataset: C): DatasetClient<C>;
 };
 
 export interface SelectedClient {
-  read<const D extends readonly CatalogFieldDescriptor[]>(parameters?: SelectedReadParameters<D>): RequestHandle<DatasetRecord<string, CatalogDescriptorSelection<D>>>;
-  latest<const B extends SnapshotBlockName>(parameters?: Omit<LatestParameters<B>, "selector">): RequestHandle<ResolvedMarketDataMessage<B>>;
-  latestBatched<const B extends SnapshotBlockName>(parameters?: Omit<LatestParameters<B>, "selector">): RequestHandle<MarketDataBatch<B>>;
-  latestStream<const B extends StreamBlockName>(parameters?: Omit<LatestStreamParameters<B>, "selector">): RequestHandle<ResolvedMarketDataMessage<B>>;
-  latestStreamBatched<const B extends StreamBlockName>(parameters?: Omit<LatestStreamParameters<B>, "selector">): RequestHandle<MarketDataBatch<B>>;
-  timeseries<const B extends TsRawBlockName>(parameters: Omit<TsRawParameters<B>, "selector">): RequestHandle<MarketDataMessage<B>>;
-  timeseriesBatched<const B extends TsRawBlockName>(parameters: Omit<TsRawParameters<B>, "selector">): RequestHandle<MarketDataBatch<B>>;
+  read<const D extends readonly CatalogFieldDescriptor[]>(options?: DatasetReadOptions<D>): RequestHandle<DatasetRecord<string, CatalogDescriptorSelection<D>>>;
+  latest<const B extends SnapshotBlockName>(options?: LatestOptions<B>): RequestHandle<ResolvedMarketDataMessage<B>>;
+  latestBatched<const B extends SnapshotBlockName>(options?: LatestOptions<B>): RequestHandle<MarketDataBatch<B>>;
+  latestStream<const B extends StreamBlockName>(options?: LatestStreamOptions<B>): RequestHandle<ResolvedMarketDataMessage<B>>;
+  latestStreamBatched<const B extends StreamBlockName>(options?: LatestStreamOptions<B>): RequestHandle<MarketDataBatch<B>>;
+  timeseries<const B extends TsRawBlockName>(from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataMessage<B>>;
+  timeseriesBatched<const B extends TsRawBlockName>(from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataBatch<B>>;
 }
 
 export interface MultiSelectedClient {
-  read<const D extends readonly CatalogFieldDescriptor[]>(parameters?: SelectedReadParameters<D>): MultiRequestHandle<DatasetRecord<string, CatalogDescriptorSelection<D>>>;
-  latest<const B extends SnapshotBlockName>(parameters?: Omit<LatestParameters<B>, "selector">): MultiRequestHandle<ResolvedMarketDataMessage<B>>;
-  latestBatched<const B extends SnapshotBlockName>(parameters?: Omit<LatestParameters<B>, "selector">): MultiRequestHandle<MarketDataBatch<B>>;
-  latestStream<const B extends StreamBlockName>(parameters?: Omit<LatestStreamParameters<B>, "selector">): MultiRequestHandle<ResolvedMarketDataMessage<B>>;
-  latestStreamBatched<const B extends StreamBlockName>(parameters?: Omit<LatestStreamParameters<B>, "selector">): MultiRequestHandle<MarketDataBatch<B>>;
+  read<const D extends readonly CatalogFieldDescriptor[]>(options?: DatasetReadOptions<D>): MultiRequestHandle<DatasetRecord<string, CatalogDescriptorSelection<D>>>;
+  latest<const B extends SnapshotBlockName>(options?: LatestOptions<B>): MultiRequestHandle<ResolvedMarketDataMessage<B>>;
+  latestBatched<const B extends SnapshotBlockName>(options?: LatestOptions<B>): MultiRequestHandle<MarketDataBatch<B>>;
+  latestStream<const B extends StreamBlockName>(options?: LatestStreamOptions<B>): MultiRequestHandle<ResolvedMarketDataMessage<B>>;
+  latestStreamBatched<const B extends StreamBlockName>(options?: LatestStreamOptions<B>): MultiRequestHandle<MarketDataBatch<B>>;
 }
 
 export interface ResolvedMarketDataMessage<N extends BlockName = BlockName> extends MarketDataMessage<N> {
@@ -254,25 +208,21 @@ export interface Connection {
   readonly dataset: DatasetNamespace;
   select(selector: MarketSelector): SelectedClient;
   select(selectors: readonly [MarketSelector, ...MarketSelector[]]): MultiSelectedClient;
-  catalogLookup(catalog: string, parameters: CatalogLookupParameters): SingleRequestHandle<CatalogLookupResult>;
-  catalogSearch(catalog: string, parameters?: CatalogSearchParameters): SingleRequestHandle<CatalogSearchResult>;
-  streamMetadata(parameters: StreamMetadataParameters): RequestHandle<StreamMetadata>;
+  streamMetadata(dataset: string, quality: "RT" | "DL" | "EOD", options?: Pick<StreamMetadataParameters, "trace">): RequestHandle<StreamMetadata>;
 
   catalog_keyfigures<C extends KeyfiguresCatalog>(catalog: C): CatalogKeyfigures<C>;
-  latest<const B extends SnapshotBlockName>(parameters: LatestParameters<B>): RequestHandle<ResolvedMarketDataMessage<B>>;
-  latestBatched<const B extends SnapshotBlockName>(parameters: LatestParameters<B>): RequestHandle<MarketDataBatch<B>>;
-  latestStream<const B extends StreamBlockName>(parameters: LatestStreamParameters<B>): RequestHandle<ResolvedMarketDataMessage<B>>;
-  latestStreamBatched<const B extends StreamBlockName>(parameters: LatestStreamParameters<B>): RequestHandle<MarketDataBatch<B>>;
-  tsRaw<const B extends TsRawBlockName>(parameters: TsRawParameters<B>): RequestHandle<MarketDataMessage<B>>;
-  tsRawBatched<const B extends TsRawBlockName>(parameters: TsRawParameters<B>): RequestHandle<MarketDataBatch<B>>;
-  tsCandle<const B extends TsCandleBlockName>(parameters: TsCandleParameters<B>): RequestHandle<MarketDataMessage<B>>;
-  tsCandleBatched<const B extends TsCandleBlockName>(parameters: TsCandleParameters<B>): RequestHandle<MarketDataBatch<B>>;
-  tsRawStream<const B extends TsRawStreamBlockName>(parameters: TsRawStreamParameters<B>): RequestHandle<MarketDataMessage<B>>;
-  tsRawStreamBatched<const B extends TsRawStreamBlockName>(parameters: TsRawStreamParameters<B>): RequestHandle<MarketDataBatch<B>>;
-  tsCandleStream<const B extends TsCandleStreamBlockName>(parameters: TsCandleStreamParameters<B>): RequestHandle<MarketDataMessage<B>>;
-  tsCandleStreamBatched<const B extends TsCandleStreamBlockName>(parameters: TsCandleStreamParameters<B>): RequestHandle<MarketDataBatch<B>>;
-  catalog<const C extends CatalogName, const F extends readonly CatalogFieldName<C>[]>(parameters: CatalogParameters<C, F>): RequestHandle<DatasetRecord<C, CatalogParameterValues<C, F>>>;
-  catalog<const C extends string, const D extends readonly CatalogFieldDescriptor[]>(parameters: CatalogDescriptorParameters<C, D>): RequestHandle<DatasetRecord<C, CatalogDescriptorValues<C, D>>>;
+  latest<const B extends SnapshotBlockName>(selector: MarketSelector, options?: LatestOptions<B>): RequestHandle<ResolvedMarketDataMessage<B>>;
+  latestBatched<const B extends SnapshotBlockName>(selector: MarketSelector, options?: LatestOptions<B>): RequestHandle<MarketDataBatch<B>>;
+  latestStream<const B extends StreamBlockName>(selector: MarketSelector, options?: LatestStreamOptions<B>): RequestHandle<ResolvedMarketDataMessage<B>>;
+  latestStreamBatched<const B extends StreamBlockName>(selector: MarketSelector, options?: LatestStreamOptions<B>): RequestHandle<MarketDataBatch<B>>;
+  tsRaw<const B extends TsRawBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataMessage<B>>;
+  tsRawBatched<const B extends TsRawBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataBatch<B>>;
+  tsCandle<const B extends TsCandleBlockName>(selector: MarketSelector, from: bigint, through: bigint, cadenceMicros: bigint, options?: TsCandleOptions<B>): RequestHandle<MarketDataMessage<B>>;
+  tsCandleBatched<const B extends TsCandleBlockName>(selector: MarketSelector, from: bigint, through: bigint, cadenceMicros: bigint, options?: TsCandleOptions<B>): RequestHandle<MarketDataBatch<B>>;
+  tsRawStream<const B extends TsRawStreamBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawStreamOptions<B>): RequestHandle<MarketDataMessage<B>>;
+  tsRawStreamBatched<const B extends TsRawStreamBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawStreamOptions<B>): RequestHandle<MarketDataBatch<B>>;
+  tsCandleStream<const B extends TsCandleStreamBlockName>(selector: MarketSelector, from: bigint, through: bigint, cadenceMicros: bigint, options?: TsCandleStreamOptions<B>): RequestHandle<MarketDataMessage<B>>;
+  tsCandleStreamBatched<const B extends TsCandleStreamBlockName>(selector: MarketSelector, from: bigint, through: bigint, cadenceMicros: bigint, options?: TsCandleStreamOptions<B>): RequestHandle<MarketDataBatch<B>>;
   close(): Promise<void>;
 }
 
@@ -422,26 +372,28 @@ class ReconnectingConnection implements Connection {
   get dataset(): DatasetNamespace {
     const get = <C extends string>(id: C): DatasetClient<C> => ({
       id,
-      read: <D extends readonly CatalogFieldDescriptor[]>(parameters: DatasetReadParameters<D>) =>
+      read: <D extends readonly CatalogFieldDescriptor[]>(selector: MarketSelector, options: DatasetReadOptions<D> = {}) =>
         this.#startCatalog(
           id,
-          [selectorExpression(parameters.selector)],
-          parameters.fields ?? "*",
-          parameters.trace,
-          new Map([[selectorExpression(parameters.selector), parameters.selector]]),
+          [selectorExpression(selector)],
+          options.fields ?? "*",
+          options.trace,
+          new Map([[selectorExpression(selector), selector]]),
         ) as RequestHandle<DatasetRecord<C, CatalogDescriptorSelection<D>>>,
-      search: parameters => this.catalogSearch(id, parameters),
-      lookup: parameters => this.catalogLookup(id, parameters),
-      latest: parameters => this.latest({...parameters, dataset: id}),
-      latestBatched: parameters => this.latestBatched({...parameters, dataset: id}),
-      latestStream: parameters => this.latestStream({...parameters, dataset: id}),
-      latestStreamBatched: parameters => this.latestStreamBatched({...parameters, dataset: id}),
-      timeseries: parameters => this.tsRaw({...parameters, dataset: id}),
-      timeseriesBatched: parameters => this.tsRawBatched({...parameters, dataset: id}),
+      search: parameters => this.#catalogSearch(id, parameters),
+      lookup: (query, options) => this.#catalogLookup(id, {
+        ...(typeof query === "string" ? {expression: query} : {dimensions: query}),
+        ...options,
+      }),
+      latest: (selector, options) => this.latest(selector, {...options, dataset: id}),
+      latestBatched: (selector, options) => this.latestBatched(selector, {...options, dataset: id}),
+      latestStream: (selector, options) => this.latestStream(selector, {...options, dataset: id}),
+      latestStreamBatched: (selector, options) => this.latestStreamBatched(selector, {...options, dataset: id}),
+      timeseries: (selector, from, through, options) => this.tsRaw(selector, from, through, {...options, dataset: id}),
+      timeseriesBatched: (selector, from, through, options) => this.tsRawBatched(selector, from, through, {...options, dataset: id}),
     });
     return Object.freeze({
       ...Object.fromEntries(Object.entries(DATASETS).map(([alias, id]) => [alias, get(id)])),
-      get,
     }) as DatasetNamespace;
   }
 
@@ -449,161 +401,161 @@ class ReconnectingConnection implements Connection {
   select(selectors: readonly [MarketSelector, ...MarketSelector[]]): MultiSelectedClient;
   select(selection: MarketSelector | readonly [MarketSelector, ...MarketSelector[]]): SelectedClient | MultiSelectedClient {
     const selected = (selector: MarketSelector): SelectedClient => Object.freeze({
-      read: <D extends readonly CatalogFieldDescriptor[]>(parameters: SelectedReadParameters<D> = {}) =>
+      read: <D extends readonly CatalogFieldDescriptor[]>(options: DatasetReadOptions<D> = {}) =>
         this.#startCatalog(
           "",
           [selectorExpression(selector)],
-          parameters.fields ?? "*",
-          parameters.trace,
+          options.fields ?? "*",
+          options.trace,
           new Map([[selectorExpression(selector), selector]]),
         ) as RequestHandle<DatasetRecord<string, CatalogDescriptorSelection<D>>>,
-      latest: <B extends SnapshotBlockName>(parameters: Omit<LatestParameters<B>, "selector"> = {}) =>
-        this.latest({...parameters, selector}),
-      latestBatched: <B extends SnapshotBlockName>(parameters: Omit<LatestParameters<B>, "selector"> = {}) =>
-        this.latestBatched({...parameters, selector}),
-      latestStream: <B extends StreamBlockName>(parameters: Omit<LatestStreamParameters<B>, "selector"> = {}) =>
-        this.latestStream({...parameters, selector}),
-      latestStreamBatched: <B extends StreamBlockName>(parameters: Omit<LatestStreamParameters<B>, "selector"> = {}) =>
-        this.latestStreamBatched({...parameters, selector}),
-      timeseries: <B extends TsRawBlockName>(parameters: Omit<TsRawParameters<B>, "selector">) =>
-        this.tsRaw({...parameters, selector}),
-      timeseriesBatched: <B extends TsRawBlockName>(parameters: Omit<TsRawParameters<B>, "selector">) =>
-        this.tsRawBatched({...parameters, selector}),
+      latest: <B extends SnapshotBlockName>(options: LatestOptions<B> = {}) =>
+        this.latest(selector, options),
+      latestBatched: <B extends SnapshotBlockName>(options: LatestOptions<B> = {}) =>
+        this.latestBatched(selector, options),
+      latestStream: <B extends StreamBlockName>(options: LatestStreamOptions<B> = {}) =>
+        this.latestStream(selector, options),
+      latestStreamBatched: <B extends StreamBlockName>(options: LatestStreamOptions<B> = {}) =>
+        this.latestStreamBatched(selector, options),
+      timeseries: <B extends TsRawBlockName>(from: bigint, through: bigint, options: TsRawOptions<B> = {}) =>
+        this.tsRaw(selector, from, through, options),
+      timeseriesBatched: <B extends TsRawBlockName>(from: bigint, through: bigint, options: TsRawOptions<B> = {}) =>
+        this.tsRawBatched(selector, from, through, options),
     });
 
     if (!Array.isArray(selection)) return selected(selection as MarketSelector);
     if (selection.length === 0) throw new TypeError("select requires at least one selector");
     const clients = selection.map(selected);
     return Object.freeze({
-      read: <D extends readonly CatalogFieldDescriptor[]>(parameters: SelectedReadParameters<D> = {}) =>
-        new MergedHandle(clients.map(client => client.read(parameters))),
-      latest: <B extends SnapshotBlockName>(parameters: Omit<LatestParameters<B>, "selector"> = {}) =>
-        new MergedHandle(clients.map(client => client.latest(parameters))),
-      latestBatched: <B extends SnapshotBlockName>(parameters: Omit<LatestParameters<B>, "selector"> = {}) =>
-        new MergedHandle(clients.map(client => client.latestBatched(parameters))),
-      latestStream: <B extends StreamBlockName>(parameters: Omit<LatestStreamParameters<B>, "selector"> = {}) =>
-        new MergedHandle(clients.map(client => client.latestStream(parameters))),
-      latestStreamBatched: <B extends StreamBlockName>(parameters: Omit<LatestStreamParameters<B>, "selector"> = {}) =>
-        new MergedHandle(clients.map(client => client.latestStreamBatched(parameters))),
+      read: <D extends readonly CatalogFieldDescriptor[]>(options: DatasetReadOptions<D> = {}) =>
+        new MergedHandle(clients.map(client => client.read(options))),
+      latest: <B extends SnapshotBlockName>(options: LatestOptions<B> = {}) =>
+        new MergedHandle(clients.map(client => client.latest(options))),
+      latestBatched: <B extends SnapshotBlockName>(options: LatestOptions<B> = {}) =>
+        new MergedHandle(clients.map(client => client.latestBatched(options))),
+      latestStream: <B extends StreamBlockName>(options: LatestStreamOptions<B> = {}) =>
+        new MergedHandle(clients.map(client => client.latestStream(options))),
+      latestStreamBatched: <B extends StreamBlockName>(options: LatestStreamOptions<B> = {}) =>
+        new MergedHandle(clients.map(client => client.latestStreamBatched(options))),
     });
   }
 
   latest<const B extends SnapshotBlockName>(
-    parameters: LatestParameters<B>,
+    selector: MarketSelector, options: LatestOptions<B> = {},
   ): RequestHandle<ResolvedMarketDataMessage<B>> {
-    return this.#start("SNAPSHOT", parameters) as RequestHandle<ResolvedMarketDataMessage<B>>;
+    return this.#start("SNAPSHOT", {selector, ...options}) as RequestHandle<ResolvedMarketDataMessage<B>>;
   }
 
   latestBatched<const B extends SnapshotBlockName>(
-    parameters: LatestParameters<B>,
+    selector: MarketSelector, options: LatestOptions<B> = {},
   ): RequestHandle<MarketDataBatch<B>> {
-    return this.#start("SNAPSHOT", parameters, undefined, true) as RequestHandle<MarketDataBatch<B>>;
+    return this.#start("SNAPSHOT", {selector, ...options}, undefined, true) as RequestHandle<MarketDataBatch<B>>;
   }
 
   latestStream<const B extends StreamBlockName>(
-    parameters: LatestStreamParameters<B>,
+    selector: MarketSelector, options: LatestStreamOptions<B> = {},
   ): RequestHandle<ResolvedMarketDataMessage<B>> {
-    return this.#start("STREAM", parameters) as RequestHandle<ResolvedMarketDataMessage<B>>;
+    return this.#start("STREAM", {selector, ...options}) as RequestHandle<ResolvedMarketDataMessage<B>>;
   }
 
   latestStreamBatched<const B extends StreamBlockName>(
-    parameters: LatestStreamParameters<B>,
+    selector: MarketSelector, options: LatestStreamOptions<B> = {},
   ): RequestHandle<MarketDataBatch<B>> {
-    return this.#start("STREAM", parameters, undefined, true) as RequestHandle<MarketDataBatch<B>>;
+    return this.#start("STREAM", {selector, ...options}, undefined, true) as RequestHandle<MarketDataBatch<B>>;
   }
 
   tsRaw<const B extends TsRawBlockName>(
-    parameters: TsRawParameters<B>,
+    selector: MarketSelector, from: bigint, through: bigint, options: TsRawOptions<B> = {},
   ): RequestHandle<MarketDataMessage<B>> {
-    if (parameters.from > parameters.through) throw new RangeError("from must not exceed through");
-    const maxMessages = parameters.maxMessages ?? 100;
+    if (from > through) throw new RangeError("from must not exceed through");
+    const maxMessages = options.maxMessages ?? 100;
     if (!Number.isInteger(maxMessages) || maxMessages < 1 || maxMessages > 10_000) {
       throw new RangeError("maxMessages must be an integer from 1 through 10000");
     }
-    this.#validateQuality(parameters.quality);
-    return this.#start("TS_RAW", parameters, {maxMessages}) as RequestHandle<MarketDataMessage<B>>;
+    this.#validateQuality(options.quality);
+    return this.#start("TS_RAW", {selector, from, through, ...options}, {maxMessages}) as RequestHandle<MarketDataMessage<B>>;
   }
 
   tsRawBatched<const B extends TsRawBlockName>(
-    parameters: TsRawParameters<B>,
+    selector: MarketSelector, from: bigint, through: bigint, options: TsRawOptions<B> = {},
   ): RequestHandle<MarketDataBatch<B>> {
-    if (parameters.from > parameters.through) throw new RangeError("from must not exceed through");
-    const maxMessages = parameters.maxMessages ?? 100;
+    if (from > through) throw new RangeError("from must not exceed through");
+    const maxMessages = options.maxMessages ?? 100;
     if (!Number.isInteger(maxMessages) || maxMessages < 1 || maxMessages > 10_000) {
       throw new RangeError("maxMessages must be an integer from 1 through 10000");
     }
-    this.#validateQuality(parameters.quality);
-    return this.#start("TS_RAW", parameters, { maxMessages }, true) as RequestHandle<MarketDataBatch<B>>;
+    this.#validateQuality(options.quality);
+    return this.#start("TS_RAW", {selector, from, through, ...options}, { maxMessages }, true) as RequestHandle<MarketDataBatch<B>>;
   }
 
   tsCandle<const B extends TsCandleBlockName>(
-    parameters: TsCandleParameters<B>,
+    selector: MarketSelector, from: bigint, through: bigint, cadenceMicros: bigint, options: TsCandleOptions<B> = {},
   ): RequestHandle<MarketDataMessage<B>> {
-    if (parameters.from > parameters.through) throw new RangeError("from must not exceed through");
-    if (parameters.cadenceMicros <= 0n) throw new RangeError("cadenceMicros must be positive");
-    this.#validateQuality(parameters.quality);
-    return this.#start("TS_CANDLE", parameters) as RequestHandle<MarketDataMessage<B>>;
+    if (from > through) throw new RangeError("from must not exceed through");
+    if (cadenceMicros <= 0n) throw new RangeError("cadenceMicros must be positive");
+    this.#validateQuality(options.quality);
+    return this.#start("TS_CANDLE", {selector, from, through, cadenceMicros, ...options}) as RequestHandle<MarketDataMessage<B>>;
   }
 
   tsCandleBatched<const B extends TsCandleBlockName>(
-    parameters: TsCandleParameters<B>,
+    selector: MarketSelector, from: bigint, through: bigint, cadenceMicros: bigint, options: TsCandleOptions<B> = {},
   ): RequestHandle<MarketDataBatch<B>> {
-    if (parameters.from > parameters.through) throw new RangeError("from must not exceed through");
-    if (parameters.cadenceMicros <= 0n) throw new RangeError("cadenceMicros must be positive");
-    if (parameters.quality !== undefined && !["RT", "DL", "EOD"].includes(parameters.quality.trim().toUpperCase())) {
+    if (from > through) throw new RangeError("from must not exceed through");
+    if (cadenceMicros <= 0n) throw new RangeError("cadenceMicros must be positive");
+    if (options.quality !== undefined && !["RT", "DL", "EOD"].includes(options.quality.trim().toUpperCase())) {
       throw new RangeError("quality must be RT, DL, or EOD");
     }
-    return this.#start("TS_CANDLE", parameters, undefined, true) as RequestHandle<MarketDataBatch<B>>;
+    return this.#start("TS_CANDLE", {selector, from, through, cadenceMicros, ...options}, undefined, true) as RequestHandle<MarketDataBatch<B>>;
   }
 
   tsRawStream<const B extends TsRawStreamBlockName>(
-    parameters: TsRawStreamParameters<B>,
+    selector: MarketSelector, from: bigint, through: bigint, options: TsRawStreamOptions<B> = {},
   ): RequestHandle<MarketDataMessage<B>> {
-    if (parameters.from > parameters.through) throw new RangeError("from must not exceed through");
-    const maxMessages = parameters.maxMessages ?? 100;
+    if (from > through) throw new RangeError("from must not exceed through");
+    const maxMessages = options.maxMessages ?? 100;
     if (!Number.isInteger(maxMessages) || maxMessages < 1 || maxMessages > 10_000) {
       throw new RangeError("maxMessages must be an integer from 1 through 10000");
     }
-    this.#validateQuality(parameters.quality, false);
-    return this.#start("TS_RAW_STREAM", parameters, {maxMessages}) as RequestHandle<MarketDataMessage<B>>;
+    this.#validateQuality(options.quality, false);
+    return this.#start("TS_RAW_STREAM", {selector, from, through, ...options}, {maxMessages}) as RequestHandle<MarketDataMessage<B>>;
   }
 
   tsRawStreamBatched<const B extends TsRawStreamBlockName>(
-    parameters: TsRawStreamParameters<B>,
+    selector: MarketSelector, from: bigint, through: bigint, options: TsRawStreamOptions<B> = {},
   ): RequestHandle<MarketDataBatch<B>> {
-    if (parameters.from > parameters.through) throw new RangeError("from must not exceed through");
-    const maxMessages = parameters.maxMessages ?? 100;
+    if (from > through) throw new RangeError("from must not exceed through");
+    const maxMessages = options.maxMessages ?? 100;
     if (!Number.isInteger(maxMessages) || maxMessages < 1 || maxMessages > 10_000) {
       throw new RangeError("maxMessages must be an integer from 1 through 10000");
     }
-    this.#validateQuality(parameters.quality, false);
-    return this.#start("TS_RAW_STREAM", parameters, { maxMessages }, true) as RequestHandle<MarketDataBatch<B>>;
+    this.#validateQuality(options.quality, false);
+    return this.#start("TS_RAW_STREAM", {selector, from, through, ...options}, { maxMessages }, true) as RequestHandle<MarketDataBatch<B>>;
   }
 
   tsCandleStream<const B extends TsCandleStreamBlockName>(
-    parameters: TsCandleStreamParameters<B>,
+    selector: MarketSelector, from: bigint, through: bigint, cadenceMicros: bigint, options: TsCandleStreamOptions<B> = {},
   ): RequestHandle<MarketDataMessage<B>> {
-    if (parameters.from > parameters.through) throw new RangeError("from must not exceed through");
-    if (parameters.cadenceMicros <= 0n) throw new RangeError("cadenceMicros must be positive");
-    this.#validateQuality(parameters.quality, false);
-    const updateIntervalMillis = parameters.updateIntervalMillis ?? 1_000;
+    if (from > through) throw new RangeError("from must not exceed through");
+    if (cadenceMicros <= 0n) throw new RangeError("cadenceMicros must be positive");
+    this.#validateQuality(options.quality, false);
+    const updateIntervalMillis = options.updateIntervalMillis ?? 1_000;
     if (!Number.isInteger(updateIntervalMillis) || updateIntervalMillis < 0 || updateIntervalMillis > 0xffff_ffff) {
       throw new RangeError("updateIntervalMillis must be an unsigned 32-bit integer");
     }
-    return this.#start("TS_CANDLE_STREAM", parameters, {updateIntervalMillis}) as RequestHandle<MarketDataMessage<B>>;
+    return this.#start("TS_CANDLE_STREAM", {selector, from, through, cadenceMicros, ...options}, {updateIntervalMillis}) as RequestHandle<MarketDataMessage<B>>;
   }
 
   tsCandleStreamBatched<const B extends TsCandleStreamBlockName>(
-    parameters: TsCandleStreamParameters<B>,
+    selector: MarketSelector, from: bigint, through: bigint, cadenceMicros: bigint, options: TsCandleStreamOptions<B> = {},
   ): RequestHandle<MarketDataBatch<B>> {
-    if (parameters.from > parameters.through) throw new RangeError("from must not exceed through");
-    if (parameters.cadenceMicros <= 0n) throw new RangeError("cadenceMicros must be positive");
-    this.#validateQuality(parameters.quality, false);
-    const updateIntervalMillis = parameters.updateIntervalMillis ?? 1_000;
+    if (from > through) throw new RangeError("from must not exceed through");
+    if (cadenceMicros <= 0n) throw new RangeError("cadenceMicros must be positive");
+    this.#validateQuality(options.quality, false);
+    const updateIntervalMillis = options.updateIntervalMillis ?? 1_000;
     if (!Number.isInteger(updateIntervalMillis) || updateIntervalMillis < 0 || updateIntervalMillis > 0xffff_ffff) {
       throw new RangeError("updateIntervalMillis must be an unsigned 32-bit integer");
     }
-    return this.#start("TS_CANDLE_STREAM", parameters, { updateIntervalMillis }, true) as RequestHandle<MarketDataBatch<B>>;
+    return this.#start("TS_CANDLE_STREAM", {selector, from, through, cadenceMicros, ...options}, { updateIntervalMillis }, true) as RequestHandle<MarketDataBatch<B>>;
   }
 
   #validateQuality(quality: string | undefined, allowEod = true): void {
@@ -612,37 +564,6 @@ class ReconnectingConnection implements Connection {
     if (!["RT", "DL", "EOD"].includes(normalized) || (!allowEod && normalized === "EOD")) {
       throw new RangeError(allowEod ? "quality must be RT, DL, or EOD" : "streaming quality must be RT or DL");
     }
-  }
-
-  catalog<
-    const C extends CatalogName,
-    const F extends readonly CatalogFieldName<C>[],
-  >(
-    parameters: CatalogParameters<C, F>,
-  ): RequestHandle<DatasetRecord<C, CatalogParameterValues<C, F>>>;
-  catalog<
-    const C extends string,
-    const D extends readonly CatalogFieldDescriptor[],
-  >(
-    parameters: CatalogDescriptorParameters<C, D>,
-  ): RequestHandle<DatasetRecord<C, CatalogDescriptorValues<C, D>>>;
-  catalog(
-    parameters: {
-      readonly catalog: string;
-      readonly identifiers: readonly string[];
-      readonly fields?: readonly (string | CatalogFieldDescriptor)[];
-      readonly trace?: TraceContext;
-    },
-  ): RequestHandle<DatasetRecord<string, Record<string, unknown>>> {
-    if (!parameters.catalog.trim()) throw new TypeError("Catalog name must not be empty");
-    const selection = parameters.fields === undefined ? "*" : parameters.fields.map(field =>
-      typeof field === "string" ? {label: field, decode: (payload: Uint8Array) => payload} : field);
-    return this.#startCatalog(
-      parameters.catalog,
-      parameters.identifiers,
-      selection as CatalogFieldWildcard | CatalogFieldDescriptor[],
-      parameters.trace,
-    ) as RequestHandle<DatasetRecord<string, Record<string, unknown>>>;
   }
 
   catalog_keyfigures<C extends KeyfiguresCatalog>(catalog: C): CatalogKeyfigures<C> {
@@ -700,7 +621,7 @@ class ReconnectingConnection implements Connection {
     this.#cancellations.clear();
   }
 
-  catalogSearch(catalog: string, parameters: CatalogSearchParameters = {}): SingleRequestHandle<CatalogSearchResult> {
+  #catalogSearch(catalog: string, parameters: CatalogSearchParameters = {}): SingleRequestHandle<CatalogSearchResult> {
     if (this.#closing) throw new ConnectionClosedError();
     const {trace, ...query} = parameters;
     const json = JSON.stringify(query, (_key, value) => {
@@ -716,7 +637,7 @@ class ReconnectingConnection implements Connection {
     if (this.#authenticated && this.#socket?.readyState === this.#WebSocket.OPEN) this.#socket.send(active.encoded);
     return handle;
   }
-  catalogLookup(catalog: string, parameters: CatalogLookupParameters): SingleRequestHandle<CatalogLookupResult> {
+  #catalogLookup(catalog: string, parameters: CatalogLookupParameters): SingleRequestHandle<CatalogLookupResult> {
     if (this.#closing) throw new ConnectionClosedError();
     const {trace, ...query} = parameters;
     const json = JSON.stringify(query, (_key, value) => {
@@ -733,20 +654,15 @@ class ReconnectingConnection implements Connection {
     return handle;
   }
 
-  sourceProgress(parameters: Omit<ListingSelector, "key" | "blocks" | "progressOnly">): RequestHandle<ListingEvent> {
-    const selector = {...parameters, key: "", blocks: [], progressOnly: true};
-    return this.listingLatest(selector);
-  }
-
   listingLatest(parameters: ListingSelector & {readonly trace?: TraceContext}): RequestHandle<ListingEvent> {
     if (this.#closing) throw new ConnectionClosedError();
     const {trace, ...selector} = parameters;
-    if (!selector.dataset || (!selector.progressOnly && !selector.key) || new TextEncoder().encode(selector.key).length > 1024 || !["RT", "DL", "EOD"].includes(selector.quality) || (!selector.progressOnly && !selector.blocks.length) || (selector.progressOnly && (selector.key.length > 0 || selector.blocks.length > 0)) || selector.blocks.length > 64 || !selector.blocks.every(id => Number.isInteger(id) && id >= 0 && id <= 65535)) throw new TypeError("invalid listing selector");
+    if (!selector.dataset || !selector.key || new TextEncoder().encode(selector.key).length > 1024 || !["RT", "DL", "EOD"].includes(selector.quality) || !selector.blocks.length || selector.blocks.length > 64 || !selector.blocks.every(id => Number.isInteger(id) && id >= 0 && id <= 65535)) throw new TypeError("invalid listing selector");
     const id = this.#nextId++;
     const handle = new Handle<ListingEvent>(id, () => this.#cancel(id));
     const active: ActiveRequest = {command: "LISTING_LATEST", encoded: encodeRequest({command:"LISTING_LATEST",id,parameters:JSON.stringify(selector),...(trace ? {trace} : {})}), handle: handle as Handle<unknown>, decode: response => {
       const event = decodeListingResponse(response);
-      if (!!event.source.progressOnly !== !!selector.progressOnly || event.source.dataset !== selector.dataset || event.source.quality !== selector.quality || event.source.key !== selector.key || event.source.blocks.length !== selector.blocks.length || event.source.blocks.some((id,index) => id !== selector.blocks[index])) throw new ProtocolError("listing source does not match request");
+      if (event.source.dataset !== selector.dataset || event.source.quality !== selector.quality || event.source.key !== selector.key || event.source.blocks.length !== selector.blocks.length || event.source.blocks.some((id,index) => id !== selector.blocks[index])) throw new ProtocolError("listing source does not match request");
       return event;
     }};
     this.#track(active);
@@ -754,9 +670,9 @@ class ReconnectingConnection implements Connection {
     return handle;
   }
 
-  streamMetadata(parameters: StreamMetadataParameters): RequestHandle<StreamMetadata> {
+  streamMetadata(dataset: string, quality: "RT" | "DL" | "EOD", options: Pick<StreamMetadataParameters, "trace"> = {}): RequestHandle<StreamMetadata> {
     if (this.#closing) throw new ConnectionClosedError();
-    const { dataset, quality, trace } = parameters;
+    const { trace } = options;
     if (!dataset.trim() || new TextEncoder().encode(dataset).length > 256 || !["RT", "DL", "EOD"].includes(quality)) {
       throw new TypeError("Stream metadata requires dataset and RT/DL/EOD quality");
     }

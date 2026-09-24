@@ -3,11 +3,11 @@
   "datasetsSha256": "58030c493aaa92fa4e3e02ae159ecd6f0ec251f2a5af3fc2e644576100480c9f",
   "environmentRevision": "globex-sharded-catalog-3",
   "languages": {
-    "typescript": "4210b56efd2f5fbde99f0eebef69b0dd6be0bf473aeed8d1182c4e8b8f7aa407"
+    "typescript": "5926b4f3502ca4d3b2d4a1af76d807d112befa79cbfd43338acb0662e8e04098"
   },
   "projectId": "globex",
-  "requestId": "sdk-a2f63d6bd2ebf48885ecfc0e",
+  "requestId": "sdk-65843c23670a43b3a5d0f4f5",
   "rulesetSha256": "124a3b207ba6d116295061c79f7303894d879c5e7a02d41db7feed83841b6e5e",
-  "sdkInputsSha256": "13431e724a245e8794789ba81f8343789b7d14378ff9993af181ea7c60298227",
+  "sdkInputsSha256": "d4f776b6dff563da14a7679539e28492b6e0ecfd8e0a5332bbd429e6ecae8619",
   "version": 2
 }

@@ -1,5 +1,5 @@
 import type { CatalogDescriptorSelection, CatalogFieldDescriptor } from "./catalog.js";
-import type { Connection, DatasetReadParameters, DatasetRecord } from "./connection.js";
+import type { Connection, DatasetReadOptions, DatasetRecord } from "./connection.js";
 import type { MarketDataFields, StreamBlockName } from "./generated/bindings.js";
 import type { MarketDataDatasetRecord } from "./protocol.js";
 import { DATASETS } from "./generated/datasets.js";
@@ -12,12 +12,10 @@ export interface ExternalStoreOptions {
 }
 export interface CachedDatasetClient<C extends string> {
     readonly id: C;
-    read<const D extends readonly CatalogFieldDescriptor[]>(parameters: DatasetReadParameters<D>): Promise<readonly DatasetRecord<C, CatalogDescriptorSelection<D>>[]>;
+    read<const D extends readonly CatalogFieldDescriptor[]>(selector: MarketSelector, options?: DatasetReadOptions<D>): Promise<readonly DatasetRecord<C, CatalogDescriptorSelection<D>>[]>;
 }
 export type CachedDatasetNamespace = {
     readonly [Alias in keyof typeof DATASETS]: CachedDatasetClient<(typeof DATASETS)[Alias]>;
-} & {
-    get<C extends string>(dataset: C): CachedDatasetClient<C>;
 };
 export interface ExternalRecordSnapshot<N extends StreamBlockName = StreamBlockName> {
     readonly datasetRecord: MarketDataDatasetRecord;

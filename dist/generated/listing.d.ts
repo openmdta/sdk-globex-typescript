@@ -2,7 +2,6 @@ export interface ListingSelector {
     readonly dataset: string;
     readonly quality: "RT" | "DL" | "EOD";
     readonly key: string;
-    readonly progressOnly?: boolean;
     readonly blocks: readonly number[];
 }
 export interface ListingEvent {
@@ -10,10 +9,6 @@ export interface ListingEvent {
     readonly incarnation: string;
     readonly snapshot: boolean;
     readonly connected: boolean;
-    readonly coverageFence: bigint;
-    readonly progressUs: bigint | null;
-    readonly gapped: boolean;
-    readonly gapThroughId: bigint;
     readonly blocks: readonly {
         readonly id: number;
         readonly messageId: bigint;
