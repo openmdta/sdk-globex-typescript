@@ -160,7 +160,11 @@ export class RequestError extends Error {
 export const blockMask = (blocks: readonly BlockName[] | undefined): bigint => {
   if (!blocks?.length) return 0n;
   let mask = 0n;
-  for (const block of blocks) mask |= 1n << BigInt(BLOCK_BINDINGS[block].format.templateId);
+  for (const block of blocks) {
+    const binding = BLOCK_BINDINGS[block];
+    // Masks carry template IDs only; combining schemas can select a different block with the same ID.
+    mask |= 1n << BigInt((binding.canonicalFormat ?? binding.format).templateId);
+  }
   return mask;
 };
 
@@ -278,6 +282,7 @@ export const decodeBatch = (response: StandardResponse, selector: MarketSelector
         version: view.getUint16(row + 4, true),
         blockLength: view.getUint16(row + 6, true),
       },
+      eventTimeMicros: view.getBigUint64(row + 8, true),
       clear: clear === 1,
       payloadOffset: view.getUint32(row + 17, true),
       payloadLength: view.getUint32(row + 21, true),
@@ -316,10 +321,14 @@ export const decodeBatch = (response: StandardResponse, selector: MarketSelector
     const entries: {readonly name: string; readonly value: unknown}[] = [];
     for (const field of fieldRows.slice(row.firstField, row.firstField + row.fieldCount)) {
       const binding = Object.values(BLOCK_BINDINGS).find(candidate =>
-        candidate.format.schemaId === field.format.schemaId && candidate.format.templateId === field.format.templateId
+        (candidate.format.schemaId === field.format.schemaId && candidate.format.templateId === field.format.templateId)
+        || (candidate.canonicalFormat?.schemaId === field.format.schemaId && candidate.canonicalFormat.templateId === field.format.templateId)
       );
       if (!binding) throw new ProtocolError(`unknown export format ${field.format.schemaId}/${field.format.templateId}`);
-      if (field.format.version !== binding.format.version || field.format.blockLength !== binding.format.blockLength) {
+      const canonical = binding.canonicalFormat?.schemaId === field.format.schemaId
+        && binding.canonicalFormat.templateId === field.format.templateId;
+      const expected = canonical ? binding.canonicalFormat! : binding.format;
+      if (field.format.version !== expected.version || field.format.blockLength !== expected.blockLength) {
         throw new ProtocolError(`unsupported ${binding.name} version ${field.format.version} blockLength ${field.format.blockLength}`);
       }
       if (Object.hasOwn(fields, binding.property)) throw new ProtocolError(`message contains ${binding.name} more than once`);
@@ -328,12 +337,15 @@ export const decodeBatch = (response: StandardResponse, selector: MarketSelector
         throw new ProtocolError(`${binding.name} payload is outside the batch payload`);
       }
       if (field.clear && field.payloadLength !== 0) throw new ProtocolError(`${binding.name} clear carries a payload`);
-      const value = field.clear ? null : binding.codec.decodeBody(
-        payload.value,
-        field.payloadOffset,
-        field.format.version,
-        field.format.blockLength,
-      );
+      let body: Uint8Array = payload.value;
+      let bodyOffset = field.payloadOffset;
+      if (canonical && !field.clear) {
+        body = new Uint8Array(binding.format.blockLength);
+        new DataView(body.buffer).setBigUint64(0, field.eventTimeMicros, true);
+        body.set(payload.value.subarray(field.payloadOffset, end), 8);
+        bodyOffset = 0;
+      }
+      const value = field.clear ? null : binding.codec.decodeBody(body, bodyOffset);
       fields[binding.property] = value;
       entries.push(Object.freeze({name: binding.property, value}));
     }

@@ -64,5 +64,3 @@ export * from "./search.js";
 export * from "./lookup.js";
 
 export * as CatalogModels from "./generated/catalog-models.js";
-
-export type {ListingSelector, ListingEvent} from "./generated/listing.js";

@@ -6,6 +6,14 @@ export interface CatalogFieldDescriptor<L extends string = string, V = unknown> 
   readonly fixedLength?: number | null;
   decode(payload: Uint8Array): V;
 }
+/** Bind a dataset-local label to a generated Catalog model. */
+export function catalogField<const L extends string, V, const M extends boolean>(
+  label: L,
+  model: {readonly multiple: M; decode(payload: Uint8Array): V},
+): CatalogFieldDescriptor<L, V> & {readonly multiple: M} {
+  if (!label.trim()) throw new TypeError("Catalog field label must not be empty");
+  return {label, multiple: model.multiple, decode: payload => model.decode(payload)};
+}
 export type CatalogName = string;
 export type CatalogValueMap = Record<string, Record<string, Uint8Array>>;
 export type CatalogFieldName<C extends CatalogName> = keyof CatalogValueMap[C] & string;

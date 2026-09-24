@@ -21,6 +21,7 @@ export interface BlockBinding<T extends PublicExport = PublicExport> {
   readonly name: BlockName;
   readonly property: string;
   readonly format: SbeFormat;
+  readonly canonicalFormat: SbeFormat | null;
   readonly internalWireId: number | null;
   readonly commands: readonly CommandName[];
   readonly codec: {
@@ -29,15 +30,15 @@ export interface BlockBinding<T extends PublicExport = PublicExport> {
 }
 
 export const BLOCK_BINDINGS: Readonly<Record<BlockName, BlockBinding>> = {
-  BidAsk: { name: "BidAsk", property: "bidAsk", format: BidAsk.format, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: BidAsk },
-  Trade: { name: "Trade", property: "trade", format: Trade.format, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: Trade },
-  BidAskCandle: { name: "BidAskCandle", property: "bidAskCandle", format: BidAskCandle.format, internalWireId: null, commands: ["TS_CANDLE", "TS_CANDLE_STREAM"], codec: BidAskCandle },
-  TradeCandle: { name: "TradeCandle", property: "tradeCandle", format: TradeCandle.format, internalWireId: null, commands: ["TS_CANDLE", "TS_CANDLE_STREAM"], codec: TradeCandle },
-  BidDailyOhlc: { name: "BidDailyOhlc", property: "bidDailyOhlc", format: BidDailyOhlc.format, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: BidDailyOhlc },
-  AskDailyOhlc: { name: "AskDailyOhlc", property: "askDailyOhlc", format: AskDailyOhlc.format, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: AskDailyOhlc },
-  TradeDailyOhlc: { name: "TradeDailyOhlc", property: "tradeDailyOhlc", format: TradeDailyOhlc.format, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: TradeDailyOhlc },
-  IexTradeAttributes: { name: "IexTradeAttributes", property: "iexTradeAttributes", format: IexTradeAttributes.format, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: IexTradeAttributes },
-  ClientTradeAttributes: { name: "ClientTradeAttributes", property: "clientTradeAttributes", format: ClientTradeAttributes.format, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: ClientTradeAttributes },
+  BidAsk: { name: "BidAsk", property: "bidAsk", format: BidAsk.format, canonicalFormat: { schemaId: 100, templateId: 10, version: 3, blockLength: 27 }, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: BidAsk },
+  Trade: { name: "Trade", property: "trade", format: Trade.format, canonicalFormat: { schemaId: 100, templateId: 11, version: 3, blockLength: 18 }, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: Trade },
+  BidAskCandle: { name: "BidAskCandle", property: "bidAskCandle", format: BidAskCandle.format, canonicalFormat: { schemaId: 100, templateId: 12, version: 3, blockLength: 89 }, internalWireId: null, commands: ["TS_CANDLE", "TS_CANDLE_STREAM"], codec: BidAskCandle },
+  TradeCandle: { name: "TradeCandle", property: "tradeCandle", format: TradeCandle.format, canonicalFormat: { schemaId: 100, templateId: 13, version: 3, blockLength: 52 }, internalWireId: null, commands: ["TS_CANDLE", "TS_CANDLE_STREAM"], codec: TradeCandle },
+  BidDailyOhlc: { name: "BidDailyOhlc", property: "bidDailyOhlc", format: BidDailyOhlc.format, canonicalFormat: { schemaId: 100, templateId: 14, version: 3, blockLength: 53 }, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: BidDailyOhlc },
+  AskDailyOhlc: { name: "AskDailyOhlc", property: "askDailyOhlc", format: AskDailyOhlc.format, canonicalFormat: { schemaId: 100, templateId: 15, version: 3, blockLength: 53 }, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: AskDailyOhlc },
+  TradeDailyOhlc: { name: "TradeDailyOhlc", property: "tradeDailyOhlc", format: TradeDailyOhlc.format, canonicalFormat: { schemaId: 100, templateId: 16, version: 3, blockLength: 53 }, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: TradeDailyOhlc },
+  IexTradeAttributes: { name: "IexTradeAttributes", property: "iexTradeAttributes", format: IexTradeAttributes.format, canonicalFormat: null, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: IexTradeAttributes },
+  ClientTradeAttributes: { name: "ClientTradeAttributes", property: "clientTradeAttributes", format: ClientTradeAttributes.format, canonicalFormat: null, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: ClientTradeAttributes },
 };
 
 export interface BlockValueMap {

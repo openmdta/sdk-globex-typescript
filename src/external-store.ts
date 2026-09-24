@@ -2,6 +2,7 @@ import type {CatalogDescriptorSelection, CatalogFieldDescriptor} from "./catalog
 import type {Connection, DatasetReadParameters, DatasetRecord, ResolvedMarketDataMessage, RequestHandle} from "./connection.js";
 import type {MarketDataFields, StreamBlockName} from "./generated/bindings.js";
 import type {MarketDataDatasetRecord} from "./protocol.js";
+import {DATASETS} from "./generated/datasets.js";
 import {selectorExpression, type MarketSelector} from "./selector.js";
 
 export interface ExternalStoreOptions {
@@ -16,14 +17,11 @@ export interface CachedDatasetClient<C extends string> {
   read<const D extends readonly CatalogFieldDescriptor[]>(parameters: DatasetReadParameters<D>): Promise<readonly DatasetRecord<C, CatalogDescriptorSelection<D>>[]>;
 }
 
-export interface CachedDatasetNamespace {
-  readonly iex: CachedDatasetClient<"IEX@globex">;
-  readonly lus: CachedDatasetClient<"LUS@globex">;
-  readonly xetra: CachedDatasetClient<"XETRA@globex">;
-  readonly firds: CachedDatasetClient<"FIRDS@globex">;
-  readonly gleif: CachedDatasetClient<"GLEIF@globex">;
+export type CachedDatasetNamespace = {
+  readonly [Alias in keyof typeof DATASETS]: CachedDatasetClient<(typeof DATASETS)[Alias]>;
+} & {
   get<C extends string>(dataset: C): CachedDatasetClient<C>;
-}
+};
 
 export interface ExternalRecordSnapshot<N extends StreamBlockName = StreamBlockName> {
   readonly datasetRecord: MarketDataDatasetRecord;
@@ -90,13 +88,9 @@ export class MarketDataExternalStore {
         this.#readDataset(id, parameters),
     });
     return Object.freeze({
-      iex: get("IEX@globex"),
-      lus: get("LUS@globex"),
-      xetra: get("XETRA@globex"),
-      firds: get("FIRDS@globex"),
-      gleif: get("GLEIF@globex"),
+      ...Object.fromEntries(Object.entries(DATASETS).map(([alias, id]) => [alias, get(id)])),
       get,
-    });
+    }) as CachedDatasetNamespace;
   }
 
   #readDataset<C extends string, D extends readonly CatalogFieldDescriptor[]>(

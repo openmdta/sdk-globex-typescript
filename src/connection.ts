@@ -1,4 +1,5 @@
 import type {ListingSelector, ListingEvent} from "./generated/listing.js";
+import {DATASETS} from "./generated/datasets.js";
 import {decodeCatalogLookup, type CatalogLookupParameters, type CatalogLookupResult} from "./lookup.js";
 import {decodeCatalogSearch, type CatalogSearchParameters, type CatalogSearchResult} from "./search.js";
 import type { StreamMetadata } from "./generated/activity.js";
@@ -212,14 +213,11 @@ export interface DatasetClient<C extends string> {
   timeseriesBatched<const B extends TsRawBlockName>(parameters: TsRawParameters<B>): RequestHandle<MarketDataBatch<B>>;
 }
 
-export interface DatasetNamespace {
-  readonly iex: DatasetClient<"IEX@globex">;
-  readonly lus: DatasetClient<"LUS@globex">;
-  readonly xetra: DatasetClient<"XETRA@globex">;
-  readonly firds: DatasetClient<"FIRDS@globex">;
-  readonly gleif: DatasetClient<"GLEIF@globex">;
+export type DatasetNamespace = {
+  readonly [Alias in keyof typeof DATASETS]: DatasetClient<(typeof DATASETS)[Alias]>;
+} & {
   get<C extends string>(dataset: C): DatasetClient<C>;
-}
+};
 
 export interface SelectedClient {
   read<const D extends readonly CatalogFieldDescriptor[]>(parameters?: SelectedReadParameters<D>): RequestHandle<DatasetRecord<string, CatalogDescriptorSelection<D>>>;
@@ -256,8 +254,6 @@ export interface Connection {
   readonly dataset: DatasetNamespace;
   select(selector: MarketSelector): SelectedClient;
   select(selectors: readonly [MarketSelector, ...MarketSelector[]]): MultiSelectedClient;
-  sourceProgress(parameters: Omit<ListingSelector, "key" | "blocks" | "progressOnly">): RequestHandle<ListingEvent>;
-  listingLatest(parameters: ListingSelector & {readonly trace?: TraceContext}): RequestHandle<ListingEvent>;
   catalogLookup(catalog: string, parameters: CatalogLookupParameters): SingleRequestHandle<CatalogLookupResult>;
   catalogSearch(catalog: string, parameters?: CatalogSearchParameters): SingleRequestHandle<CatalogSearchResult>;
   streamMetadata(parameters: StreamMetadataParameters): RequestHandle<StreamMetadata>;
@@ -380,6 +376,12 @@ export const connect = async (options: ConnectOptions): Promise<Connection> => {
   return connection;
 };
 
+/** Internal listing transport for source diagnostics and load tests. Not exported by the SDK package. */
+export const connectInternal = async (options: ConnectOptions): Promise<ReconnectingConnection> => {
+  const connection = await connect(options);
+  return connection as ReconnectingConnection;
+};
+
 class ReconnectingConnection implements Connection {
   readonly #url: string;
   readonly #token: TokenSource;
@@ -438,13 +440,9 @@ class ReconnectingConnection implements Connection {
       timeseriesBatched: parameters => this.tsRawBatched({...parameters, dataset: id}),
     });
     return Object.freeze({
-      iex: get("IEX@globex"),
-      lus: get("LUS@globex"),
-      xetra: get("XETRA@globex"),
-      firds: get("FIRDS@globex"),
-      gleif: get("GLEIF@globex"),
+      ...Object.fromEntries(Object.entries(DATASETS).map(([alias, id]) => [alias, get(id)])),
       get,
-    });
+    }) as DatasetNamespace;
   }
 
   select(selector: MarketSelector): SelectedClient;

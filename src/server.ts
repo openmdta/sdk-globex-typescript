@@ -12,6 +12,7 @@ export interface SignMDTokenOptions {
   readonly lifetimeSeconds: number;
   readonly issuedAt?: number;
   readonly allowedOrigins?: readonly string[];
+  readonly rateLimit?: { readonly id: string; readonly bucketSize: number; readonly refillPerSecond: number };
 }
 
 const variable = (bytes: Uint8Array): Buffer => {
@@ -55,8 +56,24 @@ export const signMDToken = (options: SignMDTokenOptions): Uint8Array => {
     if (quality === undefined) throw new Error("invalid quality");
     rows.push(Buffer.from([quality]), variable(Buffer.from(grant.package)));
   }
-  const originRows = origins.length ? [Buffer.from([0, 0, origins.length, 0]), ...origins.map(origin => variable(Buffer.from(origin)))] : [];
-  const claims = Buffer.concat([Buffer.from([16, 0, 2, 0, 8, 0, origins.length ? 1 : 0, 0]), fixed, ...rows, ...originRows, variable(audience)]);
+  const limit = options.rateLimit;
+  const originRows = origins.length || limit ? [Buffer.from([0, 0, origins.length, 0]), ...origins.map(origin => variable(Buffer.from(origin)))] : [];
+  if (limit && (!limit.id || Buffer.byteLength(limit.id) > 128 || /\p{Cc}/u.test(limit.id)
+    || !Number.isFinite(limit.bucketSize) || !Number.isFinite(limit.refillPerSecond)
+    || limit.bucketSize < 0 || limit.refillPerSecond < 0
+    || limit.bucketSize > 1_000_000_000 || limit.refillPerSecond > 1_000_000_000
+    || Math.abs(limit.bucketSize * 1_000_000 - Math.round(limit.bucketSize * 1_000_000)) > 0.0001
+    || Math.abs(limit.refillPerSecond * 1_000_000 - Math.round(limit.refillPerSecond * 1_000_000)) > 0.0001)) {
+    throw new Error("invalid rateLimit policy");
+  }
+  let limitBody: Buffer | undefined;
+  if (limit) {
+    const value = Buffer.alloc(16);
+    value.writeBigUInt64LE(BigInt(Math.round(limit.bucketSize * 1_000_000)));
+    value.writeBigUInt64LE(BigInt(Math.round(limit.refillPerSecond * 1_000_000)), 8);
+    limitBody = Buffer.concat([variable(Buffer.from(limit.id)), value]);
+  }
+  const claims = Buffer.concat([Buffer.from([16, 0, 2, 0, 8, 0, limit ? 2 : (origins.length ? 1 : 0), 0]), fixed, ...rows, ...originRows, variable(audience), ...(limitBody ? [variable(limitBody)] : [])]);
   if (claims.length > 65536) throw new Error("MDToken claims exceed 64 KiB");
   const prefix = Buffer.concat([
     Buffer.from([0, 0, 1, 0, 8, 0, 0, 0]), variable(client), variable(deflateSync(claims, { level: 6 })),

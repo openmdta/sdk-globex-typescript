@@ -2,10 +2,10 @@
   "configurationCommit": "64a8a4039b71ab2b8a01ceb23bdf3c488a6f8b79",
   "customerId": "globex",
   "languages": {
-    "typescript": "1fcadd3271a9bb1b4ae8daae779532652efbc0450b7393160af496c3c811a0fb"
+    "typescript": "bad64575699a9ccea084d1a47a04f46a28432a88c8b809c8a65ccec234c41272"
   },
   "projectId": "globex",
   "releaseId": "globex-production-20260921.1",
-  "requestId": "globex-sdk-20260923-36e29d65",
+  "requestId": "globex-sdk-20260924-aee7b5f1",
   "version": 1
 }
