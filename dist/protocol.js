@@ -32,6 +32,7 @@ const MARKET_TEMPLATE = {
     CATALOG_LOOKUP: 11,
     LISTING_LATEST: 12,
     SERVICE_CALL: 13,
+    TS_PAGE: 14,
 };
 export class ProtocolError extends Error {
     constructor(message) {
@@ -305,6 +306,24 @@ export const decodeServiceCallResult = (response) => {
         throw new ProtocolError("invalid service result JSON");
     }
 };
+export const decodeTimeseriesPageResult = (response) => {
+    const message = response.message;
+    if (response.status !== "CONTINUE" || !message || message.format.schemaId !== MARKET_SCHEMA_ID
+        || message.format.templateId !== 110 || message.format.version !== 17 || message.format.blockLength !== 0) {
+        throw new ProtocolError("unsupported timeseries page result");
+    }
+    const body = message.body;
+    if (body.byteLength < 4 || body.byteLength > 8196
+        || new DataView(body.buffer, body.byteOffset, body.byteLength).getUint32(0, true) !== body.byteLength - 4) {
+        throw new ProtocolError("invalid timeseries page result length");
+    }
+    try {
+        return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(body.subarray(4)));
+    }
+    catch {
+        throw new ProtocolError("invalid timeseries page result JSON");
+    }
+};
 export const decodeCatalogSearchResult = (response) => {
     const message = response.message;
     if (response.status !== "CONTINUE" || !message || message.format.schemaId !== MARKET_SCHEMA_ID
@@ -462,6 +481,15 @@ export const decodeCatalogFields = (record, descriptors, requireEveryField = fal
     return decoded;
 };
 const encodeMarketRequest = (request) => {
+    if (request.command === "TS_PAGE") {
+        const value = new TextEncoder().encode(request.parameters);
+        if (value.byteLength > 8192)
+            throw new ProtocolError("timeseries page parameters too large");
+        const bytes = message(MARKET_SCHEMA_ID, 17, MARKET_TEMPLATE.TS_PAGE, 0, 4 + value.byteLength);
+        new DataView(bytes.buffer).setUint32(HEADER_LENGTH, value.byteLength, true);
+        bytes.set(value, HEADER_LENGTH + 4);
+        return bytes;
+    }
     if (request.command === "SNAPSHOT" || request.command === "STREAM") {
         const expression = new TextEncoder().encode(request.expression);
         const adjustment = new TextEncoder().encode(request.adjustment);

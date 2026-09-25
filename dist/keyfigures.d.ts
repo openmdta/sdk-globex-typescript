@@ -3,7 +3,22 @@ import { KEYFIGURES_CONTRACTS } from "./generated/keyfigures.js";
 import type { RequestHandle, TraceContext } from "./connection.js";
 export { KEYFIGURES_CONTRACTS };
 export type KeyfiguresCatalog = keyof typeof KEYFIGURES_CONTRACTS;
-type Contract<C extends KeyfiguresCatalog> = typeof KEYFIGURES_CONTRACTS[C];
+interface RuntimeContract {
+    readonly fingerprint: string;
+    readonly fields: readonly {
+        readonly name: string;
+        readonly type: string;
+        readonly nullable: boolean;
+    }[];
+    readonly blocks: readonly {
+        readonly semantic: string;
+        readonly projection: Readonly<Record<string, string>>;
+        readonly members: Readonly<Record<string, {
+            readonly type: string;
+        }>>;
+    }[];
+}
+type Contract<C extends KeyfiguresCatalog> = [C] extends [never] ? RuntimeContract : typeof KEYFIGURES_CONTRACTS[C];
 type Field<C extends KeyfiguresCatalog> = Contract<C>["fields"][number];
 type FieldNames<C extends KeyfiguresCatalog, P> = Extract<Field<C>, P>["name"];
 type Scalar<F> = F extends {

@@ -1,4 +1,4 @@
-import { DATASETS } from "./generated/datasets.js";
+import { DATASETS, DATASET_CAPABILITIES } from "./generated/datasets.js";
 import { selectorExpression } from "./selector.js";
 export class MarketDataExternalStore {
     connection;
@@ -18,7 +18,7 @@ export class MarketDataExternalStore {
             read: (selector, options = {}) => this.#readDataset(alias, selector, options),
         });
         return Object.freeze({
-            ...Object.fromEntries(Object.keys(DATASETS).map(alias => [alias, get(alias)])),
+            ...Object.fromEntries(Object.keys(DATASETS).filter(alias => DATASET_CAPABILITIES[alias].some(capability => capability === "catalog")).map(alias => [alias, get(alias)])),
         });
     }
     #readDataset(alias, selector, options) {

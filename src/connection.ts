@@ -1,5 +1,5 @@
 import type {ListingSelector, ListingEvent} from "./generated/listing.js";
-import {DATASETS} from "./generated/datasets.js";
+import {DATASETS, DATASET_CAPABILITIES} from "./generated/datasets.js";
 import {decodeCatalogLookup, type CatalogDimensions, type CatalogLookupParameters, type CatalogLookupResult} from "./lookup.js";
 import {decodeCatalogSearch, type CatalogSearchParameters, type CatalogSearchResult} from "./search.js";
 import type { StreamMetadata } from "./generated/activity.js";
@@ -34,11 +34,13 @@ import {
   decodeCatalogRecord,
   decodeKeyfiguresResult,
   decodeServiceCallResult,
+  decodeTimeseriesPageResult,
   decodeCatalogSearchResult,
   decodeCatalogLookupResult,
   decodeResponse,
   encodeRequest,
   type MarketDataBatch,
+  type MarketDataGap,
   type MarketDataMessage,
   type MarketDataDatasetRecord,
   type ResponsePhase,
@@ -128,6 +130,30 @@ export type TsRawStreamOptions<B extends TsRawStreamBlockName = TsRawStreamBlock
 export type TsCandleOptions<B extends TsCandleBlockName = TsCandleBlockName> = Omit<TsCandleParameters<B>, "selector" | "from" | "through" | "cadenceMicros">;
 export type TsCandleStreamOptions<B extends TsCandleStreamBlockName = TsCandleStreamBlockName> = Omit<TsCandleStreamParameters<B>, "selector" | "from" | "through" | "cadenceMicros">;
 
+export type TimeseriesPageOrder = "asc" | "desc";
+/** Pass a page's nextCursor as the boundary of the next call. */
+export type TimeseriesPageCursor = string;
+
+export interface TimeseriesPageOptions<B extends BlockName> {
+  readonly blocks?: readonly B[];
+  readonly from?: bigint;
+  readonly through?: bigint;
+  readonly dataset?: string;
+  readonly quality?: string;
+  readonly adjustment?: "raw" | "split";
+  readonly signal?: AbortSignal;
+  readonly trace?: TraceContext;
+}
+
+export interface TimeseriesPage<B extends BlockName> {
+  readonly rows: readonly MarketDataMessage<B>[];
+  readonly from: bigint;
+  readonly through: bigint;
+  readonly nextCursor: TimeseriesPageCursor | null;
+  readonly status: 0 | 1;
+  readonly gaps: readonly MarketDataGap[];
+}
+
 export interface DatasetRecord<C extends string, V extends object> {
   readonly requestId: bigint;
   readonly phase: "SNAPSHOT" | "UPDATE";
@@ -170,10 +196,17 @@ export interface DatasetClient<C extends string> {
   latestStreamBatched<const B extends StreamBlockName>(selector: MarketSelector, options?: LatestStreamOptions<B>): RequestHandle<MarketDataBatch<B>>;
   timeseries<const B extends TsRawBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataMessage<B>>;
   timeseriesBatched<const B extends TsRawBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataBatch<B>>;
+  timeseriesPage<const B extends TsRawBlockName>(selector: MarketSelector, order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor, limit: number, options?: Omit<TimeseriesPageOptions<B>, "dataset">): SingleRequestHandle<TimeseriesPage<B>>;
+  candlePage<const B extends TsCandleBlockName>(selector: MarketSelector, cadenceMicros: bigint, order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor, limit: number, options?: Omit<TimeseriesPageOptions<B>, "dataset">): SingleRequestHandle<TimeseriesPage<B>>;
 }
 
 export type DatasetNamespace = {
-  readonly [Alias in keyof typeof DATASETS]: DatasetClient<(typeof DATASETS)[Alias]>;
+  readonly [Alias in keyof typeof DATASETS]: Pick<DatasetClient<(typeof DATASETS)[Alias]>,
+    "id" |
+    ("catalog" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "read" | "lookup" : never) |
+    ("search" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "search" : never) |
+    ("latest" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "latest" | "latestBatched" | "latestStream" | "latestStreamBatched" : never) |
+    ("timeseries" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "timeseries" | "timeseriesBatched" | "timeseriesPage" | "candlePage" : never)>;
 };
 
 export interface SelectedClient {
@@ -184,6 +217,8 @@ export interface SelectedClient {
   latestStreamBatched<const B extends StreamBlockName>(options?: LatestStreamOptions<B>): RequestHandle<MarketDataBatch<B>>;
   timeseries<const B extends TsRawBlockName>(from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataMessage<B>>;
   timeseriesBatched<const B extends TsRawBlockName>(from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataBatch<B>>;
+  timeseriesPage<const B extends TsRawBlockName>(order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor, limit: number, options?: TimeseriesPageOptions<B>): SingleRequestHandle<TimeseriesPage<B>>;
+  candlePage<const B extends TsCandleBlockName>(cadenceMicros: bigint, order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor, limit: number, options?: TimeseriesPageOptions<B>): SingleRequestHandle<TimeseriesPage<B>>;
 }
 
 export interface MultiSelectedClient {
@@ -223,6 +258,8 @@ export interface Connection {
   tsRawBatched<const B extends TsRawBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataBatch<B>>;
   tsCandle<const B extends TsCandleBlockName>(selector: MarketSelector, from: bigint, through: bigint, cadenceMicros: bigint, options?: TsCandleOptions<B>): RequestHandle<MarketDataMessage<B>>;
   tsCandleBatched<const B extends TsCandleBlockName>(selector: MarketSelector, from: bigint, through: bigint, cadenceMicros: bigint, options?: TsCandleOptions<B>): RequestHandle<MarketDataBatch<B>>;
+  tsRawPage<const B extends TsRawBlockName>(selector: MarketSelector, order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor, limit: number, options?: TimeseriesPageOptions<B>): SingleRequestHandle<TimeseriesPage<B>>;
+  tsCandlePage<const B extends TsCandleBlockName>(selector: MarketSelector, cadenceMicros: bigint, order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor, limit: number, options?: TimeseriesPageOptions<B>): SingleRequestHandle<TimeseriesPage<B>>;
   tsRawStream<const B extends TsRawStreamBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawStreamOptions<B>): RequestHandle<MarketDataMessage<B>>;
   tsRawStreamBatched<const B extends TsRawStreamBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawStreamOptions<B>): RequestHandle<MarketDataBatch<B>>;
   tsCandleStream<const B extends TsCandleStreamBlockName>(selector: MarketSelector, from: bigint, through: bigint, cadenceMicros: bigint, options?: TsCandleStreamOptions<B>): RequestHandle<MarketDataMessage<B>>;
@@ -304,7 +341,7 @@ export class AuthenticationError extends Error {
 }
 
 interface ActiveRequest {
-  readonly command: "SNAPSHOT" | "STREAM" | "TS_RAW" | "TS_CANDLE" | "TS_RAW_STREAM" | "TS_CANDLE_STREAM" | "CATALOG" | "CATALOG_KEYFIGURES" | "STREAM_METADATA" | "CATALOG_SEARCH" | "CATALOG_LOOKUP" | "LISTING_LATEST" | "SERVICE_CALL";
+  readonly command: "SNAPSHOT" | "STREAM" | "TS_RAW" | "TS_CANDLE" | "TS_RAW_STREAM" | "TS_CANDLE_STREAM" | "TS_PAGE" | "CATALOG" | "CATALOG_KEYFIGURES" | "STREAM_METADATA" | "CATALOG_SEARCH" | "CATALOG_LOOKUP" | "LISTING_LATEST" | "SERVICE_CALL";
   readonly encoded: Uint8Array<ArrayBuffer>;
   readonly handle: Handle<unknown>;
   readonly decode: (response: Extract<Response, { readonly kind: "response" }>) => unknown;
@@ -451,31 +488,43 @@ class ReconnectingConnection implements Connection {
   }
 
   get dataset(): DatasetNamespace {
-    const get = <C extends string>(id: C): DatasetClient<C> => ({
+    const get = <C extends string>(id: C, capabilities: readonly string[]): DatasetClient<C> => ({
       id,
-      read: <D extends readonly CatalogFieldDescriptor[]>(selector: MarketSelector, options: DatasetReadOptions<D> = {}) =>
-        this.#startCatalog(
-          id,
-          [selectorExpression(selector)],
-          options.fields ?? "*",
-          options.trace,
-          new Map([[selectorExpression(selector), selector]]),
-        ) as RequestHandle<DatasetRecord<C, CatalogDescriptorSelection<D>>>,
-      search: parameters => this.#catalogSearch(id, parameters),
-      lookup: (query, options) => this.#catalogLookup(id, {
-        ...(typeof query === "string" ? {expression: query} : {dimensions: query}),
-        ...options,
-      }),
-      latest: (selector, options) => this.latest(selector, {...options, dataset: id}),
-      latestBatched: (selector, options) => this.latestBatched(selector, {...options, dataset: id}),
-      latestStream: (selector, options) => this.latestStream(selector, {...options, dataset: id}),
-      latestStreamBatched: (selector, options) => this.latestStreamBatched(selector, {...options, dataset: id}),
-      timeseries: (selector, from, through, options) => this.tsRaw(selector, from, through, {...options, dataset: id}),
-      timeseriesBatched: (selector, from, through, options) => this.tsRawBatched(selector, from, through, {...options, dataset: id}),
-    });
+      ...(capabilities.includes("catalog") ? {
+        read: <D extends readonly CatalogFieldDescriptor[]>(selector: MarketSelector, options: DatasetReadOptions<D> = {}) =>
+          this.#startCatalog(
+            id,
+            [selectorExpression(selector)],
+            options.fields ?? "*",
+            options.trace,
+            new Map([[selectorExpression(selector), selector]]),
+          ) as RequestHandle<DatasetRecord<C, CatalogDescriptorSelection<D>>>,
+        lookup: (query, options) => this.#catalogLookup(id, {
+          ...(typeof query === "string" ? {expression: query} : {dimensions: query}),
+          ...options,
+        }),
+      } : {}),
+      ...(capabilities.includes("search") ? {
+        search: parameters => this.#catalogSearch(id, parameters),
+      } : {}),
+      ...(capabilities.includes("latest") ? {
+        latest: (selector, options) => this.latest(selector, {...options, dataset: id}),
+        latestBatched: (selector, options) => this.latestBatched(selector, {...options, dataset: id}),
+        latestStream: (selector, options) => this.latestStream(selector, {...options, dataset: id}),
+        latestStreamBatched: (selector, options) => this.latestStreamBatched(selector, {...options, dataset: id}),
+      } : {}),
+      ...(capabilities.includes("timeseries") ? {
+        timeseries: (selector, from, through, options) => this.tsRaw(selector, from, through, {...options, dataset: id}),
+        timeseriesBatched: (selector, from, through, options) => this.tsRawBatched(selector, from, through, {...options, dataset: id}),
+        timeseriesPage: (selector, order, boundary, limit, options) =>
+          this.tsRawPage(selector, order, boundary, limit, {...options, dataset: id}),
+        candlePage: (selector, cadenceMicros, order, boundary, limit, options) =>
+          this.tsCandlePage(selector, cadenceMicros, order, boundary, limit, {...options, dataset: id}),
+      } : {}),
+    }) as DatasetClient<C>;
     return Object.freeze({
-      ...Object.fromEntries(Object.entries(DATASETS).map(([alias, id]) => [alias, get(id)])),
-    }) as DatasetNamespace;
+      ...Object.fromEntries(Object.entries(DATASETS).map(([alias, id]) => [alias, get(id, DATASET_CAPABILITIES[alias as keyof typeof DATASETS])])),
+    }) as unknown as DatasetNamespace;
   }
 
   select(selector: MarketSelector): SelectedClient;
@@ -502,6 +551,10 @@ class ReconnectingConnection implements Connection {
         this.tsRaw(selector, from, through, options),
       timeseriesBatched: <B extends TsRawBlockName>(from: bigint, through: bigint, options: TsRawOptions<B> = {}) =>
         this.tsRawBatched(selector, from, through, options),
+      timeseriesPage: <B extends TsRawBlockName>(order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor, limit: number, options: TimeseriesPageOptions<B> = {}) =>
+        this.tsRawPage(selector, order, boundary, limit, options),
+      candlePage: <B extends TsCandleBlockName>(cadenceMicros: bigint, order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor, limit: number, options: TimeseriesPageOptions<B> = {}) =>
+        this.tsCandlePage(selector, cadenceMicros, order, boundary, limit, options),
     });
 
     if (!Array.isArray(selection)) return selected(selection as MarketSelector);
@@ -589,6 +642,100 @@ class ReconnectingConnection implements Connection {
     return this.#start("TS_CANDLE", {selector, from, through, cadenceMicros, ...options}, undefined, true) as RequestHandle<MarketDataBatch<B>>;
   }
 
+  tsRawPage<const B extends TsRawBlockName>(
+    selector: MarketSelector, order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor,
+    limit: number, options: TimeseriesPageOptions<B> = {},
+  ): SingleRequestHandle<TimeseriesPage<B>> {
+    return this.#startPage(selector, 0n, "TS_RAW", order, boundary, limit, options);
+  }
+
+  tsCandlePage<const B extends TsCandleBlockName>(
+    selector: MarketSelector, cadenceMicros: bigint, order: TimeseriesPageOrder,
+    boundary: bigint | TimeseriesPageCursor, limit: number, options: TimeseriesPageOptions<B> = {},
+  ): SingleRequestHandle<TimeseriesPage<B>> {
+    if (cadenceMicros <= 0n) throw new RangeError("cadenceMicros must be positive");
+    return this.#startPage(selector, cadenceMicros, "TS_CANDLE", order, boundary, limit, options);
+  }
+
+  #startPage<B extends BlockName>(
+    selector: MarketSelector, cadenceMicros: bigint, command: "TS_RAW" | "TS_CANDLE",
+    order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor,
+    limit: number, options: TimeseriesPageOptions<B>,
+  ): SingleRequestHandle<TimeseriesPage<B>> {
+    if (this.#closing) throw new ConnectionClosedError();
+    if (selector.subject === "list") throw new TypeError("list selectors are not supported for timeseries pages");
+    if (order !== "asc" && order !== "desc") throw new TypeError("order must be asc or desc");
+    if (!Number.isInteger(limit) || limit < 1 || limit > 200) throw new RangeError("page limit must be 1 through 200");
+    this.#validateQuality(options.quality);
+    if (order === "asc" && options.from !== undefined || order === "desc" && options.through !== undefined) {
+      throw new TypeError("use through as the ascending guard or from as the descending guard");
+    }
+    for (const block of options.blocks ?? []) {
+      if (!BLOCK_BINDINGS[block].commands.includes(command)) throw new TypeError(`${block} is not available for ${command}`);
+    }
+    const guard = order === "desc" ? options.from : options.through;
+    if (typeof boundary === "bigint" && boundary < 0n || guard !== undefined && guard < 0n) {
+      throw new RangeError("timeseries boundaries must be non-negative");
+    }
+    if (typeof boundary === "string" && (!boundary || boundary.length > 2048)) {
+      throw new TypeError("invalid timeseries page cursor");
+    }
+    const parameters = JSON.stringify({
+      selector: selectorExpression(selector),
+      ...(options.dataset === undefined ? {} : {dataset: options.dataset}),
+      ...(options.quality === undefined ? {} : {quality: options.quality.trim().toUpperCase()}),
+      blockMask: blockMask(options.blocks).toString(),
+      resolutionMicros: cadenceMicros.toString(),
+      order,
+      limit,
+      ...(typeof boundary === "bigint" ? {boundary: boundary.toString()} : {cursor: boundary}),
+      ...(guard === undefined ? {} : {guard: guard.toString()}),
+      adjustment: options.adjustment ?? "raw",
+    });
+    const id = this.#nextId;
+    this.#nextId += 1n;
+    const request: Request = {command: "TS_PAGE", id, parameters, ...(options.trace ? {trace: options.trace} : {})};
+    const handle = new Handle<TimeseriesPage<B>>(id, () => this.#cancel(id));
+    const rows: MarketDataMessage<B>[] = [];
+    const gaps: MarketDataGap[] = [];
+    handle.onReplay(() => { rows.length = 0; gaps.length = 0; });
+    if (options.signal?.aborted) void handle.cancel();
+    else options.signal?.addEventListener("abort", () => void handle.cancel(), {once: true});
+    const active: ActiveRequest = {
+      command: "TS_PAGE",
+      encoded: encodeRequest(request),
+      handle: handle as Handle<unknown>,
+      many: true,
+      decode: response => {
+        if (response.message?.format.templateId === 108) {
+          const batch = decodeBatch(response, selector) as MarketDataBatch<B>;
+          rows.push(...batch.messages);
+          gaps.push(...batch.gaps);
+          return [];
+        }
+        const result = decodeTimeseriesPageResult(response) as Record<string, unknown>;
+        if (typeof result.from !== "string" || typeof result.through !== "string"
+          || result.nextCursor !== null && typeof result.nextCursor !== "string"
+          || result.status !== 0 && result.status !== 1) {
+          throw new ProtocolError("invalid timeseries page result");
+        }
+        return [{
+          rows: [...rows],
+          from: BigInt(result.from),
+          through: BigInt(result.through),
+          nextCursor: result.nextCursor,
+          status: result.status,
+          gaps: [...gaps],
+        } satisfies TimeseriesPage<B>];
+      },
+    };
+    this.#track(active);
+    if (this.#authenticated && this.#socket?.readyState === this.#WebSocket.OPEN) {
+      this.#socket.send(active.encoded);
+    }
+    return handle;
+  }
+
   tsRawStream<const B extends TsRawStreamBlockName>(
     selector: MarketSelector, from: bigint, through: bigint, options: TsRawStreamOptions<B> = {},
   ): RequestHandle<MarketDataMessage<B>> {
@@ -658,7 +805,7 @@ class ReconnectingConnection implements Connection {
       const handle = new Handle(id, () => this.#cancel(id));
       const active: ActiveRequest = {
         command: "CATALOG_KEYFIGURES", handle,
-        encoded: encodeRequest({command: "CATALOG_KEYFIGURES", id, catalog, action, parameters, contractFingerprint: KEYFIGURES_CONTRACTS[catalog].fingerprint,
+        encoded: encodeRequest({command: "CATALOG_KEYFIGURES", id, catalog, action, parameters, contractFingerprint: (KEYFIGURES_CONTRACTS[catalog] as {fingerprint: string}).fingerprint,
           ...(policy.price_cutoff_ms === undefined ? {} : {priceCutoffMs: BigInt(policy.price_cutoff_ms)}), ...(policy.price_age_mode === undefined ? {} : {priceAgeMode: policy.price_age_mode}), ...(policy.trace ? {trace: policy.trace} : {})}),
         decode: response => decodeKeyfigures(catalog, action, decodeKeyfiguresResult(response)),
       };
@@ -776,7 +923,7 @@ class ReconnectingConnection implements Connection {
   }
 
   #start(
-    command: Exclude<ActiveRequest["command"], "CATALOG" | "CATALOG_KEYFIGURES" | "STREAM_METADATA" | "CATALOG_SEARCH" | "CATALOG_LOOKUP" | "LISTING_LATEST" | "SERVICE_CALL">,
+    command: Exclude<ActiveRequest["command"], "CATALOG" | "CATALOG_KEYFIGURES" | "STREAM_METADATA" | "CATALOG_SEARCH" | "CATALOG_LOOKUP" | "LISTING_LATEST" | "SERVICE_CALL" | "TS_PAGE">,
     parameters: LatestParameters | LatestStreamParameters | TsRawParameters | TsCandleParameters | TsRawStreamParameters | TsCandleStreamParameters,
     normalized: { readonly maxMessages?: number; readonly updateIntervalMillis?: number } | undefined = undefined,
     batched = false,

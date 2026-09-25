@@ -1,14 +1,20 @@
 {
   "customerId": "globex",
-  "datasetsSha256": "58030c493aaa92fa4e3e02ae159ecd6f0ec251f2a5af3fc2e644576100480c9f",
-  "environmentRevision": "globex-observation-smoke-typed-config-1",
+  "datasetCapabilities": [
+    "globex=catalog,search",
+    "lus=catalog,latest,timeseries",
+    "xetra=catalog"
+  ],
+  "datasetsSha256": "307499dec3512afd6d91e4277d7ca3f7eee3df0a9126acc5a40b17175b95b072",
+  "environmentRevision": "globex-unified-catalog-editing-3",
   "languages": {
-    "typescript": "62e1fe362299a67ef611a3e4f93916e2c9f2ff1d8e66c8b985a51d34f783a1d2"
+    "typescript": "251905a3a20b8d1d6be504f7ffcb6f644a58343bfb014d955ad3a792ce0e6cde"
   },
   "projectId": "globex",
-  "requestId": "sdk-4eae1561efda3fc78ac5efba",
+  "requestId": "sdk-76ec11cfa75ccf6acfa18cfa",
   "rulesetSha256": "124a3b207ba6d116295061c79f7303894d879c5e7a02d41db7feed83841b6e5e",
-  "sdkInputsSha256": "bdbe1b1a8361f39c7c7456a8fd704ecdb0520c6e2ef9ce470922d8793bb38708",
+  "sdkConfigSha256": "4139eacf91b2bf0ab7e9a45e074eee82f0b2863427ddeab24f918d5479ead7ad",
+  "sdkInputsSha256": "4a7ac3cd251151ea400396228ee77c486e3241cd31de8b0b8d74904c2eed7bc4",
   "servicesSha256": "2ccedda65b927a3f9bd682bf83abe9c3c29db277e282b906ef553a04498fb5d6",
   "version": 2
 }

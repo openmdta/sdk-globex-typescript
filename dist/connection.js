@@ -1,4 +1,4 @@
-import { DATASETS } from "./generated/datasets.js";
+import { DATASETS, DATASET_CAPABILITIES } from "./generated/datasets.js";
 import { decodeCatalogLookup } from "./lookup.js";
 import { decodeCatalogSearch } from "./search.js";
 import { KEYFIGURES_CONTRACTS, decodeKeyfigures } from "./keyfigures.js";
@@ -8,7 +8,7 @@ import { createServiceNamespace } from "./generated/services.js";
 import { selectorExpression } from "./selector.js";
 import { BLOCK_BINDINGS, } from "./generated/bindings.js";
 import {} from "./catalog.js";
-import { ProtocolError, RequestError, WEBSOCKET_SUBPROTOCOL, blockMask, decodeBatch, decodeStreamMetadata, decodeListingResponse, decodeCatalogFields, decodeCatalogRecord, decodeKeyfiguresResult, decodeServiceCallResult, decodeCatalogSearchResult, decodeCatalogLookupResult, decodeResponse, encodeRequest, } from "./protocol.js";
+import { ProtocolError, RequestError, WEBSOCKET_SUBPROTOCOL, blockMask, decodeBatch, decodeStreamMetadata, decodeListingResponse, decodeCatalogFields, decodeCatalogRecord, decodeKeyfiguresResult, decodeServiceCallResult, decodeTimeseriesPageResult, decodeCatalogSearchResult, decodeCatalogLookupResult, decodeResponse, encodeRequest, } from "./protocol.js";
 export class ConnectionClosedError extends Error {
     constructor() {
         super("market-data connection was closed");
@@ -206,23 +206,33 @@ class ReconnectingConnection {
         }
     }
     get dataset() {
-        const get = (id) => ({
+        const get = (id, capabilities) => ({
             id,
-            read: (selector, options = {}) => this.#startCatalog(id, [selectorExpression(selector)], options.fields ?? "*", options.trace, new Map([[selectorExpression(selector), selector]])),
-            search: parameters => this.#catalogSearch(id, parameters),
-            lookup: (query, options) => this.#catalogLookup(id, {
-                ...(typeof query === "string" ? { expression: query } : { dimensions: query }),
-                ...options,
-            }),
-            latest: (selector, options) => this.latest(selector, { ...options, dataset: id }),
-            latestBatched: (selector, options) => this.latestBatched(selector, { ...options, dataset: id }),
-            latestStream: (selector, options) => this.latestStream(selector, { ...options, dataset: id }),
-            latestStreamBatched: (selector, options) => this.latestStreamBatched(selector, { ...options, dataset: id }),
-            timeseries: (selector, from, through, options) => this.tsRaw(selector, from, through, { ...options, dataset: id }),
-            timeseriesBatched: (selector, from, through, options) => this.tsRawBatched(selector, from, through, { ...options, dataset: id }),
+            ...(capabilities.includes("catalog") ? {
+                read: (selector, options = {}) => this.#startCatalog(id, [selectorExpression(selector)], options.fields ?? "*", options.trace, new Map([[selectorExpression(selector), selector]])),
+                lookup: (query, options) => this.#catalogLookup(id, {
+                    ...(typeof query === "string" ? { expression: query } : { dimensions: query }),
+                    ...options,
+                }),
+            } : {}),
+            ...(capabilities.includes("search") ? {
+                search: parameters => this.#catalogSearch(id, parameters),
+            } : {}),
+            ...(capabilities.includes("latest") ? {
+                latest: (selector, options) => this.latest(selector, { ...options, dataset: id }),
+                latestBatched: (selector, options) => this.latestBatched(selector, { ...options, dataset: id }),
+                latestStream: (selector, options) => this.latestStream(selector, { ...options, dataset: id }),
+                latestStreamBatched: (selector, options) => this.latestStreamBatched(selector, { ...options, dataset: id }),
+            } : {}),
+            ...(capabilities.includes("timeseries") ? {
+                timeseries: (selector, from, through, options) => this.tsRaw(selector, from, through, { ...options, dataset: id }),
+                timeseriesBatched: (selector, from, through, options) => this.tsRawBatched(selector, from, through, { ...options, dataset: id }),
+                timeseriesPage: (selector, order, boundary, limit, options) => this.tsRawPage(selector, order, boundary, limit, { ...options, dataset: id }),
+                candlePage: (selector, cadenceMicros, order, boundary, limit, options) => this.tsCandlePage(selector, cadenceMicros, order, boundary, limit, { ...options, dataset: id }),
+            } : {}),
         });
         return Object.freeze({
-            ...Object.fromEntries(Object.entries(DATASETS).map(([alias, id]) => [alias, get(id)])),
+            ...Object.fromEntries(Object.entries(DATASETS).map(([alias, id]) => [alias, get(id, DATASET_CAPABILITIES[alias])])),
         });
     }
     select(selection) {
@@ -234,6 +244,8 @@ class ReconnectingConnection {
             latestStreamBatched: (options = {}) => this.latestStreamBatched(selector, options),
             timeseries: (from, through, options = {}) => this.tsRaw(selector, from, through, options),
             timeseriesBatched: (from, through, options = {}) => this.tsRawBatched(selector, from, through, options),
+            timeseriesPage: (order, boundary, limit, options = {}) => this.tsRawPage(selector, order, boundary, limit, options),
+            candlePage: (cadenceMicros, order, boundary, limit, options = {}) => this.tsCandlePage(selector, cadenceMicros, order, boundary, limit, options),
         });
         if (!Array.isArray(selection))
             return selected(selection);
@@ -297,6 +309,95 @@ class ReconnectingConnection {
             throw new RangeError("quality must be RT, DL, or EOD");
         }
         return this.#start("TS_CANDLE", { selector, from, through, cadenceMicros, ...options }, undefined, true);
+    }
+    tsRawPage(selector, order, boundary, limit, options = {}) {
+        return this.#startPage(selector, 0n, "TS_RAW", order, boundary, limit, options);
+    }
+    tsCandlePage(selector, cadenceMicros, order, boundary, limit, options = {}) {
+        if (cadenceMicros <= 0n)
+            throw new RangeError("cadenceMicros must be positive");
+        return this.#startPage(selector, cadenceMicros, "TS_CANDLE", order, boundary, limit, options);
+    }
+    #startPage(selector, cadenceMicros, command, order, boundary, limit, options) {
+        if (this.#closing)
+            throw new ConnectionClosedError();
+        if (selector.subject === "list")
+            throw new TypeError("list selectors are not supported for timeseries pages");
+        if (order !== "asc" && order !== "desc")
+            throw new TypeError("order must be asc or desc");
+        if (!Number.isInteger(limit) || limit < 1 || limit > 200)
+            throw new RangeError("page limit must be 1 through 200");
+        this.#validateQuality(options.quality);
+        if (order === "asc" && options.from !== undefined || order === "desc" && options.through !== undefined) {
+            throw new TypeError("use through as the ascending guard or from as the descending guard");
+        }
+        for (const block of options.blocks ?? []) {
+            if (!BLOCK_BINDINGS[block].commands.includes(command))
+                throw new TypeError(`${block} is not available for ${command}`);
+        }
+        const guard = order === "desc" ? options.from : options.through;
+        if (typeof boundary === "bigint" && boundary < 0n || guard !== undefined && guard < 0n) {
+            throw new RangeError("timeseries boundaries must be non-negative");
+        }
+        if (typeof boundary === "string" && (!boundary || boundary.length > 2048)) {
+            throw new TypeError("invalid timeseries page cursor");
+        }
+        const parameters = JSON.stringify({
+            selector: selectorExpression(selector),
+            ...(options.dataset === undefined ? {} : { dataset: options.dataset }),
+            ...(options.quality === undefined ? {} : { quality: options.quality.trim().toUpperCase() }),
+            blockMask: blockMask(options.blocks).toString(),
+            resolutionMicros: cadenceMicros.toString(),
+            order,
+            limit,
+            ...(typeof boundary === "bigint" ? { boundary: boundary.toString() } : { cursor: boundary }),
+            ...(guard === undefined ? {} : { guard: guard.toString() }),
+            adjustment: options.adjustment ?? "raw",
+        });
+        const id = this.#nextId;
+        this.#nextId += 1n;
+        const request = { command: "TS_PAGE", id, parameters, ...(options.trace ? { trace: options.trace } : {}) };
+        const handle = new Handle(id, () => this.#cancel(id));
+        const rows = [];
+        const gaps = [];
+        handle.onReplay(() => { rows.length = 0; gaps.length = 0; });
+        if (options.signal?.aborted)
+            void handle.cancel();
+        else
+            options.signal?.addEventListener("abort", () => void handle.cancel(), { once: true });
+        const active = {
+            command: "TS_PAGE",
+            encoded: encodeRequest(request),
+            handle: handle,
+            many: true,
+            decode: response => {
+                if (response.message?.format.templateId === 108) {
+                    const batch = decodeBatch(response, selector);
+                    rows.push(...batch.messages);
+                    gaps.push(...batch.gaps);
+                    return [];
+                }
+                const result = decodeTimeseriesPageResult(response);
+                if (typeof result.from !== "string" || typeof result.through !== "string"
+                    || result.nextCursor !== null && typeof result.nextCursor !== "string"
+                    || result.status !== 0 && result.status !== 1) {
+                    throw new ProtocolError("invalid timeseries page result");
+                }
+                return [{
+                        rows: [...rows],
+                        from: BigInt(result.from),
+                        through: BigInt(result.through),
+                        nextCursor: result.nextCursor,
+                        status: result.status,
+                        gaps: [...gaps],
+                    }];
+            },
+        };
+        this.#track(active);
+        if (this.#authenticated && this.#socket?.readyState === this.#WebSocket.OPEN) {
+            this.#socket.send(active.encoded);
+        }
+        return handle;
     }
     tsRawStream(selector, from, through, options = {}) {
         if (from > through)

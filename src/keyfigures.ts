@@ -5,7 +5,12 @@ import type { RequestHandle, TraceContext } from "./connection.js";
 
 export { KEYFIGURES_CONTRACTS };
 export type KeyfiguresCatalog = keyof typeof KEYFIGURES_CONTRACTS;
-type Contract<C extends KeyfiguresCatalog> = typeof KEYFIGURES_CONTRACTS[C];
+interface RuntimeContract {
+  readonly fingerprint: string;
+  readonly fields: readonly {readonly name: string; readonly type: string; readonly nullable: boolean}[];
+  readonly blocks: readonly {readonly semantic: string; readonly projection: Readonly<Record<string, string>>; readonly members: Readonly<Record<string, {readonly type: string}>>}[];
+}
+type Contract<C extends KeyfiguresCatalog> = [C] extends [never] ? RuntimeContract : typeof KEYFIGURES_CONTRACTS[C];
 type Field<C extends KeyfiguresCatalog> = Contract<C>["fields"][number];
 type FieldNames<C extends KeyfiguresCatalog, P> = Extract<Field<C>, P>["name"];
 type Scalar<F> = F extends {type: "number" | "integer"} ? number : F extends {type: "boolean"} ? boolean : string;
@@ -141,7 +146,7 @@ function boolean(value: unknown): boolean {
 
 /** Validate the actual response against the generated universe projection before exposing its types. */
 export function decodeKeyfigures<C extends KeyfiguresCatalog>(catalog: C, action: "search" | "instrument" | "schema", payload: unknown): KeyfiguresSearchResult<C> | KeyfiguresInstrumentResult<C> | KeyfiguresSchema<C> {
-  const value = object(payload), contract = KEYFIGURES_CONTRACTS[catalog];
+  const value = object(payload), contract = KEYFIGURES_CONTRACTS[catalog] as Contract<C>;
   if (value.contract_fingerprint !== contract.fingerprint) throw new ProtocolError("keyfigures contract mismatch; regenerate SDK");
   if (value.clock !== "live" && value.clock !== "replay") throw new ProtocolError("invalid keyfigures clock");
   if (action === "schema") {

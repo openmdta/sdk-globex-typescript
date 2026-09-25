@@ -1,8 +1,8 @@
 import type {CatalogDescriptorSelection, CatalogFieldDescriptor} from "./catalog.js";
-import type {Connection, DatasetReadOptions, DatasetRecord, ResolvedMarketDataMessage, RequestHandle} from "./connection.js";
+import type {Connection, DatasetClient, DatasetReadOptions, DatasetRecord, ResolvedMarketDataMessage, RequestHandle} from "./connection.js";
 import type {MarketDataFields, StreamBlockName} from "./generated/bindings.js";
 import type {MarketDataDatasetRecord} from "./protocol.js";
-import {DATASETS} from "./generated/datasets.js";
+import {DATASETS, DATASET_CAPABILITIES} from "./generated/datasets.js";
 import {selectorExpression, type MarketSelector} from "./selector.js";
 
 export interface ExternalStoreOptions {
@@ -18,7 +18,7 @@ export interface CachedDatasetClient<C extends string> {
 }
 
 export type CachedDatasetNamespace = {
-  readonly [Alias in keyof typeof DATASETS]: CachedDatasetClient<(typeof DATASETS)[Alias]>;
+  readonly [Alias in keyof typeof DATASETS as "catalog" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? Alias : never]: CachedDatasetClient<(typeof DATASETS)[Alias]>;
 };
 
 export interface ExternalRecordSnapshot<N extends StreamBlockName = StreamBlockName> {
@@ -86,7 +86,7 @@ export class MarketDataExternalStore {
         this.#readDataset(alias, selector, options),
     });
     return Object.freeze({
-      ...Object.fromEntries(Object.keys(DATASETS).map(alias => [alias, get(alias as keyof typeof DATASETS)])),
+      ...Object.fromEntries(Object.keys(DATASETS).filter(alias => DATASET_CAPABILITIES[alias as keyof typeof DATASETS].some(capability => capability === "catalog")).map(alias => [alias, get(alias as keyof typeof DATASETS)])),
     }) as CachedDatasetNamespace;
   }
 
@@ -106,7 +106,7 @@ export class MarketDataExternalStore {
     }
     const value = (async () => {
       const records: DatasetRecord<(typeof DATASETS)[A], CatalogDescriptorSelection<D>>[] = [];
-      for await (const record of this.connection.dataset[alias].read(selector, options)) records.push(record);
+      for await (const record of (this.connection.dataset[alias] as unknown as Pick<DatasetClient<(typeof DATASETS)[A]>, "read">).read(selector, options)) records.push(record);
       return Object.freeze(records);
     })();
     this.#catalog.set(key, {

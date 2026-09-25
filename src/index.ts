@@ -21,6 +21,10 @@ export {
   type TsCandleStreamOptions,
   type TsRawOptions,
   type TsRawStreamOptions,
+  type TimeseriesPage,
+  type TimeseriesPageCursor,
+  type TimeseriesPageOptions,
+  type TimeseriesPageOrder,
 } from "./connection.js";
 export {
   ProtocolError,

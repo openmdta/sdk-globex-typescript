@@ -6,6 +6,11 @@ import type { CatalogFieldDescriptor, CatalogDescriptorValue } from "./catalog.j
 import type { MarketSelector } from "./selector.js";
 export declare const WEBSOCKET_SUBPROTOCOL = "openmdta.sbe-session.v1";
 export type Request = {
+    readonly command: "TS_PAGE";
+    readonly id: bigint;
+    readonly parameters: string;
+    readonly trace?: TraceContext;
+} | {
     readonly command: "LISTING_LATEST";
     readonly id: bigint;
     readonly parameters: string;
@@ -192,6 +197,7 @@ export declare const decodeResponse: (source: ArrayBuffer | ArrayBufferView) => 
 export declare const decodeBatch: (response: StandardResponse, selector: MarketSelector) => MarketDataBatch;
 export declare const decodeKeyfiguresResult: (response: StandardResponse) => unknown;
 export declare const decodeServiceCallResult: (response: StandardResponse) => unknown;
+export declare const decodeTimeseriesPageResult: (response: StandardResponse) => unknown;
 export declare const decodeCatalogSearchResult: (response: StandardResponse) => unknown;
 export declare const decodeCatalogLookupResult: (response: StandardResponse) => unknown;
 export declare const decodeCatalogRecord: (response: StandardResponse) => CatalogWireRecord;

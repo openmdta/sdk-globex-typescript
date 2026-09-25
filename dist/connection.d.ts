@@ -1,5 +1,5 @@
 import type { ListingSelector, ListingEvent } from "./generated/listing.js";
-import { DATASETS } from "./generated/datasets.js";
+import { DATASETS, DATASET_CAPABILITIES } from "./generated/datasets.js";
 import { type CatalogDimensions, type CatalogLookupParameters, type CatalogLookupResult } from "./lookup.js";
 import { type CatalogSearchParameters, type CatalogSearchResult } from "./search.js";
 import type { StreamMetadata } from "./generated/activity.js";
@@ -9,7 +9,7 @@ import { type ServiceNamespace } from "./generated/services.js";
 import { type MarketSelector } from "./selector.js";
 import { type BlockName, type SnapshotBlockName, type StreamBlockName, type TsCandleBlockName, type TsCandleStreamBlockName, type TsRawBlockName, type TsRawStreamBlockName } from "./generated/bindings.js";
 import { type CatalogDescriptorSelection, type CatalogFieldDescriptor } from "./catalog.js";
-import { type MarketDataBatch, type MarketDataMessage, type MarketDataDatasetRecord, type ResponsePhase, type CatalogLifecycle, type CatalogWireField } from "./protocol.js";
+import { type MarketDataBatch, type MarketDataGap, type MarketDataMessage, type MarketDataDatasetRecord, type ResponsePhase, type CatalogLifecycle, type CatalogWireField } from "./protocol.js";
 export interface ConnectOptions {
     readonly url: string;
     readonly token: TokenSource;
@@ -78,6 +78,27 @@ export type TsRawOptions<B extends TsRawBlockName = TsRawBlockName> = Omit<TsRaw
 export type TsRawStreamOptions<B extends TsRawStreamBlockName = TsRawStreamBlockName> = Omit<TsRawStreamParameters<B>, "selector" | "from" | "through">;
 export type TsCandleOptions<B extends TsCandleBlockName = TsCandleBlockName> = Omit<TsCandleParameters<B>, "selector" | "from" | "through" | "cadenceMicros">;
 export type TsCandleStreamOptions<B extends TsCandleStreamBlockName = TsCandleStreamBlockName> = Omit<TsCandleStreamParameters<B>, "selector" | "from" | "through" | "cadenceMicros">;
+export type TimeseriesPageOrder = "asc" | "desc";
+/** Pass a page's nextCursor as the boundary of the next call. */
+export type TimeseriesPageCursor = string;
+export interface TimeseriesPageOptions<B extends BlockName> {
+    readonly blocks?: readonly B[];
+    readonly from?: bigint;
+    readonly through?: bigint;
+    readonly dataset?: string;
+    readonly quality?: string;
+    readonly adjustment?: "raw" | "split";
+    readonly signal?: AbortSignal;
+    readonly trace?: TraceContext;
+}
+export interface TimeseriesPage<B extends BlockName> {
+    readonly rows: readonly MarketDataMessage<B>[];
+    readonly from: bigint;
+    readonly through: bigint;
+    readonly nextCursor: TimeseriesPageCursor | null;
+    readonly status: 0 | 1;
+    readonly gaps: readonly MarketDataGap[];
+}
 export interface DatasetRecord<C extends string, V extends object> {
     readonly requestId: bigint;
     readonly phase: "SNAPSHOT" | "UPDATE";
@@ -116,9 +137,11 @@ export interface DatasetClient<C extends string> {
     latestStreamBatched<const B extends StreamBlockName>(selector: MarketSelector, options?: LatestStreamOptions<B>): RequestHandle<MarketDataBatch<B>>;
     timeseries<const B extends TsRawBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataMessage<B>>;
     timeseriesBatched<const B extends TsRawBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataBatch<B>>;
+    timeseriesPage<const B extends TsRawBlockName>(selector: MarketSelector, order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor, limit: number, options?: Omit<TimeseriesPageOptions<B>, "dataset">): SingleRequestHandle<TimeseriesPage<B>>;
+    candlePage<const B extends TsCandleBlockName>(selector: MarketSelector, cadenceMicros: bigint, order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor, limit: number, options?: Omit<TimeseriesPageOptions<B>, "dataset">): SingleRequestHandle<TimeseriesPage<B>>;
 }
 export type DatasetNamespace = {
-    readonly [Alias in keyof typeof DATASETS]: DatasetClient<(typeof DATASETS)[Alias]>;
+    readonly [Alias in keyof typeof DATASETS]: Pick<DatasetClient<(typeof DATASETS)[Alias]>, "id" | ("catalog" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "read" | "lookup" : never) | ("search" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "search" : never) | ("latest" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "latest" | "latestBatched" | "latestStream" | "latestStreamBatched" : never) | ("timeseries" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "timeseries" | "timeseriesBatched" | "timeseriesPage" | "candlePage" : never)>;
 };
 export interface SelectedClient {
     read<const D extends readonly CatalogFieldDescriptor[]>(options?: DatasetReadOptions<D>): RequestHandle<DatasetRecord<string, CatalogDescriptorSelection<D>>>;
@@ -128,6 +151,8 @@ export interface SelectedClient {
     latestStreamBatched<const B extends StreamBlockName>(options?: LatestStreamOptions<B>): RequestHandle<MarketDataBatch<B>>;
     timeseries<const B extends TsRawBlockName>(from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataMessage<B>>;
     timeseriesBatched<const B extends TsRawBlockName>(from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataBatch<B>>;
+    timeseriesPage<const B extends TsRawBlockName>(order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor, limit: number, options?: TimeseriesPageOptions<B>): SingleRequestHandle<TimeseriesPage<B>>;
+    candlePage<const B extends TsCandleBlockName>(cadenceMicros: bigint, order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor, limit: number, options?: TimeseriesPageOptions<B>): SingleRequestHandle<TimeseriesPage<B>>;
 }
 export interface MultiSelectedClient {
     read<const D extends readonly CatalogFieldDescriptor[]>(options?: DatasetReadOptions<D>): MultiRequestHandle<DatasetRecord<string, CatalogDescriptorSelection<D>>>;
@@ -162,6 +187,8 @@ export interface Connection {
     tsRawBatched<const B extends TsRawBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataBatch<B>>;
     tsCandle<const B extends TsCandleBlockName>(selector: MarketSelector, from: bigint, through: bigint, cadenceMicros: bigint, options?: TsCandleOptions<B>): RequestHandle<MarketDataMessage<B>>;
     tsCandleBatched<const B extends TsCandleBlockName>(selector: MarketSelector, from: bigint, through: bigint, cadenceMicros: bigint, options?: TsCandleOptions<B>): RequestHandle<MarketDataBatch<B>>;
+    tsRawPage<const B extends TsRawBlockName>(selector: MarketSelector, order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor, limit: number, options?: TimeseriesPageOptions<B>): SingleRequestHandle<TimeseriesPage<B>>;
+    tsCandlePage<const B extends TsCandleBlockName>(selector: MarketSelector, cadenceMicros: bigint, order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor, limit: number, options?: TimeseriesPageOptions<B>): SingleRequestHandle<TimeseriesPage<B>>;
     tsRawStream<const B extends TsRawStreamBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawStreamOptions<B>): RequestHandle<MarketDataMessage<B>>;
     tsRawStreamBatched<const B extends TsRawStreamBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawStreamOptions<B>): RequestHandle<MarketDataBatch<B>>;
     tsCandleStream<const B extends TsCandleStreamBlockName>(selector: MarketSelector, from: bigint, through: bigint, cadenceMicros: bigint, options?: TsCandleStreamOptions<B>): RequestHandle<MarketDataMessage<B>>;
@@ -196,6 +223,8 @@ declare class ReconnectingConnection implements Connection {
     tsRawBatched<const B extends TsRawBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataBatch<B>>;
     tsCandle<const B extends TsCandleBlockName>(selector: MarketSelector, from: bigint, through: bigint, cadenceMicros: bigint, options?: TsCandleOptions<B>): RequestHandle<MarketDataMessage<B>>;
     tsCandleBatched<const B extends TsCandleBlockName>(selector: MarketSelector, from: bigint, through: bigint, cadenceMicros: bigint, options?: TsCandleOptions<B>): RequestHandle<MarketDataBatch<B>>;
+    tsRawPage<const B extends TsRawBlockName>(selector: MarketSelector, order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor, limit: number, options?: TimeseriesPageOptions<B>): SingleRequestHandle<TimeseriesPage<B>>;
+    tsCandlePage<const B extends TsCandleBlockName>(selector: MarketSelector, cadenceMicros: bigint, order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor, limit: number, options?: TimeseriesPageOptions<B>): SingleRequestHandle<TimeseriesPage<B>>;
     tsRawStream<const B extends TsRawStreamBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawStreamOptions<B>): RequestHandle<MarketDataMessage<B>>;
     tsRawStreamBatched<const B extends TsRawStreamBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawStreamOptions<B>): RequestHandle<MarketDataBatch<B>>;
     tsCandleStream<const B extends TsCandleStreamBlockName>(selector: MarketSelector, from: bigint, through: bigint, cadenceMicros: bigint, options?: TsCandleStreamOptions<B>): RequestHandle<MarketDataMessage<B>>;
