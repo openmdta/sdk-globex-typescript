@@ -24,7 +24,7 @@ export type CatalogDescriptorSelection<D extends readonly CatalogFieldDescriptor
 };
 
 /** Choose a localized pair first, then fall back from short to long within it. */
-export function catalogDisplayName(names: import("./generated/catalog-models.js").InstrumentNamesValue, language: string, short = false): string {
+export function catalogDisplayName(names: {readonly long: string; readonly short: string; readonly localized: readonly {readonly language: string; readonly long: string; readonly short: string}[]}, language: string, short = false): string {
   const requested = language.toLowerCase(), base = requested.split("-")[0];
   const selected = names.localized.find(value => value.language.toLowerCase() === requested)
     ?? names.localized.find(value => value.language.toLowerCase() === base)

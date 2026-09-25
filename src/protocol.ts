@@ -166,6 +166,7 @@ export const blockMask = (blocks: readonly BlockName[] | undefined): bigint => {
   let mask = 0n;
   for (const block of blocks) {
     const binding = BLOCK_BINDINGS[block];
+    if (!binding) throw new ProtocolError(`unknown export block ${block}`);
     // Masks carry template IDs only; combining schemas can select a different block with the same ID.
     mask |= 1n << BigInt((binding.canonicalFormat ?? binding.format).templateId);
   }

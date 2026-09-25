@@ -26,5 +26,13 @@ export type CatalogDescriptorSelection<D extends readonly CatalogFieldDescriptor
     readonly [P in D[number] as P["label"]]: CatalogDescriptorValue<P>;
 };
 /** Choose a localized pair first, then fall back from short to long within it. */
-export declare function catalogDisplayName(names: import("./generated/catalog-models.js").InstrumentNamesValue, language: string, short?: boolean): string;
+export declare function catalogDisplayName(names: {
+    readonly long: string;
+    readonly short: string;
+    readonly localized: readonly {
+        readonly language: string;
+        readonly long: string;
+        readonly short: string;
+    }[];
+}, language: string, short?: boolean): string;
 //# sourceMappingURL=catalog.d.ts.map

@@ -332,7 +332,7 @@ class ReconnectingConnection {
             throw new TypeError("use through as the ascending guard or from as the descending guard");
         }
         for (const block of options.blocks ?? []) {
-            if (!BLOCK_BINDINGS[block].commands.includes(command))
+            if (!BLOCK_BINDINGS[block]?.commands.includes(command))
                 throw new TypeError(`${block} is not available for ${command}`);
         }
         const guard = order === "desc" ? options.from : options.through;
@@ -607,7 +607,7 @@ class ReconnectingConnection {
             throw new TypeError("list selectors are not supported for single-record timeseries");
         }
         for (const block of parameters.blocks ?? []) {
-            if (!BLOCK_BINDINGS[block].commands.includes(command)) {
+            if (!BLOCK_BINDINGS[block]?.commands.includes(command)) {
                 throw new TypeError(`${block} is not available for ${command}`);
             }
         }

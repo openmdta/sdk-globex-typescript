@@ -2,20 +2,12 @@
 
 import {
   BidAsk,
-  Trade,
-  BidAskCandle,
-  TradeCandle,
-  BidDailyOhlc,
-  AskDailyOhlc,
-  TradeDailyOhlc,
-  IexTradeAttributes,
-  ClientTradeAttributes,
   type PublicExport,
   type SbeFormat,
 } from "./export-blocks.js";
 
 export type CommandName = "SNAPSHOT" | "STREAM" | "TS_RAW" | "TS_CANDLE" | "TS_RAW_STREAM" | "TS_CANDLE_STREAM";
-export type BlockName = "BidAsk" | "Trade" | "BidAskCandle" | "TradeCandle" | "BidDailyOhlc" | "AskDailyOhlc" | "TradeDailyOhlc" | "IexTradeAttributes" | "ClientTradeAttributes";
+export type BlockName = "BidAsk";
 
 export interface BlockBinding<T extends PublicExport = PublicExport> {
   readonly name: BlockName;
@@ -29,51 +21,27 @@ export interface BlockBinding<T extends PublicExport = PublicExport> {
   };
 }
 
-export const BLOCK_BINDINGS: Readonly<Record<BlockName, BlockBinding>> = {
+export const BLOCK_BINDINGS: Readonly<Record<string, BlockBinding>> = {
   BidAsk: { name: "BidAsk", property: "bidAsk", format: BidAsk.format, canonicalFormat: { schemaId: 100, templateId: 10, version: 3, blockLength: 27 }, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: BidAsk },
-  Trade: { name: "Trade", property: "trade", format: Trade.format, canonicalFormat: { schemaId: 100, templateId: 11, version: 3, blockLength: 18 }, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: Trade },
-  BidAskCandle: { name: "BidAskCandle", property: "bidAskCandle", format: BidAskCandle.format, canonicalFormat: { schemaId: 100, templateId: 12, version: 3, blockLength: 89 }, internalWireId: null, commands: ["TS_CANDLE", "TS_CANDLE_STREAM"], codec: BidAskCandle },
-  TradeCandle: { name: "TradeCandle", property: "tradeCandle", format: TradeCandle.format, canonicalFormat: { schemaId: 100, templateId: 13, version: 3, blockLength: 52 }, internalWireId: null, commands: ["TS_CANDLE", "TS_CANDLE_STREAM"], codec: TradeCandle },
-  BidDailyOhlc: { name: "BidDailyOhlc", property: "bidDailyOhlc", format: BidDailyOhlc.format, canonicalFormat: { schemaId: 100, templateId: 14, version: 3, blockLength: 53 }, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: BidDailyOhlc },
-  AskDailyOhlc: { name: "AskDailyOhlc", property: "askDailyOhlc", format: AskDailyOhlc.format, canonicalFormat: { schemaId: 100, templateId: 15, version: 3, blockLength: 53 }, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: AskDailyOhlc },
-  TradeDailyOhlc: { name: "TradeDailyOhlc", property: "tradeDailyOhlc", format: TradeDailyOhlc.format, canonicalFormat: { schemaId: 100, templateId: 16, version: 3, blockLength: 53 }, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: TradeDailyOhlc },
-  IexTradeAttributes: { name: "IexTradeAttributes", property: "iexTradeAttributes", format: IexTradeAttributes.format, canonicalFormat: null, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: IexTradeAttributes },
-  ClientTradeAttributes: { name: "ClientTradeAttributes", property: "clientTradeAttributes", format: ClientTradeAttributes.format, canonicalFormat: null, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: ClientTradeAttributes },
 };
 
 export interface BlockValueMap {
   readonly BidAsk: BidAsk;
-  readonly Trade: Trade;
-  readonly BidAskCandle: BidAskCandle;
-  readonly TradeCandle: TradeCandle;
-  readonly BidDailyOhlc: BidDailyOhlc;
-  readonly AskDailyOhlc: AskDailyOhlc;
-  readonly TradeDailyOhlc: TradeDailyOhlc;
-  readonly IexTradeAttributes: IexTradeAttributes;
-  readonly ClientTradeAttributes: ClientTradeAttributes;
 }
 
 export interface BlockPropertyMap {
   readonly BidAsk: "bidAsk";
-  readonly Trade: "trade";
-  readonly BidAskCandle: "bidAskCandle";
-  readonly TradeCandle: "tradeCandle";
-  readonly BidDailyOhlc: "bidDailyOhlc";
-  readonly AskDailyOhlc: "askDailyOhlc";
-  readonly TradeDailyOhlc: "tradeDailyOhlc";
-  readonly IexTradeAttributes: "iexTradeAttributes";
-  readonly ClientTradeAttributes: "clientTradeAttributes";
 }
 
 export type BlockValue<N extends BlockName> = BlockValueMap[N];
 export type BlockPropertyName<N extends BlockName> = BlockPropertyMap[N];
 export type MarketDataFields<N extends BlockName> = { readonly [K in N as BlockPropertyMap[K]]?: BlockValue<K> | null };
 export type MarketDataField<N extends BlockName> = { [K in N]: { readonly name: BlockPropertyMap[K]; readonly value: BlockValue<K> | null } }[N];
-export type SnapshotBlockName = "BidAsk" | "Trade" | "BidDailyOhlc" | "AskDailyOhlc" | "TradeDailyOhlc" | "IexTradeAttributes" | "ClientTradeAttributes";
-export type StreamBlockName = "BidAsk" | "Trade" | "BidDailyOhlc" | "AskDailyOhlc" | "TradeDailyOhlc" | "IexTradeAttributes" | "ClientTradeAttributes";
-export type TsRawBlockName = "BidAsk" | "Trade" | "BidDailyOhlc" | "AskDailyOhlc" | "TradeDailyOhlc" | "IexTradeAttributes" | "ClientTradeAttributes";
-export type TsCandleBlockName = "BidAskCandle" | "TradeCandle";
-export type TsRawStreamBlockName = "BidAsk" | "Trade" | "BidDailyOhlc" | "AskDailyOhlc" | "TradeDailyOhlc" | "IexTradeAttributes" | "ClientTradeAttributes";
-export type TsCandleStreamBlockName = "BidAskCandle" | "TradeCandle";
+export type SnapshotBlockName = "BidAsk";
+export type StreamBlockName = "BidAsk";
+export type TsRawBlockName = "BidAsk";
+export type TsCandleBlockName = never;
+export type TsRawStreamBlockName = "BidAsk";
+export type TsCandleStreamBlockName = never;
 
 export const BLOCK_NAMES = Object.freeze(Object.keys(BLOCK_BINDINGS) as BlockName[]);
