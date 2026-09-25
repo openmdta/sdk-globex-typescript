@@ -96,7 +96,8 @@ export interface TimeseriesPage<B extends BlockName> {
     readonly from: bigint;
     readonly through: bigint;
     readonly nextCursor: TimeseriesPageCursor | null;
-    readonly status: 0 | 1;
+    /** 0 exact, 1 open, 2 partial coverage, 3 not ready. Check gaps before treating a page as complete. */
+    readonly status: 0 | 1 | 2 | 3;
     readonly gaps: readonly MarketDataGap[];
 }
 export interface DatasetRecord<C extends string, V extends object> {

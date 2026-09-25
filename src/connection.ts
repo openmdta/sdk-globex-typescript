@@ -150,7 +150,8 @@ export interface TimeseriesPage<B extends BlockName> {
   readonly from: bigint;
   readonly through: bigint;
   readonly nextCursor: TimeseriesPageCursor | null;
-  readonly status: 0 | 1;
+  /** 0 exact, 1 open, 2 partial coverage, 3 not ready. Check gaps before treating a page as complete. */
+  readonly status: 0 | 1 | 2 | 3;
   readonly gaps: readonly MarketDataGap[];
 }
 
@@ -716,7 +717,7 @@ class ReconnectingConnection implements Connection {
         const result = decodeTimeseriesPageResult(response) as Record<string, unknown>;
         if (typeof result.from !== "string" || typeof result.through !== "string"
           || result.nextCursor !== null && typeof result.nextCursor !== "string"
-          || result.status !== 0 && result.status !== 1) {
+          || result.status !== 0 && result.status !== 1 && result.status !== 2 && result.status !== 3) {
           throw new ProtocolError("invalid timeseries page result");
         }
         return [{

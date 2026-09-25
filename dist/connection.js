@@ -380,7 +380,7 @@ class ReconnectingConnection {
                 const result = decodeTimeseriesPageResult(response);
                 if (typeof result.from !== "string" || typeof result.through !== "string"
                     || result.nextCursor !== null && typeof result.nextCursor !== "string"
-                    || result.status !== 0 && result.status !== 1) {
+                    || result.status !== 0 && result.status !== 1 && result.status !== 2 && result.status !== 3) {
                     throw new ProtocolError("invalid timeseries page result");
                 }
                 return [{
