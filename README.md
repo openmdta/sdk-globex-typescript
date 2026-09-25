@@ -2,6 +2,48 @@
 
 Dependency-free browser client for Globex's multiplexed SBE market-data WebSocket.
 
+## Server-side Observation commands
+
+An exposed Observation CRD appears as a generated service namespace. This example
+SDK has two independent instances, `observation` and `observationEu`. Use the
+main data-client credential from a trusted backend; browser MDToken delegation
+does not authorize Observation commands.
+
+```ts
+import { connectMainClient } from "@globex/market-data/server";
+import { ServiceError } from "@globex/market-data";
+
+const connection = await connectMainClient({
+  url: process.env.OPENMDTA_GATEWAY_URL!,
+  clientId: process.env.OPENMDTA_CLIENT_ID!,
+  secret: process.env.OPENMDTA_CLIENT_SECRET!,
+});
+try {
+  const watchers = await connection.service.observation.getWatchers("account-1");
+  const current = await connection.service.observation.setWatcher("watcher-1", {
+    expectedRevision: watchers[0]!.revision,
+    rule: {field: "trade.price", blockId: 11, threshold: 100},
+  }, {mutationId: "persisted-job-operation-1"});
+  console.log(current.revision); // bigint
+} catch (error) {
+  if (error instanceof ServiceError) {
+    console.error(error.code, error.outcome, error.details);
+  } else throw error;
+} finally {
+  await connection.close();
+}
+```
+
+The SDK freezes the JSON input and mutation ID before sending. If the connection
+drops, it replays the exact command after authentication. `retry: "never"` disables
+transport replay. `timeoutMs` (up to 30 seconds) and `signal` bound a call. A
+changed assignment is durable before success; repeating the same assignment
+does not increment the revision. A replay with `expectedRevision` can return
+`conflict` after the first attempt succeeded. When the first reply was lost,
+`ServiceError.outcome` is `unknown` even if a later attempt fails before writing.
+Read the watcher again to reconcile the current state. The service does not retain
+an old response for the mutation ID.
+
 ```ts
 import { connect, selector } from "@globex/market-data";
 

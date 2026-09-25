@@ -3,10 +3,12 @@ import { decodeCatalogLookup } from "./lookup.js";
 import { decodeCatalogSearch } from "./search.js";
 import { KEYFIGURES_CONTRACTS, decodeKeyfigures } from "./keyfigures.js";
 import { tokenBytes } from "./mdtoken.js";
+import { ServiceError, assertServiceValue, hydrateServiceValue } from "./service.js";
+import { createServiceNamespace } from "./generated/services.js";
 import { selectorExpression } from "./selector.js";
 import { BLOCK_BINDINGS, } from "./generated/bindings.js";
 import {} from "./catalog.js";
-import { ProtocolError, RequestError, WEBSOCKET_SUBPROTOCOL, blockMask, decodeBatch, decodeStreamMetadata, decodeListingResponse, decodeCatalogFields, decodeCatalogRecord, decodeKeyfiguresResult, decodeCatalogSearchResult, decodeCatalogLookupResult, decodeResponse, encodeRequest, } from "./protocol.js";
+import { ProtocolError, RequestError, WEBSOCKET_SUBPROTOCOL, blockMask, decodeBatch, decodeStreamMetadata, decodeListingResponse, decodeCatalogFields, decodeCatalogRecord, decodeKeyfiguresResult, decodeServiceCallResult, decodeCatalogSearchResult, decodeCatalogLookupResult, decodeResponse, encodeRequest, } from "./protocol.js";
 export class ConnectionClosedError extends Error {
     constructor() {
         super("market-data connection was closed");
@@ -102,6 +104,7 @@ class ReconnectingConnection {
     #closing = false;
     #initialSettled = false;
     #lastHeartbeat = 0;
+    #identity;
     #track(active) {
         if (this.#active.size >= MAX_ACTIVE_REQUESTS)
             throw new RangeError("connection active-request capacity reached");
@@ -119,6 +122,88 @@ class ReconnectingConnection {
     }
     ready() {
         return this.#initial;
+    }
+    get service() {
+        return createServiceNamespace((binding, input, options) => this.#serviceCall(binding, input, options));
+    }
+    async #serviceCall(binding, input, options = {}) {
+        if (this.#closing)
+            throw new ConnectionClosedError();
+        if (options.signal?.aborted)
+            throw new ServiceError("aborted", binding.serviceId, binding.command, "not_applied", options.mutationId, undefined, "service call aborted");
+        if (options.retry === "never" && !this.#authenticated)
+            throw new ServiceError("connection_lost", binding.serviceId, binding.command, "not_applied", options.mutationId, undefined, "service connection is offline");
+        const timeoutMs = options.timeoutMs ?? 30_000;
+        if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30_000)
+            throw new RangeError("service timeout must be 1–30000 milliseconds");
+        const mutationId = binding.mutation ? (options.mutationId ?? crypto.randomUUID()) : undefined;
+        if (options.mutationId !== undefined && !binding.mutation)
+            throw new TypeError("read commands do not accept mutation IDs");
+        if (mutationId !== undefined && (!mutationId || new TextEncoder().encode(mutationId).length > 128))
+            throw new TypeError("invalid mutation ID");
+        const jsonInput = JSON.parse(JSON.stringify(input, (_key, value) => typeof value === "bigint" ? value.toString() : value));
+        assertServiceValue(jsonInput, binding.inputSchema, binding.definitions, "input");
+        const inputJson = JSON.stringify(jsonInput);
+        if (new TextEncoder().encode(inputJson).length > 64 * 1024)
+            throw new RangeError("service input exceeds 64 KiB");
+        const id = this.#nextId++;
+        const handle = new Handle(id, () => this.#cancel(id));
+        const deadlineUnixMillis = BigInt(Date.now() + timeoutMs);
+        const active = {
+            command: "SERVICE_CALL", handle, retry: options.retry ?? "transport",
+            service: { id: binding.serviceId, command: binding.command, ...(mutationId === undefined ? {} : { mutationId }) },
+            encoded: encodeRequest({ command: "SERVICE_CALL", id, serviceId: binding.serviceId, serviceCommand: binding.command,
+                contractFingerprint: binding.fingerprint, ...(mutationId === undefined ? {} : { mutationId }), inputJson, deadlineUnixMillis }),
+            decode: response => {
+                const value = decodeServiceCallResult(response);
+                if (typeof value !== "object" || value === null || Array.isArray(value))
+                    throw new ProtocolError("invalid service result envelope");
+                const result = value;
+                if (result.ok !== true) {
+                    const error = result.error;
+                    if (typeof error !== "object" || error === null || Array.isArray(error))
+                        throw new ProtocolError("invalid service error");
+                    const fields = error;
+                    if (typeof fields.code !== "string" || typeof fields.message !== "string" || !["not_applied", "unknown"].includes(String(fields.outcome)))
+                        throw new ProtocolError("invalid service error fields");
+                    const errorSchema = Object.hasOwn(binding.errorSchemas, fields.code) ? binding.errorSchemas[fields.code] : undefined;
+                    if (errorSchema !== undefined)
+                        assertServiceValue(fields.details, errorSchema, binding.definitions, "error details");
+                    throw new ServiceError(fields.code, binding.serviceId, binding.command, active.interrupted ? "unknown" : fields.outcome, mutationId, errorSchema === undefined ? fields.details : hydrateServiceValue(fields.details, errorSchema, binding.definitions), fields.message);
+                }
+                assertServiceValue(result.result, binding.outputSchema, binding.definitions, "result");
+                return hydrateServiceValue(result.result, binding.outputSchema, binding.definitions);
+            },
+        };
+        this.#track(active);
+        if (this.#authenticated && this.#socket?.readyState === this.#WebSocket.OPEN) {
+            active.sent = true;
+            this.#socket.send(active.encoded);
+        }
+        let timer;
+        const abort = () => {
+            this.#active.delete(id);
+            handle.fail(new ServiceError("aborted", binding.serviceId, binding.command, active.sent ? "unknown" : "not_applied", mutationId, undefined, "service call aborted"));
+        };
+        try {
+            timer = setTimeout(() => {
+                this.#active.delete(id);
+                handle.fail(new ServiceError("deadline_exceeded", binding.serviceId, binding.command, active.sent ? "unknown" : "not_applied", mutationId, undefined, "service deadline expired"));
+            }, timeoutMs);
+            options.signal?.addEventListener("abort", abort, { once: true });
+            return await handle.await();
+        }
+        catch (error) {
+            if (error instanceof ServiceError)
+                throw error;
+            throw new ServiceError(error instanceof AuthenticationError ? "unauthenticated" : "connection_lost", binding.serviceId, binding.command, active.sent ? "unknown" : "not_applied", mutationId, undefined, error instanceof Error ? error.message : "service call failed");
+        }
+        finally {
+            if (timer !== undefined)
+                clearTimeout(timer);
+            options.signal?.removeEventListener("abort", abort);
+            this.#active.delete(id);
+        }
     }
     get dataset() {
         const get = (id) => ({
@@ -626,6 +711,19 @@ class ReconnectingConnection {
             ]);
             // Preserve legacy UTF-8 credentials; MDToken base64url has a fixed SBE header.
             const token = typeof supplied === "string" && !supplied.startsWith("AAABAAgAAA") ? supplied : tokenBytes(supplied);
+            const identity = typeof token === "string" && token.startsWith("main:")
+                ? `main:${token.split(":", 3)[1]}`
+                : typeof token === "string" ? `opaque:${token}` : (() => {
+                    if (token.length < 12)
+                        throw new AuthenticationError("invalid MDToken identity");
+                    const length = new DataView(token.buffer, token.byteOffset, token.byteLength).getUint32(8, true);
+                    if (!length || length > 128 || 12 + length > token.length)
+                        throw new AuthenticationError("invalid MDToken identity");
+                    return `data:${new TextDecoder("utf-8", { fatal: true }).decode(token.subarray(12, 12 + length))}`;
+                })();
+            if (this.#identity !== undefined && this.#identity !== identity)
+                throw new AuthenticationError("client identity changed during reconnect");
+            this.#identity = identity;
             socket.send(encodeRequest({ command: "AUTH", id: 1n, token }));
         }
         catch (error) {
@@ -647,6 +745,7 @@ class ReconnectingConnection {
             if (replay)
                 active.handle.replay();
             socket.send(active.encoded);
+            active.sent = true;
         }
         for (const cancellation of this.#cancellations.values())
             socket.send(cancellation.encoded);
@@ -656,6 +755,15 @@ class ReconnectingConnection {
             }
         }, 5_000);
         await closed;
+        for (const [id, active] of this.#active) {
+            if (active.command !== "SERVICE_CALL" || !active.sent)
+                continue;
+            active.interrupted = true;
+            if (active.retry === "never") {
+                active.handle.fail(new ServiceError("connection_lost", active.service.id, active.service.command, "unknown", active.service.mutationId, undefined, "service connection lost"));
+                this.#active.delete(id);
+            }
+        }
         clearInterval(heartbeat);
         if (this.#socket === socket)
             this.#socket = undefined;
@@ -731,6 +839,10 @@ class ReconnectingConnection {
                 if (!values.every(item => active.handle.push(item, bytesPerValue))) {
                     void this.#cancel(response.requestId);
                     active.handle.fail(new RequestLaggedError());
+                    this.#active.delete(response.requestId);
+                }
+                else if (active.command === "SERVICE_CALL") {
+                    active.handle.finish();
                     this.#active.delete(response.requestId);
                 }
             }

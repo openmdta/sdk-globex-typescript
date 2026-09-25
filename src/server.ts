@@ -2,7 +2,24 @@
 import { createHmac } from "node:crypto";
 import { deflateSync } from "node:zlib";
 import type { Grant } from "./mdtoken.js";
+import {connect, type ConnectOptions} from "./connection.js";
 export type { Grant } from "./mdtoken.js";
+
+/** Keep the main client secret on a trusted backend. */
+export const connectMainClient = (options: Omit<ConnectOptions, "token"> &
+  ({readonly clientId: string; readonly secret: string} |
+   {readonly credential: () => {readonly clientId: string; readonly secret: string} | Promise<{readonly clientId: string; readonly secret: string}>})) => {
+  const source = "credential" in options ? options.credential : () => ({clientId: options.clientId, secret: options.secret});
+  const token = async () => {
+    const credential = await source();
+    if (!credential.clientId || credential.clientId.includes(":") || !/^[A-Za-z0-9_-]{43}$/.test(credential.secret)) {
+      throw new TypeError("invalid main data-client credential");
+    }
+    return `main:${credential.clientId}:${credential.secret}`;
+  };
+  return connect({url: options.url, token,
+    ...(options.webSocket ? {webSocket: options.webSocket} : {})});
+};
 
 export interface SignMDTokenOptions {
   readonly clientId: string;

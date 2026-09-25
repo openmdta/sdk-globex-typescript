@@ -39,6 +39,16 @@ export type Request = {
     readonly priceAgeMode?: "elapsed" | "trading-time" | "last-completed-session";
     readonly trace?: TraceContext;
 } | {
+    readonly command: "SERVICE_CALL";
+    readonly id: bigint;
+    readonly serviceId: string;
+    readonly serviceCommand: string;
+    readonly contractFingerprint: string;
+    readonly mutationId?: string;
+    readonly inputJson: string;
+    readonly deadlineUnixMillis: bigint;
+    readonly trace?: TraceContext;
+} | {
     readonly command: "AUTH";
     readonly id: bigint;
     readonly token: string | Uint8Array;
@@ -181,6 +191,7 @@ export declare const encodeRequest: (request: Request) => Uint8Array<ArrayBuffer
 export declare const decodeResponse: (source: ArrayBuffer | ArrayBufferView) => Response;
 export declare const decodeBatch: (response: StandardResponse, selector: MarketSelector) => MarketDataBatch;
 export declare const decodeKeyfiguresResult: (response: StandardResponse) => unknown;
+export declare const decodeServiceCallResult: (response: StandardResponse) => unknown;
 export declare const decodeCatalogSearchResult: (response: StandardResponse) => unknown;
 export declare const decodeCatalogLookupResult: (response: StandardResponse) => unknown;
 export declare const decodeCatalogRecord: (response: StandardResponse) => CatalogWireRecord;

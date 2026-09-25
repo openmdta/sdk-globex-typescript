@@ -31,6 +31,7 @@ const MARKET_TEMPLATE = {
     CATALOG_SEARCH: 10,
     CATALOG_LOOKUP: 11,
     LISTING_LATEST: 12,
+    SERVICE_CALL: 13,
 };
 export class ProtocolError extends Error {
     constructor(message) {
@@ -286,6 +287,24 @@ export const decodeKeyfiguresResult = (response) => {
         throw new ProtocolError("malformed Catalog keyfigures result JSON");
     }
 };
+export const decodeServiceCallResult = (response) => {
+    const message = response.message;
+    if (response.status !== "CONTINUE" || !message || message.format.schemaId !== MARKET_SCHEMA_ID
+        || message.format.templateId !== 109 || message.format.version !== 16 || message.format.blockLength !== 0) {
+        throw new ProtocolError("unsupported service result");
+    }
+    const body = message.body;
+    if (body.byteLength < 4 || body.byteLength > 4 * 1024 * 1024 + 4
+        || new DataView(body.buffer, body.byteOffset, body.byteLength).getUint32(0, true) !== body.byteLength - 4) {
+        throw new ProtocolError("invalid service result length");
+    }
+    try {
+        return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(body.subarray(4)));
+    }
+    catch {
+        throw new ProtocolError("invalid service result JSON");
+    }
+};
 export const decodeCatalogSearchResult = (response) => {
     const message = response.message;
     if (response.status !== "CONTINUE" || !message || message.format.schemaId !== MARKET_SCHEMA_ID
@@ -507,6 +526,24 @@ const encodeMarketRequest = (request) => {
         const bytes = message(MARKET_SCHEMA_ID, 15, MARKET_TEMPLATE.LISTING_LATEST, 0, 4 + value.byteLength);
         new DataView(bytes.buffer).setUint32(HEADER_LENGTH, value.byteLength, true);
         bytes.set(value, HEADER_LENGTH + 4);
+        return bytes;
+    }
+    if (request.command === "SERVICE_CALL") {
+        const values = [request.serviceId, request.serviceCommand, request.contractFingerprint, request.mutationId ?? "", request.inputJson]
+            .map(value => new TextEncoder().encode(value));
+        if (!values[0]?.length || values[0].length > 256 || !values[1]?.length || values[1].length > 128
+            || !/^[a-f0-9]{64}$/.test(request.contractFingerprint) || (values[3]?.length ?? 0) > 128
+            || (values[4]?.length ?? 0) > 64 * 1024)
+            throw new ProtocolError("invalid service request");
+        const bytes = message(MARKET_SCHEMA_ID, 16, MARKET_TEMPLATE.SERVICE_CALL, 8, values.reduce((sum, value) => sum + 4 + value.byteLength, 0));
+        const view = new DataView(bytes.buffer);
+        view.setBigUint64(HEADER_LENGTH, request.deadlineUnixMillis, true);
+        let offset = HEADER_LENGTH + 8;
+        for (const value of values) {
+            view.setUint32(offset, value.byteLength, true);
+            bytes.set(value, offset + 4);
+            offset += 4 + value.byteLength;
+        }
         return bytes;
     }
     if (request.command === "STREAM_METADATA") {

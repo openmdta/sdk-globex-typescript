@@ -1,6 +1,20 @@
 /** Server-only signing entry point. Never import it into a browser bundle. */
 import { createHmac } from "node:crypto";
 import { deflateSync } from "node:zlib";
+import { connect } from "./connection.js";
+/** Keep the main client secret on a trusted backend. */
+export const connectMainClient = (options) => {
+    const source = "credential" in options ? options.credential : () => ({ clientId: options.clientId, secret: options.secret });
+    const token = async () => {
+        const credential = await source();
+        if (!credential.clientId || credential.clientId.includes(":") || !/^[A-Za-z0-9_-]{43}$/.test(credential.secret)) {
+            throw new TypeError("invalid main data-client credential");
+        }
+        return `main:${credential.clientId}:${credential.secret}`;
+    };
+    return connect({ url: options.url, token,
+        ...(options.webSocket ? { webSocket: options.webSocket } : {}) });
+};
 const variable = (bytes) => {
     const size = Buffer.alloc(4);
     size.writeUInt32LE(bytes.length);

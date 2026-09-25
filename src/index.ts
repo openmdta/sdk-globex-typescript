@@ -63,3 +63,5 @@ export * from "./search.js";
 export * from "./lookup.js";
 
 export * as CatalogModels from "./generated/catalog-models.js";
+export {ServiceError, type ServiceCallOptions} from "./service.js";
+export * from "./generated/services.js";

@@ -5,6 +5,7 @@ import { type CatalogSearchParameters, type CatalogSearchResult } from "./search
 import type { StreamMetadata } from "./generated/activity.js";
 import { type CatalogKeyfigures, type KeyfiguresCatalog, type SingleRequestHandle } from "./keyfigures.js";
 import { type TokenSource } from "./mdtoken.js";
+import { type ServiceNamespace } from "./generated/services.js";
 import { type MarketSelector } from "./selector.js";
 import { type BlockName, type SnapshotBlockName, type StreamBlockName, type TsCandleBlockName, type TsCandleStreamBlockName, type TsRawBlockName, type TsRawStreamBlockName } from "./generated/bindings.js";
 import { type CatalogDescriptorSelection, type CatalogFieldDescriptor } from "./catalog.js";
@@ -148,6 +149,7 @@ export interface StreamMetadataParameters {
 }
 export interface Connection {
     readonly dataset: DatasetNamespace;
+    readonly service: ServiceNamespace;
     select(selector: MarketSelector): SelectedClient;
     select(selectors: readonly [MarketSelector, ...MarketSelector[]]): MultiSelectedClient;
     streamMetadata(dataset: string, quality: "RT" | "DL" | "EOD", options?: Pick<StreamMetadataParameters, "trace">): RequestHandle<StreamMetadata>;
@@ -182,6 +184,7 @@ declare class ReconnectingConnection implements Connection {
     #private;
     constructor(options: ConnectOptions);
     ready(): Promise<void>;
+    get service(): ServiceNamespace;
     get dataset(): DatasetNamespace;
     select(selector: MarketSelector): SelectedClient;
     select(selectors: readonly [MarketSelector, ...MarketSelector[]]): MultiSelectedClient;
