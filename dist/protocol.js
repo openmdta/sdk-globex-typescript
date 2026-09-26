@@ -2,6 +2,10 @@ import { decodeListingEvent } from "./generated/listing.js";
 import { decodeStreamMetadataJson } from "./generated/activity.js";
 import { BLOCK_BINDINGS, } from "./generated/bindings.js";
 export const WEBSOCKET_SUBPROTOCOL = "openmdta.sbe-session.v1";
+export const WINDOW_SUBPROTOCOL = "openmdta.sbe-session.v2";
+export const RESPONSE_WINDOW_BYTES = 8 * 1024 * 1024;
+export const RESPONSE_WINDOW_COUNT = 16;
+export const RESPONSE_COST_OVERHEAD = 128;
 const SESSION_SCHEMA_ID = 5;
 const SESSION_SCHEMA_VERSION = 0;
 const MARKET_SCHEMA_ID = 102;
@@ -14,6 +18,7 @@ const HEADER_LENGTH = 8;
 const AUTH_TEMPLATE_ID = 1;
 const OPEN_TEMPLATE_ID = 2;
 const CANCEL_TEMPLATE_ID = 3;
+const CREDIT_TEMPLATE_ID = 4;
 const RESPONSE_TEMPLATE_ID = 101;
 const CANCEL_RESPONSE_TEMPLATE_ID = 102;
 const MESSAGE_BATCH_TEMPLATE_ID = 108;
@@ -33,6 +38,84 @@ const MARKET_TEMPLATE = {
     LISTING_LATEST: 12,
     SERVICE_CALL: 13,
     TS_PAGE: 14,
+    FEED_LIVE: 15,
+    FEED_RECOVERY: 16,
+    FEED_SNAPSHOT: 17,
+    CATALOG_FEED: 18,
+};
+export const decodeFeedControl = (response) => {
+    if (response.status !== "CONTINUE" || response.message === null)
+        throw new ProtocolError("feed control requires a continuing response");
+    const { format, body } = response.message;
+    if (format.schemaId !== MARKET_SCHEMA_ID || format.templateId !== 111 || format.version !== 18
+        || format.blockLength !== 17 || body.byteLength < 21)
+        throw new ProtocolError("unsupported feed control");
+    const view = new DataView(body.buffer, body.byteOffset, body.byteLength);
+    const kind = view.getUint8(0);
+    if (kind < 1 || kind > 3)
+        throw new ProtocolError("invalid feed control kind");
+    const dataset = takeVarData(body, view, 17);
+    if (dataset.next !== body.byteLength)
+        throw new ProtocolError("feed control contains trailing bytes");
+    return {
+        kind: kind === 1 ? "fence" : kind === 2 ? "gap" : "watermark",
+        afterMessageId: view.getBigUint64(1, true),
+        throughMessageId: view.getBigUint64(9, true),
+        dataset: new TextDecoder("utf-8", { fatal: true }).decode(dataset.value),
+    };
+};
+export const decodeFeedSnapshotHeader = (response) => {
+    if (response.status !== "CONTINUE" || response.message === null)
+        throw new ProtocolError("snapshot header requires a continuing response");
+    const { format, body } = response.message;
+    if (format.schemaId !== MARKET_SCHEMA_ID || format.templateId !== 112 || format.version !== 18
+        || format.blockLength !== 8 || body.byteLength < 18)
+        throw new ProtocolError("unsupported feed snapshot header");
+    const view = new DataView(body.buffer, body.byteOffset, body.byteLength);
+    const group = takeGroupHeader(body, view, 8, 16);
+    if (group.next + group.count * 16 > body.byteLength)
+        throw new ProtocolError("feed snapshot gaps are truncated");
+    const gaps = Array.from({ length: group.count }, (_, index) => ({
+        afterMessageId: view.getBigUint64(group.next + index * 16, true),
+        throughMessageId: view.getBigUint64(group.next + index * 16 + 8, true),
+    }));
+    if (gaps.some(gap => gap.afterMessageId >= gap.throughMessageId))
+        throw new ProtocolError("invalid feed snapshot gap");
+    const dataset = takeVarData(body, view, group.next + group.count * 16);
+    if (dataset.next !== body.byteLength)
+        throw new ProtocolError("feed snapshot header contains trailing bytes");
+    return {
+        throughMessageId: view.getBigUint64(0, true),
+        gaps,
+        dataset: new TextDecoder("utf-8", { fatal: true }).decode(dataset.value),
+    };
+};
+export const decodeCatalogFeedControl = (response) => {
+    if (response.status !== "CONTINUE" || !response.message)
+        throw new ProtocolError("Catalog feed control is not a continuing response");
+    const { format, body } = response.message;
+    if (format.schemaId !== MARKET_SCHEMA_ID || format.templateId !== 113 || format.version !== 19 || format.blockLength !== 0 || body.byteLength < 4) {
+        throw new ProtocolError("unsupported Catalog feed control");
+    }
+    const view = new DataView(body.buffer, body.byteOffset, body.byteLength);
+    const length = view.getUint32(0, true);
+    if (length !== body.byteLength - 4)
+        throw new ProtocolError("malformed Catalog feed control length");
+    let value;
+    try {
+        value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(body.subarray(4)));
+    }
+    catch {
+        throw new ProtocolError("malformed Catalog feed control JSON");
+    }
+    if (typeof value !== "object" || value === null || !("kind" in value))
+        throw new ProtocolError("invalid Catalog feed control");
+    if (value.kind === "snapshot_begin")
+        return { kind: "snapshot_begin" };
+    if ((value.kind === "snapshot_complete" || value.kind === "cursor") && "cursor" in value && typeof value.cursor === "string") {
+        return { kind: value.kind, cursor: value.cursor };
+    }
+    throw new ProtocolError("invalid Catalog feed control kind");
 };
 export class ProtocolError extends Error {
     constructor(message) {
@@ -75,6 +158,61 @@ export const encodeRequest = (request) => {
         return bytes;
     }
     return encodeOpen(request.id, encodeMarketRequest(request), request.trace);
+};
+export const encodeCredit = (targetId, credits = 1) => {
+    const bytes = message(SESSION_SCHEMA_ID, SESSION_SCHEMA_VERSION, CREDIT_TEMPLATE_ID, 12);
+    const view = new DataView(bytes.buffer);
+    view.setBigUint64(HEADER_LENGTH, targetId, true);
+    view.setUint32(HEADER_LENGTH + 8, credits, true);
+    return bytes;
+};
+export const encodeWindow = (targetId) => {
+    const bytes = message(SESSION_SCHEMA_ID, 1, 5, 20);
+    const view = new DataView(bytes.buffer);
+    view.setBigUint64(HEADER_LENGTH, targetId, true);
+    view.setUint32(HEADER_LENGTH + 8, RESPONSE_WINDOW_COUNT, true);
+    view.setUint32(HEADER_LENGTH + 12, RESPONSE_WINDOW_BYTES, true);
+    view.setUint32(HEADER_LENGTH + 16, 5 * 1024 * 1024 - 128, true);
+    return bytes;
+};
+export const encodeRelease = (targetId, consumedBytes) => {
+    const bytes = message(SESSION_SCHEMA_ID, 1, 6, 16);
+    const view = new DataView(bytes.buffer);
+    view.setBigUint64(HEADER_LENGTH, targetId, true);
+    view.setUint32(HEADER_LENGTH + 8, 1, true);
+    view.setUint32(HEADER_LENGTH + 12, consumedBytes, true);
+    return bytes;
+};
+/** Decode one bounded transport batch; all body slices share the original frame. */
+export const splitResponseBatch = (response) => {
+    const message = response.message;
+    if (message?.format.schemaId !== SESSION_SCHEMA_ID || message.format.templateId !== 103)
+        return [response];
+    const { body, format } = message;
+    if (format.version !== 1 || format.blockLength !== 0 || body.byteLength < 6 || body[0] !== 8 || body[1] !== 0)
+        throw new ProtocolError("invalid response batch");
+    const view = new DataView(body.buffer, body.byteOffset, body.byteLength);
+    const count = view.getUint32(2, true);
+    if (count === 0 || count > 64)
+        throw new ProtocolError("invalid response batch count");
+    const messages = [];
+    let offset = 6;
+    for (let index = 0; index < count; index++) {
+        if (offset + 12 > body.byteLength)
+            throw new ProtocolError("truncated response batch");
+        const format = { schemaId: view.getUint16(offset, true), templateId: view.getUint16(offset + 2, true),
+            version: view.getUint16(offset + 4, true), blockLength: view.getUint16(offset + 6, true) };
+        const size = view.getUint32(offset + 8, true);
+        offset += 12;
+        if (size > body.byteLength - offset || size < format.blockLength
+            || (format.schemaId === SESSION_SCHEMA_ID && format.templateId === 103))
+            throw new ProtocolError("invalid nested response body");
+        messages.push({ ...response, message: { format, body: body.subarray(offset, offset + size) } });
+        offset += size;
+    }
+    if (offset !== body.byteLength)
+        throw new ProtocolError("response batch has trailing bytes");
+    return messages;
 };
 export const decodeResponse = (source) => {
     const bytes = asBytes(source);
@@ -483,6 +621,50 @@ export const decodeCatalogFields = (record, descriptors, requireEveryField = fal
     return decoded;
 };
 const encodeMarketRequest = (request) => {
+    if (request.command === "CATALOG_FEED") {
+        const fields = request.fields.map(value => new TextEncoder().encode(value));
+        const catalog = new TextEncoder().encode(request.catalog);
+        const cursor = new TextEncoder().encode(request.cursor ?? "");
+        const tailLength = 6 + fields.reduce((sum, value) => sum + 4 + value.byteLength, 0)
+            + 8 + catalog.byteLength + cursor.byteLength;
+        const bytes = message(MARKET_SCHEMA_ID, 19, MARKET_TEMPLATE.CATALOG_FEED, 0, tailLength);
+        const view = new DataView(bytes.buffer);
+        let offset = putGroupHeader(bytes, view, HEADER_LENGTH, fields);
+        view.setUint32(offset, catalog.byteLength, true);
+        bytes.set(catalog, offset + 4);
+        offset += 4 + catalog.byteLength;
+        view.setUint32(offset, cursor.byteLength, true);
+        bytes.set(cursor, offset + 4);
+        return bytes;
+    }
+    if (request.command === "FEED_LIVE" || request.command === "FEED_SNAPSHOT") {
+        const dataset = new TextEncoder().encode(request.dataset);
+        const quality = new TextEncoder().encode(request.quality);
+        const bytes = message(MARKET_SCHEMA_ID, 18, MARKET_TEMPLATE[request.command], 8, 8 + dataset.length + quality.length);
+        const view = new DataView(bytes.buffer);
+        view.setBigUint64(HEADER_LENGTH, request.blockMask, true);
+        view.setUint32(HEADER_LENGTH + 8, dataset.length, true);
+        bytes.set(dataset, HEADER_LENGTH + 12);
+        const qualityOffset = HEADER_LENGTH + 12 + dataset.length;
+        view.setUint32(qualityOffset, quality.length, true);
+        bytes.set(quality, qualityOffset + 4);
+        return bytes;
+    }
+    if (request.command === "FEED_RECOVERY") {
+        const dataset = new TextEncoder().encode(request.dataset);
+        const quality = new TextEncoder().encode(request.quality);
+        const bytes = message(MARKET_SCHEMA_ID, 18, MARKET_TEMPLATE.FEED_RECOVERY, 24, 8 + dataset.length + quality.length);
+        const view = new DataView(bytes.buffer);
+        view.setBigUint64(HEADER_LENGTH, request.blockMask, true);
+        view.setBigUint64(HEADER_LENGTH + 8, request.afterMessageId, true);
+        view.setBigUint64(HEADER_LENGTH + 16, request.throughMessageId, true);
+        view.setUint32(HEADER_LENGTH + 24, dataset.length, true);
+        bytes.set(dataset, HEADER_LENGTH + 28);
+        const qualityOffset = HEADER_LENGTH + 28 + dataset.length;
+        view.setUint32(qualityOffset, quality.length, true);
+        bytes.set(quality, qualityOffset + 4);
+        return bytes;
+    }
     if (request.command === "TS_PAGE") {
         const value = new TextEncoder().encode(request.parameters);
         if (value.byteLength > 8192)

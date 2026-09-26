@@ -18,25 +18,25 @@ class Reader {
 }
 export interface XetraListingValue { readonly productId: string; readonly productStatus: string; readonly instrumentStatus: string; readonly inSubscription: string; readonly disableOnBookTrading: string; readonly midpointTrading: string; readonly midpointExecutionVenueId: string; readonly ccpEligibleCode: string; readonly clearingLocation: string; readonly settlementPeriod: string; readonly settlementCurrency: string; readonly multiCcpEligible: string; readonly depositType: string; readonly maximumOrderQuantity: string; readonly maximumOrderValue: string; readonly minimumIcebergTotalVolume: string; readonly minimumIcebergDisplayVolume: string; }
 export const XetraListing = {
-  entityType: "LISTING", multiple: false,
-  decode(payload: Uint8Array): XetraListingValue {
-    const reader = new Reader(payload);
-    const block = reader.u16(), version = reader.u16();
-    if (version > 1 || block < 0) throw new RangeError('incompatible XetraListing prefix');
-    const value = reader.record(block, (base) => ({ productId: reader.text(), productStatus: reader.text(), instrumentStatus: reader.text(), inSubscription: reader.text(), disableOnBookTrading: reader.text(), midpointTrading: reader.text(), midpointExecutionVenueId: reader.text(), ccpEligibleCode: reader.text(), clearingLocation: reader.text(), settlementPeriod: reader.text(), settlementCurrency: reader.text(), multiCcpEligible: reader.text(), depositType: reader.text(), maximumOrderQuantity: reader.text(), maximumOrderValue: reader.text(), minimumIcebergTotalVolume: reader.text(), minimumIcebergDisplayVolume: reader.text(), }));
-    reader.finish();
-    return value;
-  }
+    entityType: "LISTING", multiple: false,
+    decode(payload: Uint8Array): XetraListingValue {
+        const reader = new Reader(payload);
+        const block = reader.u16(), version = reader.u16();
+        if (version > 1 || block < 0) throw new RangeError("incompatible XetraListing prefix");
+        const value = reader.record(block, (base) => ({ productId: reader.text(), productStatus: reader.text(), instrumentStatus: reader.text(), inSubscription: reader.text(), disableOnBookTrading: reader.text(), midpointTrading: reader.text(), midpointExecutionVenueId: reader.text(), ccpEligibleCode: reader.text(), clearingLocation: reader.text(), settlementPeriod: reader.text(), settlementCurrency: reader.text(), multiCcpEligible: reader.text(), depositType: reader.text(), maximumOrderQuantity: reader.text(), maximumOrderValue: reader.text(), minimumIcebergTotalVolume: reader.text(), minimumIcebergDisplayVolume: reader.text(), }));
+        reader.finish();
+        return value;
+    }
 } as const;
 export interface XetraMarketDetailsValue { readonly participants: readonly { readonly role: string; readonly memberId: string; readonly name: string; }[]; readonly liquidityProviderUserGroup: string; readonly specialistUserGroup: string; }
 export const XetraMarketDetails = {
-  entityType: "LISTING", multiple: false,
-  decode(payload: Uint8Array): XetraMarketDetailsValue {
-    const reader = new Reader(payload);
-    const block = reader.u16(), version = reader.u16();
-    if (version > 1 || block < 0) throw new RangeError('incompatible XetraMarketDetails prefix');
-    const value = reader.record(block, (base) => ({ participants: reader.group(0, (base) => ({ role: reader.text(), memberId: reader.text(), name: reader.text(), })), liquidityProviderUserGroup: reader.text(), specialistUserGroup: reader.text(), }));
-    reader.finish();
-    return value;
-  }
+    entityType: "LISTING", multiple: false,
+    decode(payload: Uint8Array): XetraMarketDetailsValue {
+        const reader = new Reader(payload);
+        const block = reader.u16(), version = reader.u16();
+        if (version > 1 || block < 0) throw new RangeError("incompatible XetraMarketDetails prefix");
+        const value = reader.record(block, (base) => ({ participants: reader.group(0, (base) => ({ role: reader.text(), memberId: reader.text(), name: reader.text(), })), liquidityProviderUserGroup: reader.text(), specialistUserGroup: reader.text(), }));
+        reader.finish();
+        return value;
+    }
 } as const;

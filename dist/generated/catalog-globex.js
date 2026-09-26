@@ -38,7 +38,7 @@ export const DisplayName = {
         const reader = new Reader(payload);
         const block = reader.u16(), version = reader.u16();
         if (version > 0 || block < 0)
-            throw new RangeError('incompatible DisplayName prefix');
+            throw new RangeError("incompatible DisplayName prefix");
         const value = reader.record(block, (base) => ({ value: reader.text(), }));
         reader.finish();
         return value;

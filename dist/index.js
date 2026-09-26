@@ -5,6 +5,8 @@ export * from "./generated/export-blocks.js";
 export * from "./catalog.js";
 export { selector } from "./selector.js";
 export * from "./external-store.js";
+export * from "./feed.js";
+export * from "./catalog-feed.js";
 export { createRestClient, tokenBytes, tokenBearer } from "./mdtoken.js";
 export * from "./keyfigures.js";
 export * from "./search.js";

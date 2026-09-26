@@ -5,7 +5,41 @@ import type { SbeFormat } from "./generated/export-blocks.js";
 import type { CatalogFieldDescriptor, CatalogDescriptorValue } from "./catalog.js";
 import type { MarketSelector } from "./selector.js";
 export declare const WEBSOCKET_SUBPROTOCOL = "openmdta.sbe-session.v1";
+export declare const WINDOW_SUBPROTOCOL = "openmdta.sbe-session.v2";
+export declare const RESPONSE_WINDOW_BYTES: number;
+export declare const RESPONSE_WINDOW_COUNT = 16;
+export declare const RESPONSE_COST_OVERHEAD = 128;
 export type Request = {
+    readonly command: "CATALOG_FEED";
+    readonly id: bigint;
+    readonly catalog: string;
+    readonly fields: readonly string[];
+    readonly cursor: string | null;
+    readonly trace?: TraceContext;
+} | {
+    readonly command: "FEED_LIVE";
+    readonly id: bigint;
+    readonly blockMask: bigint;
+    readonly dataset: string;
+    readonly quality: string;
+    readonly trace?: TraceContext;
+} | {
+    readonly command: "FEED_RECOVERY";
+    readonly id: bigint;
+    readonly blockMask: bigint;
+    readonly afterMessageId: bigint;
+    readonly throughMessageId: bigint;
+    readonly dataset: string;
+    readonly quality: string;
+    readonly trace?: TraceContext;
+} | {
+    readonly command: "FEED_SNAPSHOT";
+    readonly id: bigint;
+    readonly blockMask: bigint;
+    readonly dataset: string;
+    readonly quality: string;
+    readonly trace?: TraceContext;
+} | {
     readonly command: "TS_PAGE";
     readonly id: bigint;
     readonly parameters: string;
@@ -142,6 +176,32 @@ export interface MarketDataGap {
     readonly fromEventTimeMicros: bigint | null;
     readonly throughEventTimeMicros: bigint | null;
 }
+export interface FeedWireControl {
+    readonly kind: "fence" | "gap" | "watermark";
+    readonly afterMessageId: bigint;
+    readonly throughMessageId: bigint;
+    readonly dataset: string;
+}
+export declare const decodeFeedControl: (response: StandardResponse) => FeedWireControl;
+export interface FeedWireSnapshotHeader {
+    readonly throughMessageId: bigint;
+    readonly gaps: readonly {
+        readonly afterMessageId: bigint;
+        readonly throughMessageId: bigint;
+    }[];
+    readonly dataset: string;
+}
+export declare const decodeFeedSnapshotHeader: (response: StandardResponse) => FeedWireSnapshotHeader;
+export type CatalogFeedWireControl = {
+    readonly kind: "snapshot_begin";
+} | {
+    readonly kind: "snapshot_complete";
+    readonly cursor: string;
+} | {
+    readonly kind: "cursor";
+    readonly cursor: string;
+};
+export declare const decodeCatalogFeedControl: (response: StandardResponse) => CatalogFeedWireControl;
 export interface MarketDataMessage<N extends BlockName = BlockName> {
     readonly messageId: bigint;
     readonly fields: MarketDataFields<N>;
@@ -193,6 +253,11 @@ export declare class RequestError extends Error {
 }
 export declare const blockMask: (blocks: readonly BlockName[] | undefined) => bigint;
 export declare const encodeRequest: (request: Request) => Uint8Array<ArrayBuffer>;
+export declare const encodeCredit: (targetId: bigint, credits?: number) => Uint8Array<ArrayBuffer>;
+export declare const encodeWindow: (targetId: bigint) => Uint8Array<ArrayBuffer>;
+export declare const encodeRelease: (targetId: bigint, consumedBytes: number) => Uint8Array<ArrayBuffer>;
+/** Decode one bounded transport batch; all body slices share the original frame. */
+export declare const splitResponseBatch: (response: StandardResponse) => readonly StandardResponse[];
 export declare const decodeResponse: (source: ArrayBuffer | ArrayBufferView) => Response;
 export declare const decodeBatch: (response: StandardResponse, selector: MarketSelector) => MarketDataBatch;
 export declare const decodeKeyfiguresResult: (response: StandardResponse) => unknown;

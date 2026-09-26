@@ -7,7 +7,9 @@ import { type CatalogKeyfigures, type KeyfiguresCatalog, type SingleRequestHandl
 import { type TokenSource } from "./mdtoken.js";
 import { type ServiceNamespace } from "./generated/services.js";
 import { type MarketSelector } from "./selector.js";
-import { type BlockName, type SnapshotBlockName, type StreamBlockName, type TsCandleBlockName, type TsCandleStreamBlockName, type TsRawBlockName, type TsRawStreamBlockName } from "./generated/bindings.js";
+import { MemoryFeedSink, type FeedEvent, type FeedMessage, type FeedSink, type FeedSnapshot, type FeedWrite, type StreamFeedOptions } from "./feed.js";
+import { MemoryCatalogFeedSink, type CatalogFeedSink } from "./catalog-feed.js";
+import { type BlockName, type BlockValue, type SnapshotBlockName, type StreamBlockName, type TsCandleBlockName, type TsCandleStreamBlockName, type TsRawBlockName, type TsRawStreamBlockName } from "./generated/bindings.js";
 import { type CatalogDescriptorSelection, type CatalogFieldDescriptor } from "./catalog.js";
 import { type MarketDataBatch, type MarketDataGap, type MarketDataMessage, type MarketDataDatasetRecord, type ResponsePhase, type CatalogLifecycle, type CatalogWireField } from "./protocol.js";
 export interface ConnectOptions {
@@ -127,22 +129,53 @@ export interface DatasetReadOptions<D extends readonly CatalogFieldDescriptor[] 
     readonly fields?: D;
     readonly trace?: TraceContext;
 }
+export interface FeedLiveOptions {
+    readonly quality?: "RT" | "DL" | "EOD";
+    readonly signal?: AbortSignal;
+    readonly trace?: TraceContext;
+}
+export type FeedRecoveryOptions = FeedLiveOptions;
+export interface DatasetStreamFeedOptions extends StreamFeedOptions {
+    readonly quality?: "RT" | "DL" | "EOD";
+    readonly trace?: TraceContext;
+}
+export interface MemoryStreamFeed<Block> {
+    readonly sink: MemoryFeedSink<Block>;
+    readonly completion: Promise<void>;
+    cancel(): void;
+}
+export interface CatalogFeedOptions {
+    readonly signal?: AbortSignal;
+    readonly trace?: TraceContext;
+}
+export interface MemoryCatalogFeed {
+    readonly sink: MemoryCatalogFeedSink;
+    readonly completion: Promise<void>;
+    cancel(): void;
+}
 export interface DatasetClient<C extends string> {
     readonly id: C;
     read<const D extends readonly CatalogFieldDescriptor[]>(selector: MarketSelector, options?: DatasetReadOptions<D>): RequestHandle<DatasetRecord<C, CatalogDescriptorSelection<D>>>;
+    catalogFeed(fields: readonly CatalogFieldDescriptor[] | "*", sink: CatalogFeedSink, options?: CatalogFeedOptions): Promise<void>;
+    catalogFeedMemory(fields: readonly CatalogFieldDescriptor[] | "*", options?: CatalogFeedOptions): MemoryCatalogFeed;
     search(parameters?: CatalogSearchParameters): SingleRequestHandle<CatalogSearchResult>;
     lookup(query: string | CatalogDimensions, options?: Pick<CatalogLookupParameters, "cursor" | "limit" | "trace">): SingleRequestHandle<CatalogLookupResult>;
     latest<const B extends SnapshotBlockName>(selector: MarketSelector, options?: LatestOptions<B>): RequestHandle<ResolvedMarketDataMessage<B>>;
     latestBatched<const B extends SnapshotBlockName>(selector: MarketSelector, options?: LatestOptions<B>): RequestHandle<MarketDataBatch<B>>;
     latestStream<const B extends StreamBlockName>(selector: MarketSelector, options?: LatestStreamOptions<B>): RequestHandle<ResolvedMarketDataMessage<B>>;
     latestStreamBatched<const B extends StreamBlockName>(selector: MarketSelector, options?: LatestStreamOptions<B>): RequestHandle<MarketDataBatch<B>>;
+    streamSubscribe<const B extends StreamBlockName>(blocks: readonly B[], options?: FeedLiveOptions): RequestHandle<FeedEvent<BlockValue<B> | null>>;
+    streamRecover<const B extends StreamBlockName>(afterMessageId: bigint, throughMessageId: bigint, blocks: readonly B[], options?: FeedRecoveryOptions): RequestHandle<FeedMessage<BlockValue<B> | null>>;
+    streamSnapshot<const B extends SnapshotBlockName>(blocks: readonly B[], options?: FeedLiveOptions): Promise<FeedSnapshot<BlockValue<B> | null>>;
+    streamFeed<const B extends StreamBlockName>(blocks: readonly B[], sink: FeedSink<BlockValue<B> | null>, options?: DatasetStreamFeedOptions): Promise<void>;
+    streamFeedMemory<const B extends StreamBlockName>(blocks: readonly B[], onWrite?: (batch: FeedWrite<BlockValue<B> | null>) => void, options?: DatasetStreamFeedOptions): MemoryStreamFeed<BlockValue<B> | null>;
     timeseries<const B extends TsRawBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataMessage<B>>;
     timeseriesBatched<const B extends TsRawBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataBatch<B>>;
     timeseriesPage<const B extends TsRawBlockName>(selector: MarketSelector, order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor, limit: number, options?: Omit<TimeseriesPageOptions<B>, "dataset">): SingleRequestHandle<TimeseriesPage<B>>;
     candlePage<const B extends TsCandleBlockName>(selector: MarketSelector, cadenceMicros: bigint, order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor, limit: number, options?: Omit<TimeseriesPageOptions<B>, "dataset">): SingleRequestHandle<TimeseriesPage<B>>;
 }
 export type DatasetNamespace = {
-    readonly [Alias in keyof typeof DATASETS]: Pick<DatasetClient<(typeof DATASETS)[Alias]>, "id" | ("catalog" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "read" | "lookup" : never) | ("search" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "search" : never) | ("latest" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "latest" | "latestBatched" | "latestStream" | "latestStreamBatched" : never) | ("timeseries" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "timeseries" | "timeseriesBatched" | "timeseriesPage" | "candlePage" : never)>;
+    readonly [Alias in keyof typeof DATASETS]: Pick<DatasetClient<(typeof DATASETS)[Alias]>, "id" | ("catalog" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "read" | "lookup" | "catalogFeed" | "catalogFeedMemory" : never) | ("search" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "search" : never) | ("latest" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "latest" | "latestBatched" | "latestStream" | "latestStreamBatched" | "streamSubscribe" | "streamRecover" | "streamSnapshot" | "streamFeed" | "streamFeedMemory" : never) | ("timeseries" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "timeseries" | "timeseriesBatched" | "timeseriesPage" | "candlePage" : never)>;
 };
 export interface SelectedClient {
     read<const D extends readonly CatalogFieldDescriptor[]>(options?: DatasetReadOptions<D>): RequestHandle<DatasetRecord<string, CatalogDescriptorSelection<D>>>;

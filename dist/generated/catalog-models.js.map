@@ -1,1 +1,1 @@
-{"version":3,"file":"catalog-models.js","sourceRoot":"","sources":["../../src/generated/catalog-models.ts"],"names":[],"mappings":"AAAA,8CAA8C;AAC9C,OAAO,KAAK,MAAM,MAAM,qBAAqB,CAAC;AAC9C,OAAO,KAAK,GAAG,MAAM,kBAAkB,CAAC;AACxC,OAAO,KAAK,QAAQ,MAAM,uBAAuB,CAAC;AAClD,cAAc,uBAAuB,CAAC;AACtC,OAAO,KAAK,KAAK,MAAM,oBAAoB,CAAC"}
+{"version":3,"file":"catalog-models.js","sourceRoot":"","sources":["../../src/generated/catalog-models.ts"],"names":[],"mappings":"AAAA,cAAc,uBAAuB,CAAC"}

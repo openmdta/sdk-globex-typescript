@@ -5,10 +5,12 @@ import { KEYFIGURES_CONTRACTS, decodeKeyfigures } from "./keyfigures.js";
 import { tokenBytes } from "./mdtoken.js";
 import { ServiceError, assertServiceValue, hydrateServiceValue } from "./service.js";
 import { createServiceNamespace } from "./generated/services.js";
-import { selectorExpression } from "./selector.js";
+import { selector, selectorExpression } from "./selector.js";
+import { MemoryFeedSink, streamFeed as runStreamFeed } from "./feed.js";
+import { MemoryCatalogFeedSink } from "./catalog-feed.js";
 import { BLOCK_BINDINGS, } from "./generated/bindings.js";
 import {} from "./catalog.js";
-import { ProtocolError, RequestError, WEBSOCKET_SUBPROTOCOL, blockMask, decodeBatch, decodeStreamMetadata, decodeListingResponse, decodeCatalogFields, decodeCatalogRecord, decodeKeyfiguresResult, decodeServiceCallResult, decodeTimeseriesPageResult, decodeCatalogSearchResult, decodeCatalogLookupResult, decodeResponse, encodeRequest, } from "./protocol.js";
+import { ProtocolError, RequestError, WEBSOCKET_SUBPROTOCOL, blockMask, decodeBatch, decodeStreamMetadata, decodeListingResponse, decodeCatalogFields, decodeCatalogRecord, decodeKeyfiguresResult, decodeServiceCallResult, decodeTimeseriesPageResult, decodeCatalogSearchResult, decodeCatalogLookupResult, decodeFeedControl, decodeFeedSnapshotHeader, decodeCatalogFeedControl, decodeResponse, encodeCredit, encodeWindow, encodeRelease, splitResponseBatch, WINDOW_SUBPROTOCOL, RESPONSE_WINDOW_BYTES, RESPONSE_COST_OVERHEAD, encodeRequest, } from "./protocol.js";
 export class ConnectionClosedError extends Error {
     constructor() {
         super("market-data connection was closed");
@@ -101,6 +103,8 @@ class ReconnectingConnection {
     #socket;
     #auth;
     #authenticated = false;
+    #windowed = false;
+    #reservedWindowBytes = 0;
     #closing = false;
     #initialSettled = false;
     #lastHeartbeat = 0;
@@ -108,6 +112,15 @@ class ReconnectingConnection {
     #track(active) {
         if (this.#active.size >= MAX_ACTIVE_REQUESTS)
             throw new RangeError("connection active-request capacity reached");
+        if (active.command === "FEED_LIVE" || active.command === "FEED_RECOVERY" || active.command === "FEED_SNAPSHOT" || active.command === "CATALOG_FEED") {
+            if (this.#reservedWindowBytes + RESPONSE_WINDOW_BYTES > 64 * 1024 * 1024)
+                throw new RangeError("connection feed buffer capacity reached");
+            this.#reservedWindowBytes += RESPONSE_WINDOW_BYTES;
+            active.handle.releaseWindow = () => {
+                this.#reservedWindowBytes -= RESPONSE_WINDOW_BYTES;
+                active.handle.releaseWindow = undefined;
+            };
+        }
         this.#active.set(active.handle.id, active);
     }
     constructor(options) {
@@ -209,6 +222,16 @@ class ReconnectingConnection {
         const get = (id, capabilities) => ({
             id,
             ...(capabilities.includes("catalog") ? {
+                catalogFeed: (fields, sink, options) => this.#runCatalogFeed(id, fields, sink, options),
+                catalogFeedMemory: (fields, options) => {
+                    const sink = new MemoryCatalogFeedSink();
+                    const controller = new AbortController();
+                    if (options?.signal?.aborted)
+                        controller.abort(options.signal.reason);
+                    else
+                        options?.signal?.addEventListener("abort", () => controller.abort(options.signal?.reason), { once: true });
+                    return { sink, completion: this.#runCatalogFeed(id, fields, sink, { ...options, signal: controller.signal }), cancel: () => controller.abort() };
+                },
                 read: (selector, options = {}) => this.#startCatalog(id, [selectorExpression(selector)], options.fields ?? "*", options.trace, new Map([[selectorExpression(selector), selector]])),
                 lookup: (query, options) => this.#catalogLookup(id, {
                     ...(typeof query === "string" ? { expression: query } : { dimensions: query }),
@@ -223,6 +246,23 @@ class ReconnectingConnection {
                 latestBatched: (selector, options) => this.latestBatched(selector, { ...options, dataset: id }),
                 latestStream: (selector, options) => this.latestStream(selector, { ...options, dataset: id }),
                 latestStreamBatched: (selector, options) => this.latestStreamBatched(selector, { ...options, dataset: id }),
+                streamSubscribe: (blocks, options) => this.#startFeedLive(id, blocks, options),
+                streamRecover: (after, through, blocks, options) => this.#startFeedRecovery(id, after, through, blocks, options),
+                streamSnapshot: (blocks, options) => this.#startFeedSnapshot(id, blocks, options),
+                streamFeed: (blocks, sink, options) => this.#runDatasetStreamFeed(id, blocks, sink, options),
+                streamFeedMemory: (blocks, onWrite, options) => {
+                    const sink = new MemoryFeedSink(onWrite);
+                    const controller = new AbortController();
+                    if (options?.signal?.aborted)
+                        controller.abort(options.signal.reason);
+                    else
+                        options?.signal?.addEventListener("abort", () => controller.abort(options.signal?.reason), { once: true });
+                    return {
+                        sink,
+                        completion: this.#runDatasetStreamFeed(id, blocks, sink, { ...options, signal: controller.signal }),
+                        cancel: () => controller.abort(),
+                    };
+                },
             } : {}),
             ...(capabilities.includes("timeseries") ? {
                 timeseries: (selector, from, through, options) => this.tsRaw(selector, from, through, { ...options, dataset: id }),
@@ -234,6 +274,222 @@ class ReconnectingConnection {
         return Object.freeze({
             ...Object.fromEntries(Object.entries(DATASETS).map(([alias, id]) => [alias, get(id, DATASET_CAPABILITIES[alias])])),
         });
+    }
+    #startFeedLive(dataset, blocks, options = {}) {
+        if (this.#closing)
+            throw new ConnectionClosedError();
+        if (!blocks.length || blocks.some(block => !BLOCK_BINDINGS[block]?.commands.includes("STREAM"))) {
+            throw new TypeError("streamSubscribe requires at least one Stream block");
+        }
+        const quality = options.quality ?? "RT";
+        if (!["RT", "DL", "EOD"].includes(quality))
+            throw new TypeError("invalid feed quality");
+        const id = this.#nextId++;
+        const handle = new Handle(id, () => this.#cancel(id));
+        handle.onReplay(() => { handle.push([{ kind: "reset" }], 1); });
+        if (options.signal?.aborted)
+            void handle.cancel();
+        else
+            options.signal?.addEventListener("abort", () => void handle.cancel(), { once: true });
+        const active = {
+            command: "FEED_LIVE",
+            encoded: encodeRequest({ command: "FEED_LIVE", id, blockMask: blockMask(blocks), dataset, quality,
+                ...(options.trace ? { trace: options.trace } : {}) }),
+            handle: handle,
+            many: true,
+            decode: response => {
+                if (response.message?.format.templateId === 111) {
+                    const control = decodeFeedControl(response);
+                    if (control.dataset !== dataset)
+                        throw new ProtocolError("feed control targets a different Dataset");
+                    return [control.kind === "gap"
+                            ? { kind: "gap", gap: { afterMessageId: control.afterMessageId, throughMessageId: control.throughMessageId } }
+                            : { kind: "watermark", throughMessageId: control.throughMessageId }];
+                }
+                const batch = decodeBatch(response, selector.raw(dataset, "FEED"));
+                if (batch.datasetRecord.dataset !== dataset)
+                    throw new ProtocolError("feed batch targets a different Dataset");
+                return batch.messages.map(message => ({
+                    kind: "message",
+                    message: { messageId: message.messageId, recordKey: batch.datasetRecord.datasetRecordKey,
+                        blocks: new Map(Array.from(message.fieldIterator(), field => [field.name, field.value])) },
+                }));
+            },
+        };
+        this.#track(active);
+        if (this.#authenticated && this.#socket?.readyState === this.#WebSocket.OPEN) {
+            this.#socket.send(active.encoded);
+            this.#socket.send(this.#windowed ? encodeWindow(id) : encodeCredit(id));
+        }
+        return handle;
+    }
+    #runDatasetStreamFeed(dataset, blocks, sink, options = {}) {
+        if ((options.mode ?? "latest") === "latest"
+            && blocks.some(block => !BLOCK_BINDINGS[block]?.commands.includes("SNAPSHOT"))) {
+            throw new TypeError("latest-mode streamFeed requires Snapshot-capable blocks");
+        }
+        const transport = {
+            live: async function* (signal) {
+                let failures = 0;
+                while (!signal.aborted) {
+                    try {
+                        const request = this.#startFeedLive(dataset, blocks, { ...(options.quality ? { quality: options.quality } : {}), ...(options.trace ? { trace: options.trace } : {}), signal });
+                        for await (const event of request) {
+                            failures = 0;
+                            yield event;
+                        }
+                        if (signal.aborted)
+                            return;
+                    }
+                    catch (error) {
+                        if (signal.aborted)
+                            return;
+                        if (!(error instanceof RequestError) || !/disconnect|connection|timeout|timed out|lagged/i.test(error.message))
+                            throw error;
+                    }
+                    failures += 1;
+                    await new Promise(resolve => {
+                        const timer = setTimeout(resolve, Math.min(30_000, 250 * 2 ** Math.min(failures, 8)));
+                        signal.addEventListener("abort", () => { clearTimeout(timer); resolve(); }, { once: true });
+                    });
+                    if (!signal.aborted)
+                        yield { kind: "reset" };
+                }
+            }.bind(this),
+            recovery: (after, through, signal) => this.#startFeedRecovery(dataset, after, through, blocks, { ...(options.quality ? { quality: options.quality } : {}), ...(options.trace ? { trace: options.trace } : {}), signal }),
+            streamSnapshot: signal => this.#startFeedSnapshot(dataset, blocks, { ...(options.quality ? { quality: options.quality } : {}), ...(options.trace ? { trace: options.trace } : {}), signal }),
+        };
+        return (async () => {
+            let failures = 0;
+            while (!options.signal?.aborted) {
+                try {
+                    await runStreamFeed(transport, sink, options);
+                    return;
+                }
+                catch (error) {
+                    if (!(error instanceof RequestError) || !/connection lost|disconnect|timed out|timeout/i.test(error.message))
+                        throw error;
+                    failures += 1;
+                    await new Promise(resolve => {
+                        const timer = setTimeout(resolve, Math.min(30_000, 250 * 2 ** Math.min(failures, 8)));
+                        options.signal?.addEventListener("abort", () => { clearTimeout(timer); resolve(); }, { once: true });
+                    });
+                }
+            }
+        })();
+    }
+    #startFeedRecovery(dataset, afterMessageId, throughMessageId, blocks, options = {}) {
+        if (this.#closing)
+            throw new ConnectionClosedError();
+        if (afterMessageId < 0n || throughMessageId <= afterMessageId || throughMessageId > 0xffffffffffffffffn) {
+            throw new RangeError("streamRecover requires an increasing unsigned message range");
+        }
+        if (!blocks.length || blocks.some(block => !BLOCK_BINDINGS[block]?.commands.includes("STREAM"))) {
+            throw new TypeError("streamRecover requires at least one Stream block");
+        }
+        const quality = options.quality ?? "RT";
+        if (!["RT", "DL", "EOD"].includes(quality))
+            throw new TypeError("invalid feed quality");
+        const id = this.#nextId++;
+        const handle = new Handle(id, () => this.#cancel(id));
+        if (options.signal?.aborted)
+            void handle.cancel();
+        else
+            options.signal?.addEventListener("abort", () => void handle.cancel(), { once: true });
+        const active = {
+            command: "FEED_RECOVERY",
+            encoded: encodeRequest({ command: "FEED_RECOVERY", id, blockMask: blockMask(blocks),
+                afterMessageId, throughMessageId, dataset, quality, ...(options.trace ? { trace: options.trace } : {}) }),
+            handle: handle,
+            many: true,
+            decode: response => {
+                const batch = decodeBatch(response, selector.raw(dataset, "FEED"));
+                if (batch.datasetRecord.dataset !== dataset)
+                    throw new ProtocolError("feed recovery targets a different Dataset");
+                return batch.messages.map(message => ({
+                    messageId: message.messageId,
+                    recordKey: batch.datasetRecord.datasetRecordKey,
+                    blocks: new Map(Array.from(message.fieldIterator(), field => [field.name, field.value])),
+                }));
+            },
+        };
+        this.#track(active);
+        if (this.#authenticated && this.#socket?.readyState === this.#WebSocket.OPEN) {
+            this.#socket.send(active.encoded);
+            this.#socket.send(this.#windowed ? encodeWindow(id) : encodeCredit(id));
+        }
+        return handle;
+    }
+    async #startFeedSnapshot(dataset, blocks, options = {}) {
+        if (this.#closing)
+            throw new ConnectionClosedError();
+        if (!blocks.length || blocks.some(block => !BLOCK_BINDINGS[block]?.commands.includes("SNAPSHOT"))) {
+            throw new TypeError("streamSnapshot requires at least one Snapshot block");
+        }
+        const quality = options.quality ?? "RT";
+        if (!["RT", "DL", "EOD"].includes(quality))
+            throw new TypeError("invalid snapshot quality");
+        const id = this.#nextId++;
+        const handle = new Handle(id, () => this.#cancel(id));
+        if (options.signal?.aborted)
+            void handle.cancel();
+        else
+            options.signal?.addEventListener("abort", () => void handle.cancel(), { once: true });
+        const active = {
+            command: "FEED_SNAPSHOT",
+            encoded: encodeRequest({ command: "FEED_SNAPSHOT", id, blockMask: blockMask(blocks), dataset, quality,
+                ...(options.trace ? { trace: options.trace } : {}) }),
+            handle: handle,
+            many: true,
+            decode: response => {
+                if (response.message?.format.templateId === 112) {
+                    const header = decodeFeedSnapshotHeader(response);
+                    if (header.dataset !== dataset)
+                        throw new ProtocolError("snapshot targets a different Dataset");
+                    return [header];
+                }
+                const batch = decodeBatch(response, selector.raw(dataset, "FEED"));
+                if (batch.datasetRecord.dataset !== dataset)
+                    throw new ProtocolError("snapshot batch targets a different Dataset");
+                return batch.messages.map(message => ({
+                    messageId: message.messageId,
+                    recordKey: batch.datasetRecord.datasetRecordKey,
+                    blocks: new Map(Array.from(message.fieldIterator(), field => [field.name, field.value])),
+                }));
+            },
+        };
+        this.#track(active);
+        if (this.#authenticated && this.#socket?.readyState === this.#WebSocket.OPEN) {
+            this.#socket.send(active.encoded);
+            this.#socket.send(this.#windowed ? encodeWindow(id) : encodeCredit(id));
+        }
+        const iterator = handle[Symbol.asyncIterator]();
+        const first = await iterator.next();
+        if (first.done || !("throughMessageId" in first.value))
+            throw new ProtocolError("snapshot ended without a header");
+        const header = first.value;
+        return {
+            throughMessageId: header.throughMessageId,
+            gaps: header.gaps,
+            messages: {
+                async *[Symbol.asyncIterator]() {
+                    try {
+                        for (;;) {
+                            const next = await iterator.next();
+                            if (next.done)
+                                return;
+                            if ("throughMessageId" in next.value)
+                                throw new ProtocolError("snapshot restarted during delivery");
+                            yield next.value;
+                        }
+                    }
+                    finally {
+                        if (!handle.closed)
+                            await handle.cancel();
+                    }
+                },
+            },
+        };
     }
     select(selection) {
         const selected = (selector) => Object.freeze({
@@ -682,6 +938,95 @@ class ReconnectingConnection {
         }
         return handle;
     }
+    #startCatalogFeed(catalog, selection, cursor, options) {
+        if (this.#closing)
+            throw new ConnectionClosedError();
+        if (selection !== "*" && selection.length > 64)
+            throw new TypeError("Catalog feeds support at most 64 fields");
+        const id = this.#nextId++;
+        const handle = new Handle(id, () => this.#cancel(id));
+        if (options.signal?.aborted)
+            void handle.cancel();
+        else
+            options.signal?.addEventListener("abort", () => void handle.cancel(), { once: true });
+        const active = {
+            command: "CATALOG_FEED",
+            encoded: encodeRequest({
+                command: "CATALOG_FEED", id, catalog, fields: selection === "*" ? [] : selection.map(field => field.label),
+                cursor, ...(options.trace ? { trace: options.trace } : {}),
+            }),
+            handle: handle,
+            decode: response => {
+                if (response.message?.format.templateId === 113)
+                    return decodeCatalogFeedControl(response);
+                const wire = decodeCatalogRecord(response);
+                if (wire.catalog !== catalog)
+                    throw new ProtocolError("Catalog feed returned another Dataset");
+                return {
+                    catalog,
+                    recordKey: wire.recordIdentifier,
+                    phase: wire.phase,
+                    exists: wire.exists,
+                    lifecycle: wire.lifecycle,
+                    fields: decodeCatalogFields(wire, selection === "*" ? [] : selection, selection === "*"),
+                    rawFields: wire.fields,
+                };
+            },
+        };
+        this.#track(active);
+        if (this.#authenticated && this.#socket?.readyState === this.#WebSocket.OPEN) {
+            this.#socket.send(active.encoded);
+            this.#socket.send(this.#windowed ? encodeWindow(id) : encodeCredit(id));
+        }
+        return handle;
+    }
+    async #runCatalogFeed(catalog, fields, sink, options = {}) {
+        let failures = 0;
+        while (!options.signal?.aborted) {
+            const cursor = await sink.resume();
+            await sink.write({ records: [], control: { kind: "reset" } });
+            try {
+                let staging = false;
+                for await (const item of this.#startCatalogFeed(catalog, fields, cursor, options)) {
+                    if ("kind" in item) {
+                        if (item.kind === "snapshot_begin") {
+                            staging = true;
+                            await sink.write({ records: [], control: { kind: "snapshotBegin" } });
+                        }
+                        else if (item.kind === "snapshot_complete") {
+                            if (!staging)
+                                throw new ProtocolError("Catalog snapshot completed without a begin event");
+                            staging = false;
+                            await sink.write({ records: [], control: { kind: "snapshotComplete", state: item.cursor } });
+                        }
+                        else {
+                            if (staging)
+                                throw new ProtocolError("Catalog cursor arrived during a snapshot");
+                            await sink.write({ records: [], control: { kind: "cursor", state: item.cursor } });
+                        }
+                    }
+                    else {
+                        await sink.write({ records: [item] });
+                    }
+                    failures = 0;
+                }
+                if (options.signal?.aborted)
+                    return;
+                throw new RequestError(0n, "Catalog feed connection lost");
+            }
+            catch (error) {
+                if (options.signal?.aborted)
+                    return;
+                if (!(error instanceof RequestError) || !/connection|disconnect|catalog_replaced|incarnation/i.test(error.message))
+                    throw error;
+                failures += 1;
+                await new Promise(resolve => {
+                    const timer = setTimeout(resolve, Math.min(30_000, 250 * 2 ** Math.min(failures, 8)));
+                    options.signal?.addEventListener("abort", () => { clearTimeout(timer); resolve(); }, { once: true });
+                });
+            }
+        }
+    }
     #startCatalog(catalog, identifiers, selection, trace, selectors = new Map()) {
         if (this.#closing)
             throw new ConnectionClosedError();
@@ -779,7 +1124,7 @@ class ReconnectingConnection {
         }
     }
     async #openAndServe() {
-        const socket = new this.#WebSocket(this.#url, WEBSOCKET_SUBPROTOCOL);
+        const socket = new this.#WebSocket(this.#url, [WINDOW_SUBPROTOCOL, WEBSOCKET_SUBPROTOCOL]);
         socket.binaryType = "arraybuffer";
         this.#socket = socket;
         this.#authenticated = false;
@@ -795,9 +1140,9 @@ class ReconnectingConnection {
                 once: true,
             });
         });
-        if (socket.protocol !== WEBSOCKET_SUBPROTOCOL) {
+        if (socket.protocol !== WEBSOCKET_SUBPROTOCOL && socket.protocol !== WINDOW_SUBPROTOCOL) {
             socket.close(1002, "subprotocol required");
-            throw new ProtocolError(`server did not negotiate ${WEBSOCKET_SUBPROTOCOL}`);
+            throw new ProtocolError("server did not negotiate a supported SBE session subprotocol");
         }
         socket.addEventListener("message", (event) => {
             void this.#receive(socket, event.data).catch(() => socket.close(1002, "invalid SBE message"));
@@ -835,6 +1180,7 @@ class ReconnectingConnection {
             authenticated,
             closed.then(() => Promise.reject(new Error("WebSocket closed during authentication"))),
         ]);
+        this.#windowed = socket.protocol === WINDOW_SUBPROTOCOL;
         this.#authenticated = true;
         this.#lastHeartbeat = Date.now();
         const replay = this.#initialSettled;
@@ -846,6 +1192,9 @@ class ReconnectingConnection {
             if (replay)
                 active.handle.replay();
             socket.send(active.encoded);
+            if (active.command === "FEED_LIVE" || active.command === "FEED_RECOVERY" || active.command === "FEED_SNAPSHOT" || active.command === "CATALOG_FEED") {
+                socket.send(this.#windowed ? encodeWindow(active.handle.id) : encodeCredit(active.handle.id));
+            }
             active.sent = true;
         }
         for (const cancellation of this.#cancellations.values())
@@ -857,6 +1206,11 @@ class ReconnectingConnection {
         }, 5_000);
         await closed;
         for (const [id, active] of this.#active) {
+            if (active.command === "FEED_RECOVERY" || active.command === "FEED_SNAPSHOT" || active.command === "CATALOG_FEED") {
+                active.handle.fail(new RequestError(id, "feed request connection lost"));
+                this.#active.delete(id);
+                continue;
+            }
             if (active.command !== "SERVICE_CALL" || !active.sent)
                 continue;
             active.interrupted = true;
@@ -933,14 +1287,30 @@ class ReconnectingConnection {
         }
         else {
             try {
-                const value = active.decode(response);
-                const wireBytes = (response.message?.body.byteLength ?? 0) + 64;
-                const values = active.many ? value : [value];
-                const bytesPerValue = Math.max(1, Math.ceil(wireBytes / Math.max(1, values.length)));
-                if (!values.every(item => active.handle.push(item, bytesPerValue))) {
+                const flow = active.command === "FEED_LIVE" || active.command === "FEED_RECOVERY" || active.command === "FEED_SNAPSHOT" || active.command === "CATALOG_FEED";
+                if (response.message?.format.schemaId === 5 && response.message.format.templateId === 103 && (!this.#windowed || !flow)) {
+                    throw new ProtocolError("unnegotiated response batch");
+                }
+                const frames = splitResponseBatch(response);
+                const values = frames.flatMap(frame => {
+                    const value = active.decode(frame);
+                    return active.many ? value : [value];
+                });
+                const wireBytes = (response.message?.body.byteLength ?? 0) + RESPONSE_COST_OVERHEAD;
+                const socket = this.#socket;
+                const windowed = this.#windowed;
+                const credit = () => {
+                    if (this.#authenticated && socket === this.#socket && socket?.readyState === this.#WebSocket.OPEN) {
+                        socket.send(windowed ? encodeRelease(response.requestId, wireBytes) : encodeCredit(response.requestId));
+                    }
+                };
+                if (!active.handle.push(values, wireBytes, flow ? credit : undefined)) {
                     void this.#cancel(response.requestId);
                     active.handle.fail(new RequestLaggedError());
                     this.#active.delete(response.requestId);
+                }
+                else if (flow && values.length === 0) {
+                    credit();
                 }
                 else if (active.command === "SERVICE_CALL") {
                     active.handle.finish();
@@ -948,6 +1318,7 @@ class ReconnectingConnection {
                 }
             }
             catch (error) {
+                void this.#cancel(response.requestId);
                 active.handle.fail(error);
                 this.#active.delete(response.requestId);
             }
@@ -958,6 +1329,7 @@ class Handle {
     #replayListeners = new Set();
     id;
     #cancelRequest;
+    releaseWindow;
     #values = [];
     #waiting = [];
     #terminal = false;
@@ -965,6 +1337,7 @@ class Handle {
     #cancelled;
     #head = 0;
     #bufferedBytes = 0;
+    #pendingAck;
     constructor(id, cancelRequest) {
         this.id = id;
         this.#cancelRequest = cancelRequest;
@@ -992,23 +1365,35 @@ class Handle {
         this.#values.length = 0;
         this.#head = 0;
         this.#bufferedBytes = 0;
+        this.#pendingAck = undefined;
         for (const listener of this.#replayListeners)
             listener();
     }
     [Symbol.asyncIterator]() {
         return {
             next: () => {
+                this.#pendingAck?.();
+                this.#pendingAck = undefined;
                 const buffered = this.#values[this.#head];
                 if (buffered !== undefined) {
-                    this.#values[this.#head] = undefined;
-                    this.#head += 1;
-                    this.#bufferedBytes -= buffered.bytes;
-                    return Promise.resolve({ value: buffered.value, done: false });
+                    const value = buffered.values[buffered.index++];
+                    if (buffered.index === buffered.values.length) {
+                        this.#values[this.#head++] = undefined;
+                        this.#bufferedBytes -= buffered.bytes;
+                        this.#pendingAck = buffered.ack;
+                        if (this.#head >= 64) {
+                            this.#values.splice(0, this.#head);
+                            this.#head = 0;
+                        }
+                    }
+                    return Promise.resolve({ value, done: false });
                 }
                 if (this.#error !== undefined)
                     return Promise.reject(this.#error);
-                if (this.#terminal)
+                if (this.#terminal) {
+                    this.releaseWindow?.();
                     return Promise.resolve({ value: undefined, done: true });
+                }
                 return new Promise((resolve, reject) => {
                     this.#waiting.push({ resolve, reject });
                 });
@@ -1020,30 +1405,49 @@ class Handle {
         };
     }
     cancel() {
-        if (this.#terminal)
+        if (this.#terminal) {
+            this.#values.length = 0;
+            this.#head = 0;
+            this.#bufferedBytes = 0;
+            this.#pendingAck = undefined;
+            this.releaseWindow?.();
             return Promise.resolve(false);
+        }
         if (!this.#cancelled) {
             const cancellation = this.#cancelRequest().then((cancelled) => {
                 if (!cancelled && this.#cancelled === cancellation)
                     this.#cancelled = undefined;
+                if (cancelled || this.#terminal) {
+                    this.#values.length = 0;
+                    this.#head = 0;
+                    this.#bufferedBytes = 0;
+                    this.#pendingAck = undefined;
+                    this.releaseWindow?.();
+                }
                 return cancelled;
             });
             this.#cancelled = cancellation;
         }
         return this.#cancelled;
     }
-    push(value, bytes) {
+    push(values, bytes, ack) {
         if (this.#terminal)
             return false;
-        const waiting = this.#waiting.shift();
-        if (waiting) {
-            waiting.resolve({ value, done: false });
+        if (values.length === 0)
             return true;
+        let index = 0;
+        while (this.#waiting.length > 0 && index < values.length) {
+            const waiting = this.#waiting.shift();
+            if (index + 1 === values.length)
+                this.#pendingAck = ack;
+            waiting.resolve({ value: values[index++], done: false });
         }
+        if (index === values.length)
+            return true;
         if (this.#values.length - this.#head >= MAX_BUFFERED_RESPONSES_PER_REQUEST
             || this.#bufferedBytes + bytes > MAX_BUFFERED_RESPONSE_BYTES_PER_REQUEST)
             return false;
-        this.#values.push({ value, bytes });
+        this.#values.push({ values, index, bytes, ...(ack ? { ack } : {}) });
         this.#bufferedBytes += bytes;
         return true;
     }
@@ -1051,6 +1455,8 @@ class Handle {
         if (this.#terminal)
             return;
         this.#terminal = true;
+        if (this.#values.length === this.#head && this.#pendingAck === undefined)
+            this.releaseWindow?.();
         for (const waiting of this.#waiting.splice(0)) {
             waiting.resolve({ value: undefined, done: true });
         }
@@ -1063,6 +1469,8 @@ class Handle {
         this.#values.length = 0;
         this.#head = 0;
         this.#bufferedBytes = 0;
+        this.#pendingAck = undefined;
+        this.releaseWindow?.();
         for (const waiting of this.#waiting.splice(0))
             waiting.reject(error);
     }

@@ -5,28 +5,34 @@ export type ActivityException = {
   readonly "date": string;
   readonly "open"?: string | null;
 };
+
 export type ActivitySchedule = {
   readonly "exceptions"?: ReadonlyArray<ActivityException>;
   readonly "times": WeeklyActivity;
 };
+
 export type ActivityWindow = {
   readonly "close": string;
   readonly "open": string;
 };
+
 export type Holiday = {
   readonly "date": string;
   readonly "name"?: string | null;
 };
+
 export type ResolvedHolidayCalendar = {
   readonly "displayName": string;
   readonly "holidays": ReadonlyArray<Holiday>;
   readonly "name": string;
 };
+
 export type StreamActivityMetadata = {
   readonly "activitySchedule"?: ActivitySchedule | null;
   readonly "holidayCalendar"?: ResolvedHolidayCalendar | null;
   readonly "timeZone": string;
 };
+
 export type WeeklyActivity = {
   readonly "fri"?: ActivityWindow | null;
   readonly "mon"?: ActivityWindow | null;
@@ -36,6 +42,7 @@ export type WeeklyActivity = {
   readonly "tue"?: ActivityWindow | null;
   readonly "wed"?: ActivityWindow | null;
 };
+
 export type StreamMetadata = {
   readonly "activity"?: StreamActivityMetadata | null;
   readonly "dataset": string;
@@ -318,6 +325,7 @@ const schema: Schema = {
   "type": "object"
 };
 const MAX_METADATA_BYTES = 131072;
+
 
 interface Schema {
   readonly [key: string]: unknown;

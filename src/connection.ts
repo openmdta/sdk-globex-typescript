@@ -7,10 +7,13 @@ import { KEYFIGURES_CONTRACTS, decodeKeyfigures, type CatalogKeyfigures, type Ke
 import { tokenBytes, type TokenSource } from "./mdtoken.js";
 import {ServiceError, assertServiceValue, hydrateServiceValue, type ServiceCallOptions, type ServiceCommandBinding} from "./service.js";
 import {createServiceNamespace, type ServiceNamespace} from "./generated/services.js";
-import { selectorExpression, type MarketSelector } from "./selector.js";
+import { selector, selectorExpression, type MarketSelector } from "./selector.js";
+import {MemoryFeedSink, streamFeed as runStreamFeed, type FeedEvent, type FeedMessage, type FeedSink, type FeedSnapshot, type FeedTransport, type FeedWrite, type StreamFeedOptions} from "./feed.js";
+import {MemoryCatalogFeedSink, type CatalogFeedRecord, type CatalogFeedSink, type CatalogFeedState} from "./catalog-feed.js";
 import {
   BLOCK_BINDINGS,
   type BlockName,
+  type BlockValue,
   type SnapshotBlockName,
   type StreamBlockName,
   type TsCandleBlockName,
@@ -37,7 +40,11 @@ import {
   decodeTimeseriesPageResult,
   decodeCatalogSearchResult,
   decodeCatalogLookupResult,
+  decodeFeedControl,
+  decodeFeedSnapshotHeader,
+  decodeCatalogFeedControl,
   decodeResponse,
+  encodeCredit, encodeWindow, encodeRelease, splitResponseBatch, WINDOW_SUBPROTOCOL, RESPONSE_WINDOW_BYTES, RESPONSE_COST_OVERHEAD,
   encodeRequest,
   type MarketDataBatch,
   type MarketDataGap,
@@ -49,6 +56,8 @@ import {
   type Request,
   type Response,
   type StandardResponse,
+  type FeedWireSnapshotHeader,
+  type CatalogFeedWireControl,
 } from "./protocol.js";
 
 export interface ConnectOptions {
@@ -186,15 +195,51 @@ export interface DatasetReadOptions<D extends readonly CatalogFieldDescriptor[] 
   readonly trace?: TraceContext;
 }
 
+export interface FeedLiveOptions {
+  readonly quality?: "RT" | "DL" | "EOD";
+  readonly signal?: AbortSignal;
+  readonly trace?: TraceContext;
+}
+
+export type FeedRecoveryOptions = FeedLiveOptions;
+export interface DatasetStreamFeedOptions extends StreamFeedOptions {
+  readonly quality?: "RT" | "DL" | "EOD";
+  readonly trace?: TraceContext;
+}
+
+export interface MemoryStreamFeed<Block> {
+  readonly sink: MemoryFeedSink<Block>;
+  readonly completion: Promise<void>;
+  cancel(): void;
+}
+
+export interface CatalogFeedOptions {
+  readonly signal?: AbortSignal;
+  readonly trace?: TraceContext;
+}
+
+export interface MemoryCatalogFeed {
+  readonly sink: MemoryCatalogFeedSink;
+  readonly completion: Promise<void>;
+  cancel(): void;
+}
+
 export interface DatasetClient<C extends string> {
   readonly id: C;
   read<const D extends readonly CatalogFieldDescriptor[]>(selector: MarketSelector, options?: DatasetReadOptions<D>): RequestHandle<DatasetRecord<C, CatalogDescriptorSelection<D>>>;
+  catalogFeed(fields: readonly CatalogFieldDescriptor[] | "*", sink: CatalogFeedSink, options?: CatalogFeedOptions): Promise<void>;
+  catalogFeedMemory(fields: readonly CatalogFieldDescriptor[] | "*", options?: CatalogFeedOptions): MemoryCatalogFeed;
   search(parameters?: CatalogSearchParameters): SingleRequestHandle<CatalogSearchResult>;
   lookup(query: string | CatalogDimensions, options?: Pick<CatalogLookupParameters, "cursor" | "limit" | "trace">): SingleRequestHandle<CatalogLookupResult>;
   latest<const B extends SnapshotBlockName>(selector: MarketSelector, options?: LatestOptions<B>): RequestHandle<ResolvedMarketDataMessage<B>>;
   latestBatched<const B extends SnapshotBlockName>(selector: MarketSelector, options?: LatestOptions<B>): RequestHandle<MarketDataBatch<B>>;
   latestStream<const B extends StreamBlockName>(selector: MarketSelector, options?: LatestStreamOptions<B>): RequestHandle<ResolvedMarketDataMessage<B>>;
   latestStreamBatched<const B extends StreamBlockName>(selector: MarketSelector, options?: LatestStreamOptions<B>): RequestHandle<MarketDataBatch<B>>;
+  streamSubscribe<const B extends StreamBlockName>(blocks: readonly B[], options?: FeedLiveOptions): RequestHandle<FeedEvent<BlockValue<B> | null>>;
+  streamRecover<const B extends StreamBlockName>(afterMessageId: bigint, throughMessageId: bigint, blocks: readonly B[], options?: FeedRecoveryOptions): RequestHandle<FeedMessage<BlockValue<B> | null>>;
+  streamSnapshot<const B extends SnapshotBlockName>(blocks: readonly B[], options?: FeedLiveOptions): Promise<FeedSnapshot<BlockValue<B> | null>>;
+  streamFeed<const B extends StreamBlockName>(blocks: readonly B[], sink: FeedSink<BlockValue<B> | null>, options?: DatasetStreamFeedOptions): Promise<void>;
+  streamFeedMemory<const B extends StreamBlockName>(blocks: readonly B[], onWrite?: (batch: FeedWrite<BlockValue<B> | null>) => void, options?: DatasetStreamFeedOptions): MemoryStreamFeed<BlockValue<B> | null>;
   timeseries<const B extends TsRawBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataMessage<B>>;
   timeseriesBatched<const B extends TsRawBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataBatch<B>>;
   timeseriesPage<const B extends TsRawBlockName>(selector: MarketSelector, order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor, limit: number, options?: Omit<TimeseriesPageOptions<B>, "dataset">): SingleRequestHandle<TimeseriesPage<B>>;
@@ -204,9 +249,9 @@ export interface DatasetClient<C extends string> {
 export type DatasetNamespace = {
   readonly [Alias in keyof typeof DATASETS]: Pick<DatasetClient<(typeof DATASETS)[Alias]>,
     "id" |
-    ("catalog" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "read" | "lookup" : never) |
+    ("catalog" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "read" | "lookup" | "catalogFeed" | "catalogFeedMemory" : never) |
     ("search" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "search" : never) |
-    ("latest" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "latest" | "latestBatched" | "latestStream" | "latestStreamBatched" : never) |
+    ("latest" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "latest" | "latestBatched" | "latestStream" | "latestStreamBatched" | "streamSubscribe" | "streamRecover" | "streamSnapshot" | "streamFeed" | "streamFeedMemory" : never) |
     ("timeseries" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "timeseries" | "timeseriesBatched" | "timeseriesPage" | "candlePage" : never)>;
 };
 
@@ -342,7 +387,7 @@ export class AuthenticationError extends Error {
 }
 
 interface ActiveRequest {
-  readonly command: "SNAPSHOT" | "STREAM" | "TS_RAW" | "TS_CANDLE" | "TS_RAW_STREAM" | "TS_CANDLE_STREAM" | "TS_PAGE" | "CATALOG" | "CATALOG_KEYFIGURES" | "STREAM_METADATA" | "CATALOG_SEARCH" | "CATALOG_LOOKUP" | "LISTING_LATEST" | "SERVICE_CALL";
+  readonly command: "SNAPSHOT" | "STREAM" | "TS_RAW" | "TS_CANDLE" | "TS_RAW_STREAM" | "TS_CANDLE_STREAM" | "TS_PAGE" | "CATALOG" | "CATALOG_FEED" | "CATALOG_KEYFIGURES" | "STREAM_METADATA" | "CATALOG_SEARCH" | "CATALOG_LOOKUP" | "LISTING_LATEST" | "SERVICE_CALL" | "FEED_LIVE" | "FEED_RECOVERY" | "FEED_SNAPSHOT";
   readonly encoded: Uint8Array<ArrayBuffer>;
   readonly handle: Handle<unknown>;
   readonly decode: (response: Extract<Response, { readonly kind: "response" }>) => unknown;
@@ -391,6 +436,8 @@ class ReconnectingConnection implements Connection {
   #socket: WebSocket | undefined;
   #auth: AuthenticationWaiter | undefined;
   #authenticated = false;
+  #windowed = false;
+  #reservedWindowBytes = 0;
   #closing = false;
   #initialSettled = false;
   #lastHeartbeat = 0;
@@ -398,6 +445,14 @@ class ReconnectingConnection implements Connection {
 
   #track(active: ActiveRequest): void {
     if (this.#active.size >= MAX_ACTIVE_REQUESTS) throw new RangeError("connection active-request capacity reached");
+    if (active.command === "FEED_LIVE" || active.command === "FEED_RECOVERY" || active.command === "FEED_SNAPSHOT" || active.command === "CATALOG_FEED") {
+      if (this.#reservedWindowBytes + RESPONSE_WINDOW_BYTES > 64 * 1024 * 1024) throw new RangeError("connection feed buffer capacity reached");
+      this.#reservedWindowBytes += RESPONSE_WINDOW_BYTES;
+      active.handle.releaseWindow = () => {
+        this.#reservedWindowBytes -= RESPONSE_WINDOW_BYTES;
+        active.handle.releaseWindow = undefined;
+      };
+    }
     this.#active.set(active.handle.id, active);
   }
 
@@ -492,6 +547,14 @@ class ReconnectingConnection implements Connection {
     const get = <C extends string>(id: C, capabilities: readonly string[]): DatasetClient<C> => ({
       id,
       ...(capabilities.includes("catalog") ? {
+        catalogFeed: (fields, sink, options) => this.#runCatalogFeed(id, fields, sink, options),
+        catalogFeedMemory: (fields, options) => {
+          const sink = new MemoryCatalogFeedSink();
+          const controller = new AbortController();
+          if (options?.signal?.aborted) controller.abort(options.signal.reason);
+          else options?.signal?.addEventListener("abort", () => controller.abort(options.signal?.reason), {once: true});
+          return {sink, completion: this.#runCatalogFeed(id, fields, sink, {...options, signal: controller.signal}), cancel: () => controller.abort()};
+        },
         read: <D extends readonly CatalogFieldDescriptor[]>(selector: MarketSelector, options: DatasetReadOptions<D> = {}) =>
           this.#startCatalog(
             id,
@@ -513,6 +576,21 @@ class ReconnectingConnection implements Connection {
         latestBatched: (selector, options) => this.latestBatched(selector, {...options, dataset: id}),
         latestStream: (selector, options) => this.latestStream(selector, {...options, dataset: id}),
         latestStreamBatched: (selector, options) => this.latestStreamBatched(selector, {...options, dataset: id}),
+        streamSubscribe: (blocks, options) => this.#startFeedLive(id, blocks, options),
+        streamRecover: (after, through, blocks, options) => this.#startFeedRecovery(id, after, through, blocks, options),
+        streamSnapshot: (blocks, options) => this.#startFeedSnapshot(id, blocks, options),
+        streamFeed: (blocks, sink, options) => this.#runDatasetStreamFeed(id, blocks, sink, options),
+        streamFeedMemory: (blocks, onWrite, options) => {
+          const sink = new MemoryFeedSink(onWrite);
+          const controller = new AbortController();
+          if (options?.signal?.aborted) controller.abort(options.signal.reason);
+          else options?.signal?.addEventListener("abort", () => controller.abort(options.signal?.reason), { once: true });
+          return {
+            sink,
+            completion: this.#runDatasetStreamFeed(id, blocks, sink, { ...options, signal: controller.signal }),
+            cancel: () => controller.abort(),
+          };
+        },
       } : {}),
       ...(capabilities.includes("timeseries") ? {
         timeseries: (selector, from, through, options) => this.tsRaw(selector, from, through, {...options, dataset: id}),
@@ -526,6 +604,203 @@ class ReconnectingConnection implements Connection {
     return Object.freeze({
       ...Object.fromEntries(Object.entries(DATASETS).map(([alias, id]) => [alias, get(id, DATASET_CAPABILITIES[alias as keyof typeof DATASETS])])),
     }) as unknown as DatasetNamespace;
+  }
+
+  #startFeedLive<B extends StreamBlockName>(dataset: string, blocks: readonly B[], options: FeedLiveOptions = {}): RequestHandle<FeedEvent<BlockValue<B> | null>> {
+    if (this.#closing) throw new ConnectionClosedError();
+    if (!blocks.length || blocks.some(block => !BLOCK_BINDINGS[block]?.commands.includes("STREAM"))) {
+      throw new TypeError("streamSubscribe requires at least one Stream block");
+    }
+    const quality = options.quality ?? "RT";
+    if (!["RT", "DL", "EOD"].includes(quality)) throw new TypeError("invalid feed quality");
+    const id = this.#nextId++;
+    const handle = new Handle<FeedEvent<BlockValue<B> | null>>(id, () => this.#cancel(id));
+    handle.onReplay(() => { handle.push([{ kind: "reset" }], 1); });
+    if (options.signal?.aborted) void handle.cancel();
+    else options.signal?.addEventListener("abort", () => void handle.cancel(), { once: true });
+    const active: ActiveRequest = {
+      command: "FEED_LIVE",
+      encoded: encodeRequest({ command: "FEED_LIVE", id, blockMask: blockMask(blocks), dataset, quality,
+        ...(options.trace ? { trace: options.trace } : {}) }),
+      handle: handle as Handle<unknown>,
+      many: true,
+      decode: response => {
+        if (response.message?.format.templateId === 111) {
+          const control = decodeFeedControl(response);
+          if (control.dataset !== dataset) throw new ProtocolError("feed control targets a different Dataset");
+          return [control.kind === "gap"
+            ? { kind: "gap", gap: { afterMessageId: control.afterMessageId, throughMessageId: control.throughMessageId } }
+            : { kind: "watermark", throughMessageId: control.throughMessageId }];
+        }
+        const batch = decodeBatch(response, selector.raw(dataset, "FEED"));
+        if (batch.datasetRecord.dataset !== dataset) throw new ProtocolError("feed batch targets a different Dataset");
+        return batch.messages.map(message => ({
+          kind: "message" as const,
+          message: { messageId: message.messageId, recordKey: batch.datasetRecord.datasetRecordKey,
+            blocks: new Map(Array.from(message.fieldIterator(), field => [field.name, field.value as BlockValue<B> | null])) },
+        }));
+      },
+    };
+    this.#track(active);
+    if (this.#authenticated && this.#socket?.readyState === this.#WebSocket.OPEN) {
+      this.#socket.send(active.encoded);
+      this.#socket.send(this.#windowed ? encodeWindow(id) : encodeCredit(id));
+    }
+    return handle;
+  }
+
+  #runDatasetStreamFeed<B extends StreamBlockName>(
+    dataset: string, blocks: readonly B[], sink: FeedSink<BlockValue<B> | null>, options: DatasetStreamFeedOptions = {},
+  ): Promise<void> {
+    if ((options.mode ?? "latest") === "latest"
+      && blocks.some(block => !BLOCK_BINDINGS[block]?.commands.includes("SNAPSHOT"))) {
+      throw new TypeError("latest-mode streamFeed requires Snapshot-capable blocks");
+    }
+    const transport: FeedTransport<BlockValue<B> | null> = {
+      live: async function* (this: ReconnectingConnection, signal: AbortSignal) {
+        let failures = 0;
+        while (!signal.aborted) {
+          try {
+            const request = this.#startFeedLive(dataset, blocks, { ...(options.quality ? {quality: options.quality} : {}), ...(options.trace ? {trace: options.trace} : {}), signal });
+            for await (const event of request) {
+              failures = 0;
+              yield event;
+            }
+            if (signal.aborted) return;
+          } catch (error) {
+            if (signal.aborted) return;
+            if (!(error instanceof RequestError) || !/disconnect|connection|timeout|timed out|lagged/i.test(error.message)) throw error;
+          }
+          failures += 1;
+          await new Promise<void>(resolve => {
+            const timer = setTimeout(resolve, Math.min(30_000, 250 * 2 ** Math.min(failures, 8)));
+            signal.addEventListener("abort", () => { clearTimeout(timer); resolve(); }, {once: true});
+          });
+          if (!signal.aborted) yield {kind: "reset" as const};
+        }
+      }.bind(this),
+      recovery: (after, through, signal) => this.#startFeedRecovery(dataset, after, through, blocks, { ...(options.quality ? {quality: options.quality} : {}), ...(options.trace ? {trace: options.trace} : {}), signal }),
+      streamSnapshot: signal => this.#startFeedSnapshot(dataset, blocks as readonly SnapshotBlockName[], { ...(options.quality ? {quality: options.quality} : {}), ...(options.trace ? {trace: options.trace} : {}), signal }) as Promise<FeedSnapshot<BlockValue<B> | null>>,
+    };
+    return (async () => {
+      let failures = 0;
+      while (!options.signal?.aborted) {
+        try {
+          await runStreamFeed(transport, sink, options);
+          return;
+        } catch (error) {
+          if (!(error instanceof RequestError) || !/connection lost|disconnect|timed out|timeout/i.test(error.message)) throw error;
+          failures += 1;
+          await new Promise<void>(resolve => {
+            const timer = setTimeout(resolve, Math.min(30_000, 250 * 2 ** Math.min(failures, 8)));
+            options.signal?.addEventListener("abort", () => { clearTimeout(timer); resolve(); }, {once: true});
+          });
+        }
+      }
+    })();
+  }
+
+  #startFeedRecovery<B extends StreamBlockName>(
+    dataset: string, afterMessageId: bigint, throughMessageId: bigint, blocks: readonly B[], options: FeedRecoveryOptions = {},
+  ): RequestHandle<FeedMessage<BlockValue<B> | null>> {
+    if (this.#closing) throw new ConnectionClosedError();
+    if (afterMessageId < 0n || throughMessageId <= afterMessageId || throughMessageId > 0xffff_ffff_ffff_ffffn) {
+      throw new RangeError("streamRecover requires an increasing unsigned message range");
+    }
+    if (!blocks.length || blocks.some(block => !BLOCK_BINDINGS[block]?.commands.includes("STREAM"))) {
+      throw new TypeError("streamRecover requires at least one Stream block");
+    }
+    const quality = options.quality ?? "RT";
+    if (!["RT", "DL", "EOD"].includes(quality)) throw new TypeError("invalid feed quality");
+    const id = this.#nextId++;
+    const handle = new Handle<FeedMessage<BlockValue<B> | null>>(id, () => this.#cancel(id));
+    if (options.signal?.aborted) void handle.cancel();
+    else options.signal?.addEventListener("abort", () => void handle.cancel(), { once: true });
+    const active: ActiveRequest = {
+      command: "FEED_RECOVERY",
+      encoded: encodeRequest({ command: "FEED_RECOVERY", id, blockMask: blockMask(blocks),
+        afterMessageId, throughMessageId, dataset, quality, ...(options.trace ? { trace: options.trace } : {}) }),
+      handle: handle as Handle<unknown>,
+      many: true,
+      decode: response => {
+        const batch = decodeBatch(response, selector.raw(dataset, "FEED"));
+        if (batch.datasetRecord.dataset !== dataset) throw new ProtocolError("feed recovery targets a different Dataset");
+        return batch.messages.map(message => ({
+          messageId: message.messageId,
+          recordKey: batch.datasetRecord.datasetRecordKey,
+          blocks: new Map(Array.from(message.fieldIterator(), field => [field.name, field.value as BlockValue<B> | null])),
+        }));
+      },
+    };
+    this.#track(active);
+    if (this.#authenticated && this.#socket?.readyState === this.#WebSocket.OPEN) {
+      this.#socket.send(active.encoded);
+      this.#socket.send(this.#windowed ? encodeWindow(id) : encodeCredit(id));
+    }
+    return handle;
+  }
+
+  async #startFeedSnapshot<B extends SnapshotBlockName>(
+    dataset: string, blocks: readonly B[], options: FeedLiveOptions = {},
+  ): Promise<FeedSnapshot<BlockValue<B> | null>> {
+    if (this.#closing) throw new ConnectionClosedError();
+    if (!blocks.length || blocks.some(block => !BLOCK_BINDINGS[block]?.commands.includes("SNAPSHOT"))) {
+      throw new TypeError("streamSnapshot requires at least one Snapshot block");
+    }
+    const quality = options.quality ?? "RT";
+    if (!["RT", "DL", "EOD"].includes(quality)) throw new TypeError("invalid snapshot quality");
+    const id = this.#nextId++;
+    const handle = new Handle<FeedWireSnapshotHeader | FeedMessage<BlockValue<B> | null>>(id, () => this.#cancel(id));
+    if (options.signal?.aborted) void handle.cancel();
+    else options.signal?.addEventListener("abort", () => void handle.cancel(), { once: true });
+    const active: ActiveRequest = {
+      command: "FEED_SNAPSHOT",
+      encoded: encodeRequest({ command: "FEED_SNAPSHOT", id, blockMask: blockMask(blocks), dataset, quality,
+        ...(options.trace ? { trace: options.trace } : {}) }),
+      handle: handle as Handle<unknown>,
+      many: true,
+      decode: response => {
+        if (response.message?.format.templateId === 112) {
+          const header = decodeFeedSnapshotHeader(response);
+          if (header.dataset !== dataset) throw new ProtocolError("snapshot targets a different Dataset");
+          return [header];
+        }
+        const batch = decodeBatch(response, selector.raw(dataset, "FEED"));
+        if (batch.datasetRecord.dataset !== dataset) throw new ProtocolError("snapshot batch targets a different Dataset");
+        return batch.messages.map(message => ({
+          messageId: message.messageId,
+          recordKey: batch.datasetRecord.datasetRecordKey,
+          blocks: new Map(Array.from(message.fieldIterator(), field => [field.name, field.value as BlockValue<B> | null])),
+        }));
+      },
+    };
+    this.#track(active);
+    if (this.#authenticated && this.#socket?.readyState === this.#WebSocket.OPEN) {
+      this.#socket.send(active.encoded);
+      this.#socket.send(this.#windowed ? encodeWindow(id) : encodeCredit(id));
+    }
+    const iterator = handle[Symbol.asyncIterator]();
+    const first = await iterator.next();
+    if (first.done || !("throughMessageId" in first.value)) throw new ProtocolError("snapshot ended without a header");
+    const header = first.value;
+    return {
+      throughMessageId: header.throughMessageId,
+      gaps: header.gaps,
+      messages: {
+        async *[Symbol.asyncIterator]() {
+          try {
+            for (;;) {
+              const next = await iterator.next();
+              if (next.done) return;
+              if ("throughMessageId" in next.value) throw new ProtocolError("snapshot restarted during delivery");
+              yield next.value;
+            }
+          } finally {
+            if (!handle.closed) await handle.cancel();
+          }
+        },
+      },
+    };
   }
 
   select(selector: MarketSelector): SelectedClient;
@@ -924,7 +1199,7 @@ class ReconnectingConnection implements Connection {
   }
 
   #start(
-    command: Exclude<ActiveRequest["command"], "CATALOG" | "CATALOG_KEYFIGURES" | "STREAM_METADATA" | "CATALOG_SEARCH" | "CATALOG_LOOKUP" | "LISTING_LATEST" | "SERVICE_CALL" | "TS_PAGE">,
+    command: Exclude<ActiveRequest["command"], "CATALOG" | "CATALOG_FEED" | "CATALOG_KEYFIGURES" | "STREAM_METADATA" | "CATALOG_SEARCH" | "CATALOG_LOOKUP" | "LISTING_LATEST" | "SERVICE_CALL" | "TS_PAGE" | "FEED_LIVE" | "FEED_RECOVERY" | "FEED_SNAPSHOT">,
     parameters: LatestParameters | LatestStreamParameters | TsRawParameters | TsCandleParameters | TsRawStreamParameters | TsCandleStreamParameters,
     normalized: { readonly maxMessages?: number; readonly updateIntervalMillis?: number } | undefined = undefined,
     batched = false,
@@ -1004,6 +1279,88 @@ class ReconnectingConnection implements Connection {
       this.#socket.send(active.encoded);
     }
     return handle as RequestHandle<unknown>;
+  }
+
+  #startCatalogFeed(
+    catalog: string, selection: readonly CatalogFieldDescriptor[] | "*", cursor: CatalogFeedState | null,
+    options: CatalogFeedOptions,
+  ): RequestHandle<CatalogFeedRecord | CatalogFeedWireControl> {
+    if (this.#closing) throw new ConnectionClosedError();
+    if (selection !== "*" && selection.length > 64) throw new TypeError("Catalog feeds support at most 64 fields");
+    const id = this.#nextId++;
+    const handle = new Handle<CatalogFeedRecord | CatalogFeedWireControl>(id, () => this.#cancel(id));
+    if (options.signal?.aborted) void handle.cancel();
+    else options.signal?.addEventListener("abort", () => void handle.cancel(), {once: true});
+    const active: ActiveRequest = {
+      command: "CATALOG_FEED",
+      encoded: encodeRequest({
+        command: "CATALOG_FEED", id, catalog, fields: selection === "*" ? [] : selection.map(field => field.label),
+        cursor, ...(options.trace ? {trace: options.trace} : {}),
+      }),
+      handle: handle as Handle<unknown>,
+      decode: response => {
+        if (response.message?.format.templateId === 113) return decodeCatalogFeedControl(response);
+        const wire = decodeCatalogRecord(response);
+        if (wire.catalog !== catalog) throw new ProtocolError("Catalog feed returned another Dataset");
+        return {
+          catalog,
+          recordKey: wire.recordIdentifier,
+          phase: wire.phase,
+          exists: wire.exists,
+          lifecycle: wire.lifecycle,
+          fields: decodeCatalogFields(wire, selection === "*" ? [] : selection, selection === "*"),
+          rawFields: wire.fields,
+        } satisfies CatalogFeedRecord;
+      },
+    };
+    this.#track(active);
+    if (this.#authenticated && this.#socket?.readyState === this.#WebSocket.OPEN) {
+      this.#socket.send(active.encoded);
+      this.#socket.send(this.#windowed ? encodeWindow(id) : encodeCredit(id));
+    }
+    return handle;
+  }
+
+  async #runCatalogFeed(
+    catalog: string, fields: readonly CatalogFieldDescriptor[] | "*", sink: CatalogFeedSink,
+    options: CatalogFeedOptions = {},
+  ): Promise<void> {
+    let failures = 0;
+    while (!options.signal?.aborted) {
+      const cursor = await sink.resume();
+      await sink.write({records: [], control: {kind: "reset"}});
+      try {
+        let staging = false;
+        for await (const item of this.#startCatalogFeed(catalog, fields, cursor, options)) {
+          if ("kind" in item) {
+            if (item.kind === "snapshot_begin") {
+              staging = true;
+              await sink.write({records: [], control: {kind: "snapshotBegin"}});
+            } else if (item.kind === "snapshot_complete") {
+              if (!staging) throw new ProtocolError("Catalog snapshot completed without a begin event");
+              staging = false;
+              await sink.write({records: [], control: {kind: "snapshotComplete", state: item.cursor}});
+            } else {
+              if (staging) throw new ProtocolError("Catalog cursor arrived during a snapshot");
+              await sink.write({records: [], control: {kind: "cursor", state: item.cursor}});
+            }
+          } else {
+            await sink.write({records: [item]});
+          }
+          failures = 0;
+        }
+        if (options.signal?.aborted) return;
+        throw new RequestError(0n, "Catalog feed connection lost");
+      } catch (error) {
+        if (options.signal?.aborted) return;
+        if (!(error instanceof RequestError) || !/connection|disconnect|catalog_replaced|incarnation/i.test(error.message)) throw error;
+        failures += 1;
+        await new Promise<void>(resolve => {
+          const timer = setTimeout(resolve, Math.min(30_000, 250 * 2 ** Math.min(failures, 8)));
+          options.signal?.addEventListener("abort", () => {clearTimeout(timer); resolve();}, {once: true});
+        });
+      }
+    }
   }
 
   #startCatalog(
@@ -1106,7 +1463,7 @@ class ReconnectingConnection implements Connection {
   }
 
   async #openAndServe(): Promise<void> {
-    const socket = new this.#WebSocket(this.#url, WEBSOCKET_SUBPROTOCOL);
+    const socket = new this.#WebSocket(this.#url, [WINDOW_SUBPROTOCOL, WEBSOCKET_SUBPROTOCOL]);
     socket.binaryType = "arraybuffer";
     this.#socket = socket;
     this.#authenticated = false;
@@ -1122,9 +1479,9 @@ class ReconnectingConnection implements Connection {
         once: true,
       });
     });
-    if (socket.protocol !== WEBSOCKET_SUBPROTOCOL) {
+    if (socket.protocol !== WEBSOCKET_SUBPROTOCOL && socket.protocol !== WINDOW_SUBPROTOCOL) {
       socket.close(1002, "subprotocol required");
-      throw new ProtocolError(`server did not negotiate ${WEBSOCKET_SUBPROTOCOL}`);
+      throw new ProtocolError("server did not negotiate a supported SBE session subprotocol");
     }
     socket.addEventListener("message", (event: MessageEvent<unknown>) => {
       void this.#receive(socket, event.data).catch(() => socket.close(1002, "invalid SBE message"));
@@ -1158,6 +1515,7 @@ class ReconnectingConnection implements Connection {
       authenticated,
       closed.then(() => Promise.reject(new Error("WebSocket closed during authentication"))),
     ]);
+    this.#windowed = socket.protocol === WINDOW_SUBPROTOCOL;
     this.#authenticated = true;
     this.#lastHeartbeat = Date.now();
     const replay = this.#initialSettled;
@@ -1168,6 +1526,9 @@ class ReconnectingConnection implements Connection {
     for (const active of this.#active.values()) {
       if (replay) active.handle.replay();
       socket.send(active.encoded);
+      if (active.command === "FEED_LIVE" || active.command === "FEED_RECOVERY" || active.command === "FEED_SNAPSHOT" || active.command === "CATALOG_FEED") {
+        socket.send(this.#windowed ? encodeWindow(active.handle.id) : encodeCredit(active.handle.id));
+      }
       active.sent = true;
     }
     for (const cancellation of this.#cancellations.values()) socket.send(cancellation.encoded);
@@ -1178,6 +1539,11 @@ class ReconnectingConnection implements Connection {
     }, 5_000);
     await closed;
     for (const [id, active] of this.#active) {
+      if (active.command === "FEED_RECOVERY" || active.command === "FEED_SNAPSHOT" || active.command === "CATALOG_FEED") {
+        active.handle.fail(new RequestError(id, "feed request connection lost"));
+        this.#active.delete(id);
+        continue;
+      }
       if (active.command !== "SERVICE_CALL" || !active.sent) continue;
       active.interrupted = true;
       if (active.retry === "never") {
@@ -1247,20 +1613,36 @@ class ReconnectingConnection implements Connection {
       this.#active.delete(response.requestId);
     } else {
       try {
-        const value = active.decode(response);
-        const wireBytes = (response.message?.body.byteLength ?? 0) + 64;
-        const values = active.many ? value as readonly unknown[] : [value];
-        const bytesPerValue = Math.max(1, Math.ceil(wireBytes / Math.max(1, values.length)));
-        if (!values.every(item => active.handle.push(item, bytesPerValue))) {
+        const flow = active.command === "FEED_LIVE" || active.command === "FEED_RECOVERY" || active.command === "FEED_SNAPSHOT" || active.command === "CATALOG_FEED";
+        if (response.message?.format.schemaId === 5 && response.message.format.templateId === 103 && (!this.#windowed || !flow)) {
+          throw new ProtocolError("unnegotiated response batch");
+        }
+        const frames = splitResponseBatch(response);
+        const values = frames.flatMap(frame => {
+          const value = active.decode(frame);
+          return active.many ? value as readonly unknown[] : [value];
+        });
+        const wireBytes = (response.message?.body.byteLength ?? 0) + RESPONSE_COST_OVERHEAD;
+        const socket = this.#socket;
+        const windowed = this.#windowed;
+        const credit = () => {
+          if (this.#authenticated && socket === this.#socket && socket?.readyState === this.#WebSocket.OPEN) {
+            socket.send(windowed ? encodeRelease(response.requestId, wireBytes) : encodeCredit(response.requestId));
+          }
+        };
+        if (!active.handle.push(values, wireBytes, flow ? credit : undefined)) {
           void this.#cancel(response.requestId);
           active.handle.fail(new RequestLaggedError());
           this.#active.delete(response.requestId);
+        } else if (flow && values.length === 0) {
+          credit();
         } else if (active.command === "SERVICE_CALL") {
           active.handle.finish();
           this.#active.delete(response.requestId);
         }
       }
       catch (error) {
+        void this.#cancel(response.requestId);
         active.handle.fail(error);
         this.#active.delete(response.requestId);
       }
@@ -1272,7 +1654,8 @@ class Handle<T> implements SingleRequestHandle<T> {
   readonly #replayListeners = new Set<() => void>();
   readonly id: bigint;
   readonly #cancelRequest: () => Promise<boolean>;
-  readonly #values: Array<{ readonly value: T; readonly bytes: number } | undefined> = [];
+  releaseWindow: (() => void) | undefined;
+  readonly #values: Array<{ readonly values: readonly T[]; index: number; readonly bytes: number; readonly ack?: () => void } | undefined> = [];
   readonly #waiting: Array<{
     readonly resolve: (result: IteratorResult<T>) => void;
     readonly reject: (error: unknown) => void;
@@ -1282,6 +1665,7 @@ class Handle<T> implements SingleRequestHandle<T> {
   #cancelled: Promise<boolean> | undefined;
   #head = 0;
   #bufferedBytes = 0;
+  #pendingAck: (() => void) | undefined;
 
   constructor(id: bigint, cancelRequest: () => Promise<boolean>) {
     this.id = id;
@@ -1313,21 +1697,31 @@ class Handle<T> implements SingleRequestHandle<T> {
     this.#values.length = 0;
     this.#head = 0;
     this.#bufferedBytes = 0;
+    this.#pendingAck = undefined;
     for (const listener of this.#replayListeners) listener();
   }
 
   [Symbol.asyncIterator](): AsyncIterator<T> {
     return {
       next: () => {
+        this.#pendingAck?.();
+        this.#pendingAck = undefined;
         const buffered = this.#values[this.#head];
         if (buffered !== undefined) {
-          this.#values[this.#head] = undefined;
-          this.#head += 1;
-          this.#bufferedBytes -= buffered.bytes;
-          return Promise.resolve({ value: buffered.value, done: false });
+          const value = buffered.values[buffered.index++]!;
+          if (buffered.index === buffered.values.length) {
+            this.#values[this.#head++] = undefined;
+            this.#bufferedBytes -= buffered.bytes;
+            this.#pendingAck = buffered.ack;
+            if (this.#head >= 64) { this.#values.splice(0, this.#head); this.#head = 0; }
+          }
+          return Promise.resolve({ value, done: false });
         }
         if (this.#error !== undefined) return Promise.reject(this.#error);
-        if (this.#terminal) return Promise.resolve({ value: undefined, done: true });
+        if (this.#terminal) {
+          this.releaseWindow?.();
+          return Promise.resolve({ value: undefined, done: true });
+        }
         return new Promise<IteratorResult<T>>((resolve, reject) => {
           this.#waiting.push({ resolve, reject });
         });
@@ -1340,10 +1734,24 @@ class Handle<T> implements SingleRequestHandle<T> {
   }
 
   cancel(): Promise<boolean> {
-    if (this.#terminal) return Promise.resolve(false);
+    if (this.#terminal) {
+      this.#values.length = 0;
+      this.#head = 0;
+      this.#bufferedBytes = 0;
+      this.#pendingAck = undefined;
+      this.releaseWindow?.();
+      return Promise.resolve(false);
+    }
     if (!this.#cancelled) {
       const cancellation = this.#cancelRequest().then((cancelled) => {
         if (!cancelled && this.#cancelled === cancellation) this.#cancelled = undefined;
+        if (cancelled || this.#terminal) {
+          this.#values.length = 0;
+          this.#head = 0;
+          this.#bufferedBytes = 0;
+          this.#pendingAck = undefined;
+          this.releaseWindow?.();
+        }
         return cancelled;
       });
       this.#cancelled = cancellation;
@@ -1351,16 +1759,19 @@ class Handle<T> implements SingleRequestHandle<T> {
     return this.#cancelled;
   }
 
-  push(value: T, bytes: number): boolean {
+  push(values: readonly T[], bytes: number, ack?: () => void): boolean {
     if (this.#terminal) return false;
-    const waiting = this.#waiting.shift();
-    if (waiting) {
-      waiting.resolve({ value, done: false });
-      return true;
+    if (values.length === 0) return true;
+    let index = 0;
+    while (this.#waiting.length > 0 && index < values.length) {
+      const waiting = this.#waiting.shift()!;
+      if (index + 1 === values.length) this.#pendingAck = ack;
+      waiting.resolve({ value: values[index++]!, done: false });
     }
+    if (index === values.length) return true;
     if (this.#values.length - this.#head >= MAX_BUFFERED_RESPONSES_PER_REQUEST
       || this.#bufferedBytes + bytes > MAX_BUFFERED_RESPONSE_BYTES_PER_REQUEST) return false;
-    this.#values.push({ value, bytes });
+    this.#values.push({ values, index, bytes, ...(ack ? {ack} : {}) });
     this.#bufferedBytes += bytes;
     return true;
   }
@@ -1368,6 +1779,7 @@ class Handle<T> implements SingleRequestHandle<T> {
   finish(): void {
     if (this.#terminal) return;
     this.#terminal = true;
+    if (this.#values.length === this.#head && this.#pendingAck === undefined) this.releaseWindow?.();
     for (const waiting of this.#waiting.splice(0)) {
       waiting.resolve({ value: undefined, done: true });
     }
@@ -1380,6 +1792,8 @@ class Handle<T> implements SingleRequestHandle<T> {
     this.#values.length = 0;
     this.#head = 0;
     this.#bufferedBytes = 0;
+    this.#pendingAck = undefined;
+    this.releaseWindow?.();
     for (const waiting of this.#waiting.splice(0)) waiting.reject(error);
   }
 }

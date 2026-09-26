@@ -1,0 +1,1276 @@
+{
+  "version": 1,
+  "environment": {
+    "name": "globex",
+    "gateway": "gateway",
+    "revision": "784dd422b56b5044894a13744fd4a397e4b1b3604f34969665a6d3c2f6710d72",
+    "datasets": {
+      "globex": {
+        "id": "GLOBEX@globex",
+        "capabilities": [
+          "catalog",
+          "search"
+        ],
+        "pluginSha256": "56e7c417b05f2b596e5fe26a8029a4c0524408319107ee740ad5e3a8c7304f65",
+        "qualities": {},
+        "fields": {}
+      },
+      "lus": {
+        "id": "LUS@lus",
+        "capabilities": [
+          "catalog",
+          "latest",
+          "timeseries"
+        ],
+        "pluginSha256": "aa137c499b06d13a5e405bf32bb9d00e39469064e706999122c4df1ef7387727",
+        "qualities": {
+          "DL": {
+            "latest": true,
+            "timeseries": true,
+            "feed": true
+          }
+        },
+        "fields": {
+          "openmdta::BidAsk": 10
+        }
+      },
+      "xetra": {
+        "id": "XETR@xetra",
+        "capabilities": [
+          "catalog"
+        ],
+        "pluginSha256": "8b5adf287d66876a21e362089537d6280583511b57eac7f7b4187c608d1bd0f6",
+        "qualities": {},
+        "fields": {}
+      }
+    },
+    "services": {
+      "observation": {
+        "id": "d17f9210-4adb-43b9-85d9-fe9a305ad611",
+        "contractSha256": "be43ec05a99d588b03ad04d375884bd2a7c3a853e92be8f11d1c3190019215d3"
+      }
+    }
+  },
+  "runtime": {
+    "version": 1,
+    "behaviorVersion": 1,
+    "publicBaseUrl": "https://globex.openmdta.com/explorer",
+    "websocketUrl": "wss://globex.openmdta.com/api/v1/ws",
+    "audience": "openmdta-data:globex",
+    "subprotocol": "openmdta.sbe-session.v1",
+    "httpSse": false,
+    "limits": {
+      "activeRequests": 131072,
+      "applicationBodyBytes": 16777216,
+      "authTimeoutMillis": 5000,
+      "connectionQueueBytes": 67108864,
+      "heartbeatIntervalMillis": 5000,
+      "heartbeatTimeoutMillis": 15000,
+      "maximumGatewaySchemaVersion": 19,
+      "processQueueBytes": 268435456,
+      "responseBatchMessages": 64,
+      "responseBatchTargetBytes": 262144,
+      "responseCreditOverheadBytes": 128,
+      "responseCredits": 32,
+      "responseQueueBytes": 33554432,
+      "responseWindowProtocolVersion": 2,
+      "serviceInputBytes": 65536,
+      "serviceResultBytes": 4194304,
+      "websocketMessageBytes": 5242880,
+      "writeTimeoutMillis": 15000
+    },
+    "schemas": {
+      "catalog-protocol.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<messageSchema package=\"openmdta.catalog.service\" id=\"7\" version=\"3\" byteOrder=\"littleEndian\">\n  <types>\n    <composite name=\"messageHeader\">\n      <type name=\"blockLength\" primitiveType=\"uint16\"/>\n      <type name=\"templateId\" primitiveType=\"uint16\"/>\n      <type name=\"schemaId\" primitiveType=\"uint16\"/>\n      <type name=\"version\" primitiveType=\"uint16\"/>\n    </composite>\n    <composite name=\"largeGroupSizeEncoding\">\n      <type name=\"blockLength\" primitiveType=\"uint16\"/>\n      <type name=\"numInGroup\" primitiveType=\"uint32\"/>\n    </composite>\n    <composite name=\"varDataEncoding\">\n      <type name=\"length\" primitiveType=\"uint32\"/>\n      <type name=\"varData\" primitiveType=\"uint8\" length=\"0\"/>\n    </composite>\n    <enum name=\"CatalogPhase\" encodingType=\"uint8\">\n      <validValue name=\"SNAPSHOT\">1</validValue>\n      <validValue name=\"UPDATE\">2</validValue>\n    </enum>\n  </types>\n\n  <message name=\"CatalogQuery\" id=\"1\" blockLength=\"1\">\n    <field name=\"follow\" id=\"1\" type=\"uint8\" offset=\"0\"/>\n    <group name=\"identifiers\" id=\"2\" dimensionType=\"largeGroupSizeEncoding\" blockLength=\"0\">\n      <data name=\"identifier\" id=\"3\" type=\"varDataEncoding\"/>\n    </group>\n    <group name=\"fields\" id=\"4\" dimensionType=\"largeGroupSizeEncoding\" blockLength=\"0\">\n      <data name=\"label\" id=\"5\" type=\"varDataEncoding\"/>\n    </group>\n    <data name=\"catalog\" id=\"6\" type=\"varDataEncoding\"/>\n    <data name=\"expectedIncarnation\" id=\"7\" type=\"varDataEncoding\"/>\n  </message>\n\n  <message name=\"CatalogRecord\" id=\"2\" blockLength=\"46\">\n    <field name=\"phase\" id=\"1\" type=\"CatalogPhase\" offset=\"0\"/>\n    <field name=\"exists\" id=\"2\" type=\"uint8\" offset=\"1\"/>\n    <field name=\"lifecyclePresent\" id=\"3\" type=\"uint8\" offset=\"2\"/>\n    <field name=\"listing\" id=\"4\" type=\"uint8\" offset=\"3\"/>\n    <field name=\"activity\" id=\"5\" type=\"uint8\" offset=\"4\"/>\n    <field name=\"visible\" id=\"6\" type=\"uint8\" offset=\"5\"/>\n    <field name=\"effectiveTimeMicros\" id=\"7\" type=\"uint64\" offset=\"6\"/>\n    <field name=\"hideAtMicros\" id=\"8\" type=\"uint64\" offset=\"14\" presence=\"optional\" nullValue=\"18446744073709551615\"/>\n    <field name=\"hiddenAtUnixSeconds\" id=\"9\" type=\"uint64\" offset=\"22\" presence=\"optional\" nullValue=\"18446744073709551615\"/>\n    <field name=\"sourceIncarnation\" id=\"10\" type=\"uint64\" offset=\"30\"/>\n    <field name=\"sourceMessageId\" id=\"11\" type=\"uint64\" offset=\"38\"/>\n    <group name=\"fields\" id=\"12\" dimensionType=\"largeGroupSizeEncoding\" blockLength=\"6\">\n      <field name=\"wireId\" id=\"13\" type=\"uint16\" offset=\"0\"/>\n      <field name=\"fixedLength\" id=\"15\" type=\"uint32\" offset=\"2\" presence=\"optional\" nullValue=\"4294967295\"/>\n      <data name=\"label\" id=\"16\" type=\"varDataEncoding\"/>\n      <data name=\"subfield\" id=\"17\" type=\"varDataEncoding\"/>\n      <data name=\"licenseRequirements\" id=\"18\" type=\"varDataEncoding\"/>\n      <data name=\"payload\" id=\"19\" type=\"varDataEncoding\"/>\n    </group>\n    <data name=\"identifier\" id=\"20\" type=\"varDataEncoding\"/>\n    <data name=\"lifecycleLicenseRequirements\" id=\"21\" type=\"varDataEncoding\"/>\n    <data name=\"incarnation\" id=\"30\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"CatalogBrowseQuery\" id=\"3\" blockLength=\"0\">\n    <data name=\"json\" id=\"1\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"CatalogBrowsePage\" id=\"4\" blockLength=\"0\">\n    <data name=\"json\" id=\"1\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"CatalogSearchQuery\" id=\"5\" blockLength=\"0\">\n    <data name=\"json\" id=\"1\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"CatalogSearchPage\" id=\"6\" blockLength=\"0\">\n    <data name=\"json\" id=\"1\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"CatalogFeedQuery\" id=\"7\" blockLength=\"0\" sinceVersion=\"3\">\n    <data name=\"json\" id=\"1\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"CatalogFeedControl\" id=\"8\" blockLength=\"0\" sinceVersion=\"3\">\n    <data name=\"json\" id=\"1\" type=\"varDataEncoding\"/>\n  </message>\n</messageSchema>\n",
+      "gateway-protocol.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<messageSchema package=\"openmdta.gateway\" id=\"102\" version=\"19\" byteOrder=\"littleEndian\">\n  <types>\n    <composite name=\"messageHeader\">\n      <type name=\"blockLength\" primitiveType=\"uint16\"/>\n      <type name=\"templateId\" primitiveType=\"uint16\"/>\n      <type name=\"schemaId\" primitiveType=\"uint16\"/>\n      <type name=\"version\" primitiveType=\"uint16\"/>\n    </composite>\n    <composite name=\"varDataEncoding\">\n      <type name=\"length\" primitiveType=\"uint32\"/>\n      <type name=\"varData\" primitiveType=\"uint8\" length=\"0\"/>\n    </composite>\n    <composite name=\"largeGroupSizeEncoding\">\n      <type name=\"blockLength\" primitiveType=\"uint16\"/>\n      <type name=\"numInGroup\" primitiveType=\"uint32\"/>\n    </composite>\n    <enum name=\"Phase\" encodingType=\"uint8\">\n      <validValue name=\"SNAPSHOT\">1</validValue>\n      <validValue name=\"UPDATE\">2</validValue>\n    </enum>\n  </types>\n\n  <message name=\"SnapshotRequest\" id=\"1\" blockLength=\"8\">\n    <field name=\"blockMask\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n    <data name=\"expression\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"adjustment\" id=\"3\" type=\"varDataEncoding\" sinceVersion=\"11\"/>\n    <data name=\"dataset\" id=\"4\" type=\"varDataEncoding\" sinceVersion=\"14\"/>\n  </message>\n  <message name=\"StreamRequest\" id=\"2\" blockLength=\"8\">\n    <field name=\"blockMask\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n    <data name=\"expression\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"adjustment\" id=\"3\" type=\"varDataEncoding\" sinceVersion=\"11\"/>\n    <data name=\"dataset\" id=\"4\" type=\"varDataEncoding\" sinceVersion=\"14\"/>\n  </message>\n  <message name=\"FeedLiveRequest\" id=\"15\" blockLength=\"8\" sinceVersion=\"18\">\n    <field name=\"blockMask\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n    <data name=\"dataset\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"quality\" id=\"3\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"FeedRecoveryRequest\" id=\"16\" blockLength=\"24\" sinceVersion=\"18\">\n    <field name=\"blockMask\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n    <field name=\"afterMessageId\" id=\"2\" type=\"uint64\" offset=\"8\"/>\n    <field name=\"throughMessageId\" id=\"3\" type=\"uint64\" offset=\"16\"/>\n    <data name=\"dataset\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"quality\" id=\"5\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"FeedSnapshotRequest\" id=\"17\" blockLength=\"8\" sinceVersion=\"18\">\n    <field name=\"blockMask\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n    <data name=\"dataset\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"quality\" id=\"3\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"CatalogFeedRequest\" id=\"18\" blockLength=\"0\" sinceVersion=\"19\">\n    <group name=\"fields\" id=\"1\" dimensionType=\"largeGroupSizeEncoding\" blockLength=\"0\">\n      <data name=\"label\" id=\"2\" type=\"varDataEncoding\"/>\n    </group>\n    <data name=\"catalog\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"cursor\" id=\"4\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"CatalogFeedControl\" id=\"113\" blockLength=\"0\" sinceVersion=\"19\">\n    <data name=\"json\" id=\"1\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"FeedSnapshotHeader\" id=\"112\" blockLength=\"8\" sinceVersion=\"18\">\n    <field name=\"throughMessageId\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n    <group name=\"gaps\" id=\"2\" dimensionType=\"largeGroupSizeEncoding\" blockLength=\"16\">\n      <field name=\"afterMessageId\" id=\"3\" type=\"uint64\" offset=\"0\"/>\n      <field name=\"throughMessageId\" id=\"4\" type=\"uint64\" offset=\"8\"/>\n    </group>\n    <data name=\"dataset\" id=\"5\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"FeedControl\" id=\"111\" blockLength=\"17\" sinceVersion=\"18\">\n    <!-- 1 subscription fence, 2 opened gap, 3 complete coverage watermark -->\n    <field name=\"kind\" id=\"1\" type=\"uint8\" offset=\"0\"/>\n    <field name=\"afterMessageId\" id=\"2\" type=\"uint64\" offset=\"1\"/>\n    <field name=\"throughMessageId\" id=\"3\" type=\"uint64\" offset=\"9\"/>\n    <data name=\"dataset\" id=\"4\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"TsRawRequest\" id=\"3\" blockLength=\"28\">\n    <field name=\"blockMask\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n    <field name=\"from\" id=\"2\" type=\"uint64\" offset=\"8\"/>\n    <field name=\"through\" id=\"3\" type=\"uint64\" offset=\"16\"/>\n    <field name=\"maxRows\" id=\"4\" type=\"uint32\" offset=\"24\"/>\n    <data name=\"expression\" id=\"5\" type=\"varDataEncoding\"/>\n    <data name=\"quality\" id=\"6\" type=\"varDataEncoding\" sinceVersion=\"5\"/>\n    <data name=\"adjustment\" id=\"7\" type=\"varDataEncoding\" sinceVersion=\"11\"/>\n    <data name=\"dataset\" id=\"8\" type=\"varDataEncoding\" sinceVersion=\"14\"/>\n  </message>\n  <message name=\"TsCandleRequest\" id=\"4\" blockLength=\"32\">\n    <field name=\"blockMask\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n    <field name=\"from\" id=\"2\" type=\"uint64\" offset=\"8\"/>\n    <field name=\"through\" id=\"3\" type=\"uint64\" offset=\"16\"/>\n    <field name=\"cadenceMicros\" id=\"4\" type=\"uint64\" offset=\"24\"/>\n    <data name=\"expression\" id=\"5\" type=\"varDataEncoding\"/>\n    <data name=\"quality\" id=\"6\" type=\"varDataEncoding\" sinceVersion=\"3\"/>\n    <data name=\"adjustment\" id=\"7\" type=\"varDataEncoding\" sinceVersion=\"11\"/>\n    <data name=\"dataset\" id=\"8\" type=\"varDataEncoding\" sinceVersion=\"14\"/>\n  </message>\n  <message name=\"CatalogRequest\" id=\"5\" blockLength=\"0\" sinceVersion=\"2\">\n    <group name=\"identifiers\" id=\"1\" dimensionType=\"largeGroupSizeEncoding\" blockLength=\"0\">\n      <data name=\"identifier\" id=\"2\" type=\"varDataEncoding\"/>\n    </group>\n    <group name=\"fields\" id=\"3\" dimensionType=\"largeGroupSizeEncoding\" blockLength=\"0\">\n      <data name=\"label\" id=\"4\" type=\"varDataEncoding\"/>\n    </group>\n    <data name=\"catalog\" id=\"5\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"TsRawStreamRequest\" id=\"6\" blockLength=\"28\" sinceVersion=\"5\">\n    <field name=\"blockMask\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n    <field name=\"from\" id=\"2\" type=\"uint64\" offset=\"8\"/>\n    <field name=\"through\" id=\"3\" type=\"uint64\" offset=\"16\"/>\n    <field name=\"maxRows\" id=\"4\" type=\"uint32\" offset=\"24\"/>\n    <data name=\"expression\" id=\"5\" type=\"varDataEncoding\"/>\n    <data name=\"quality\" id=\"6\" type=\"varDataEncoding\"/>\n    <data name=\"adjustment\" id=\"7\" type=\"varDataEncoding\" sinceVersion=\"11\"/>\n    <data name=\"dataset\" id=\"8\" type=\"varDataEncoding\" sinceVersion=\"14\"/>\n  </message>\n  <message name=\"TsCandleStreamRequest\" id=\"7\" blockLength=\"36\" sinceVersion=\"5\">\n    <field name=\"blockMask\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n    <field name=\"from\" id=\"2\" type=\"uint64\" offset=\"8\"/>\n    <field name=\"through\" id=\"3\" type=\"uint64\" offset=\"16\"/>\n    <field name=\"cadenceMicros\" id=\"4\" type=\"uint64\" offset=\"24\"/>\n    <field name=\"updateIntervalMillis\" id=\"5\" type=\"uint32\" offset=\"32\"/>\n    <data name=\"expression\" id=\"6\" type=\"varDataEncoding\"/>\n    <data name=\"quality\" id=\"7\" type=\"varDataEncoding\"/>\n    <data name=\"adjustment\" id=\"8\" type=\"varDataEncoding\" sinceVersion=\"11\"/>\n    <data name=\"dataset\" id=\"9\" type=\"varDataEncoding\" sinceVersion=\"14\"/>\n  </message>\n  <message name=\"CatalogKeyfiguresRequest\" id=\"8\" blockLength=\"8\" sinceVersion=\"6\">\n    <field name=\"priceCutoffMs\" id=\"1\" type=\"uint64\" offset=\"0\" presence=\"optional\" nullValue=\"18446744073709551615\"/>\n    <data name=\"catalog\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"action\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"parameters\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"contractFingerprint\" id=\"5\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"CatalogKeyfiguresResult\" id=\"103\" blockLength=\"0\" sinceVersion=\"6\">\n    <data name=\"resultJson\" id=\"1\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"MarketDataMessageBatch\" id=\"108\" blockLength=\"1\" sinceVersion=\"11\">\n    <field name=\"phase\" id=\"1\" type=\"Phase\" offset=\"0\"/>\n    <group name=\"messages\" id=\"2\" dimensionType=\"largeGroupSizeEncoding\" blockLength=\"14\">\n      <field name=\"messageId\" id=\"3\" type=\"uint64\" offset=\"0\"/>\n      <field name=\"firstField\" id=\"4\" type=\"uint32\" offset=\"8\"/>\n      <field name=\"fieldCount\" id=\"5\" type=\"uint16\" offset=\"12\"/>\n    </group>\n    <group name=\"fields\" id=\"6\" dimensionType=\"largeGroupSizeEncoding\" blockLength=\"25\">\n      <field name=\"schemaId\" id=\"7\" type=\"uint16\" offset=\"0\"/>\n      <field name=\"templateId\" id=\"8\" type=\"uint16\" offset=\"2\"/>\n      <field name=\"version\" id=\"9\" type=\"uint16\" offset=\"4\"/>\n      <field name=\"blockLength\" id=\"10\" type=\"uint16\" offset=\"6\"/>\n      <field name=\"eventTimeMicros\" id=\"11\" type=\"uint64\" offset=\"8\"/>\n      <field name=\"clear\" id=\"12\" type=\"uint8\" offset=\"16\"/>\n      <field name=\"payloadOffset\" id=\"13\" type=\"uint32\" offset=\"17\"/>\n      <field name=\"payloadLength\" id=\"14\" type=\"uint32\" offset=\"21\"/>\n    </group>\n    <group name=\"gaps\" id=\"15\" dimensionType=\"largeGroupSizeEncoding\" blockLength=\"16\">\n      <field name=\"fromEventTimeMicros\" id=\"16\" type=\"uint64\" offset=\"0\" presence=\"optional\" nullValue=\"18446744073709551615\"/>\n      <field name=\"throughEventTimeMicros\" id=\"17\" type=\"uint64\" offset=\"8\" presence=\"optional\" nullValue=\"18446744073709551615\"/>\n    </group>\n    <data name=\"datasetRecordKey\" id=\"18\" type=\"varDataEncoding\"/>\n    <data name=\"dataset\" id=\"19\" type=\"varDataEncoding\"/>\n    <data name=\"payload\" id=\"20\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"CatalogRecord\" id=\"102\" blockLength=\"30\" sinceVersion=\"2\">\n    <field name=\"phase\" id=\"1\" type=\"Phase\" offset=\"0\"/>\n    <field name=\"exists\" id=\"2\" type=\"uint8\" offset=\"1\"/>\n    <field name=\"lifecyclePresent\" id=\"3\" type=\"uint8\" offset=\"2\"/>\n    <field name=\"listing\" id=\"4\" type=\"uint8\" offset=\"3\"/>\n    <field name=\"activity\" id=\"5\" type=\"uint8\" offset=\"4\"/>\n    <field name=\"visible\" id=\"6\" type=\"uint8\" offset=\"5\"/>\n    <field name=\"effectiveTimeMicros\" id=\"7\" type=\"uint64\" offset=\"6\"/>\n    <field name=\"hideAtMicros\" id=\"8\" type=\"uint64\" offset=\"14\" presence=\"optional\" nullValue=\"18446744073709551615\"/>\n    <field name=\"hiddenAtUnixSeconds\" id=\"9\" type=\"uint64\" offset=\"22\" presence=\"optional\" nullValue=\"18446744073709551615\"/>\n    <!-- The native payload contains its own blockLength/version prefix.\n         Field ID 12 is retired; deployed codecs use this six-byte descriptor. -->\n    <group name=\"fields\" id=\"10\" dimensionType=\"largeGroupSizeEncoding\" blockLength=\"6\">\n      <field name=\"wireId\" id=\"11\" type=\"uint16\" offset=\"0\"/>\n      <field name=\"fixedLength\" id=\"13\" type=\"uint32\" offset=\"2\" presence=\"optional\" nullValue=\"4294967295\"/>\n      <data name=\"label\" id=\"14\" type=\"varDataEncoding\"/>\n      <data name=\"subfield\" id=\"15\" type=\"varDataEncoding\"/>\n      <data name=\"payload\" id=\"16\" type=\"varDataEncoding\"/>\n    </group>\n    <data name=\"catalog\" id=\"17\" type=\"varDataEncoding\"/>\n    <data name=\"identifier\" id=\"18\" type=\"varDataEncoding\"/>\n    <data name=\"recordIdentifier\" id=\"19\" type=\"varDataEncoding\"/>\n  </message>\n  <!-- Headerless coverage rows carried by Batch, independent of plugin exports. -->\n  <message name=\"Gap\" id=\"20\" blockLength=\"16\">\n    <field name=\"fromEventTimeMicros\" id=\"1\" type=\"uint64\" offset=\"0\" presence=\"optional\" nullValue=\"18446744073709551615\"/>\n    <field name=\"throughEventTimeMicros\" id=\"2\" type=\"uint64\" offset=\"8\" presence=\"optional\" nullValue=\"18446744073709551615\"/>\n  </message>\n  <!-- Bounded JSON of core::activity::StreamMetadata, maximum 128 KiB. -->\n  <message name=\"StreamMetadataQuery\" id=\"9\" blockLength=\"0\" sinceVersion=\"13\">\n    <data name=\"dataset\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"quality\" id=\"2\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"StreamMetadataResponse\" id=\"104\" blockLength=\"0\" sinceVersion=\"13\">\n    <data name=\"metadataJson\" id=\"1\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"CatalogSearchQuery\" id=\"10\" blockLength=\"0\" sinceVersion=\"8\">\n    <data name=\"catalog\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"parametersJson\" id=\"2\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"CatalogSearchResponse\" id=\"105\" blockLength=\"0\" sinceVersion=\"8\">\n    <data name=\"resultJson\" id=\"1\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"CatalogLookupQuery\" id=\"11\" blockLength=\"0\" sinceVersion=\"9\">\n    <data name=\"catalog\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"parametersJson\" id=\"2\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"CatalogLookupResponse\" id=\"106\" blockLength=\"0\" sinceVersion=\"9\">\n    <data name=\"resultJson\" id=\"1\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"ListingLatestRequest\" id=\"12\" blockLength=\"0\" sinceVersion=\"15\">\n    <data name=\"parameters\" id=\"1\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"ListingLatestEvent\" id=\"107\" blockLength=\"0\" sinceVersion=\"15\">\n    <data name=\"event\" id=\"1\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"ServiceCallRequest\" id=\"13\" blockLength=\"8\" sinceVersion=\"16\">\n    <field name=\"deadlineUnixMillis\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n    <data name=\"serviceId\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"command\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"contractFingerprint\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"mutationId\" id=\"5\" type=\"varDataEncoding\"/>\n    <data name=\"inputJson\" id=\"6\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"ServiceCallResult\" id=\"109\" blockLength=\"0\" sinceVersion=\"16\">\n    <data name=\"resultJson\" id=\"1\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"TimeseriesPageRequest\" id=\"14\" blockLength=\"0\" sinceVersion=\"17\">\n    <data name=\"parametersJson\" id=\"1\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"TimeseriesPageResult\" id=\"110\" blockLength=\"0\" sinceVersion=\"17\">\n    <data name=\"resultJson\" id=\"1\" type=\"varDataEncoding\"/>\n  </message>\n</messageSchema>\n",
+      "keyfigures-protocol.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<messageSchema package=\"openmdta.keyfigures\" id=\"10\" version=\"0\" byteOrder=\"littleEndian\">\n  <types>\n    <composite name=\"messageHeader\">\n      <type name=\"blockLength\" primitiveType=\"uint16\"/>\n      <type name=\"templateId\" primitiveType=\"uint16\"/>\n      <type name=\"schemaId\" primitiveType=\"uint16\"/>\n      <type name=\"version\" primitiveType=\"uint16\"/>\n    </composite>\n    <composite name=\"varDataEncoding\">\n      <type name=\"length\" primitiveType=\"uint32\"/>\n      <type name=\"varData\" primitiveType=\"uint8\" length=\"0\"/>\n    </composite>\n  </types>\n  <!-- Only authenticated gateway sessions may supply grants. Contract-specific\n       parameters and projected universe values remain JSON inside the SBE frame. -->\n  <message name=\"KeyfiguresRequest\" id=\"1\" blockLength=\"0\">\n    <data name=\"requestJson\" id=\"1\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"KeyfiguresResult\" id=\"2\" blockLength=\"0\">\n    <data name=\"resultJson\" id=\"1\" type=\"varDataEncoding\"/>\n  </message>\n</messageSchema>\n",
+      "mdtoken.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<messageSchema package=\"openmdta.data.auth\" id=\"8\" version=\"2\" byteOrder=\"littleEndian\">\n  <types>\n    <composite name=\"messageHeader\">\n      <type name=\"blockLength\" primitiveType=\"uint16\"/>\n      <type name=\"templateId\" primitiveType=\"uint16\"/>\n      <type name=\"schemaId\" primitiveType=\"uint16\"/>\n      <type name=\"version\" primitiveType=\"uint16\"/>\n    </composite>\n    <composite name=\"groupSizeEncoding\">\n      <type name=\"blockLength\" primitiveType=\"uint16\"/>\n      <type name=\"numInGroup\" primitiveType=\"uint16\"/>\n    </composite>\n    <composite name=\"varDataEncoding\">\n      <type name=\"length\" primitiveType=\"uint32\"/>\n      <type name=\"varData\" primitiveType=\"uint8\" length=\"0\"/>\n    </composite>\n    <enum name=\"Quality\" encodingType=\"uint8\">\n      <validValue name=\"ANY\">0</validValue>\n      <validValue name=\"RT\">1</validValue>\n      <validValue name=\"DL\">2</validValue>\n      <validValue name=\"EOD\">3</validValue>\n    </enum>\n  </types>\n  <message name=\"MDToken\" id=\"1\" blockLength=\"0\">\n    <data name=\"clientId\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"claimsZlib\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"mac\" id=\"3\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"MDTokenClaims\" id=\"2\" blockLength=\"16\">\n    <field name=\"issuedAt\" id=\"1\" type=\"int64\"/>\n    <field name=\"expiresAt\" id=\"2\" type=\"int64\"/>\n    <group name=\"grants\" id=\"3\" dimensionType=\"groupSizeEncoding\" blockLength=\"1\">\n      <field name=\"quality\" id=\"4\" type=\"Quality\"/>\n      <data name=\"package\" id=\"5\" type=\"varDataEncoding\"/>\n    </group>\n    <group name=\"allowedOrigins\" id=\"7\" dimensionType=\"groupSizeEncoding\" blockLength=\"0\" sinceVersion=\"1\">\n      <data name=\"origin\" id=\"8\" type=\"varDataEncoding\"/>\n    </group>\n    <data name=\"audience\" id=\"6\" type=\"varDataEncoding\"/>\n    <!-- v2 appends a UTF-8 bucket ID, then two uint64 microtoken values.\n         The manual codec retains the v0/v1 fixed block and envelope. -->\n    <data name=\"rateLimit\" id=\"9\" type=\"varDataEncoding\" sinceVersion=\"2\"/>\n  </message>\n</messageSchema>\n",
+      "sbe-websocket.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<messageSchema package=\"openmdta.sbe.websocket\" id=\"5\" version=\"1\" byteOrder=\"littleEndian\">\n  <types>\n    <composite name=\"messageHeader\">\n      <type name=\"blockLength\" primitiveType=\"uint16\"/>\n      <type name=\"templateId\" primitiveType=\"uint16\"/>\n      <type name=\"schemaId\" primitiveType=\"uint16\"/>\n      <type name=\"version\" primitiveType=\"uint16\"/>\n    </composite>\n    <composite name=\"varDataEncoding\">\n      <type name=\"length\" primitiveType=\"uint32\"/>\n      <type name=\"varData\" primitiveType=\"uint8\" length=\"0\"/>\n    </composite>\n    <composite name=\"batchGroupSizeEncoding\">\n      <type name=\"blockLength\" primitiveType=\"uint16\"/>\n      <type name=\"numInGroup\" primitiveType=\"uint32\"/>\n    </composite>\n    <composite name=\"sbeFormat\">\n      <type name=\"schemaId\" primitiveType=\"uint16\"/>\n      <type name=\"templateId\" primitiveType=\"uint16\"/>\n      <type name=\"version\" primitiveType=\"uint16\"/>\n      <type name=\"blockLength\" primitiveType=\"uint16\"/>\n    </composite>\n    <type name=\"traceId\" primitiveType=\"uint8\" length=\"16\"/>\n    <type name=\"spanId\" primitiveType=\"uint8\" length=\"8\"/>\n    <enum name=\"Status\" encodingType=\"uint8\">\n      <validValue name=\"CONTINUE\">1</validValue>\n      <validValue name=\"DONE\">2</validValue>\n      <validValue name=\"ERROR\">3</validValue>\n    </enum>\n  </types>\n\n  <message name=\"AuthRequest\" id=\"1\" blockLength=\"8\">\n    <field name=\"requestId\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n    <data name=\"token\" id=\"2\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"OpenRequest\" id=\"2\" blockLength=\"40\">\n    <field name=\"requestId\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n    <field name=\"traceId\" id=\"2\" type=\"traceId\" offset=\"8\"/>\n    <field name=\"parentSpanId\" id=\"3\" type=\"spanId\" offset=\"24\"/>\n    <field name=\"format\" id=\"4\" type=\"sbeFormat\" offset=\"32\"/>\n    <data name=\"body\" id=\"5\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"CancelRequest\" id=\"3\" blockLength=\"16\">\n    <field name=\"requestId\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n    <field name=\"targetId\" id=\"2\" type=\"uint64\" offset=\"8\"/>\n  </message>\n  <message name=\"CreditRequest\" id=\"4\" blockLength=\"12\">\n    <field name=\"targetId\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n    <field name=\"credits\" id=\"2\" type=\"uint32\" offset=\"8\"/>\n  </message>\n  <!-- Available only after selecting openmdta.sbe-session.v2. Byte credit\n       charges each response application body plus 128 bytes of overhead. -->\n  <message name=\"ResponseWindow\" id=\"5\" blockLength=\"20\" sinceVersion=\"1\">\n    <field name=\"targetId\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n    <field name=\"responses\" id=\"2\" type=\"uint32\" offset=\"8\"/>\n    <field name=\"bytes\" id=\"3\" type=\"uint32\" offset=\"12\"/>\n    <field name=\"maxBodyBytes\" id=\"4\" type=\"uint32\" offset=\"16\"/>\n  </message>\n  <message name=\"ReleaseResponses\" id=\"6\" blockLength=\"16\" sinceVersion=\"1\">\n    <field name=\"targetId\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n    <field name=\"responses\" id=\"2\" type=\"uint32\" offset=\"8\"/>\n    <field name=\"bytes\" id=\"3\" type=\"uint32\" offset=\"12\"/>\n  </message>\n  <!-- Application envelope nested inside one continuing Response, never itself\n       nested inside another ResponseBatch. Preserve every inner format/body. -->\n  <message name=\"ResponseBatch\" id=\"103\" blockLength=\"0\" sinceVersion=\"1\">\n    <group name=\"messages\" id=\"1\" dimensionType=\"batchGroupSizeEncoding\" blockLength=\"8\">\n      <field name=\"format\" id=\"2\" type=\"sbeFormat\" offset=\"0\"/>\n      <data name=\"body\" id=\"3\" type=\"varDataEncoding\"/>\n    </group>\n  </message>\n  <message name=\"Response\" id=\"101\" blockLength=\"17\">\n    <field name=\"requestId\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n    <field name=\"status\" id=\"2\" type=\"Status\" offset=\"8\"/>\n    <field name=\"format\" id=\"3\" type=\"sbeFormat\" offset=\"9\"/>\n    <data name=\"body\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"error\" id=\"5\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"CancelResponse\" id=\"102\" blockLength=\"17\">\n    <field name=\"requestId\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n    <field name=\"targetId\" id=\"2\" type=\"uint64\" offset=\"8\"/>\n    <field name=\"cancelled\" id=\"3\" type=\"uint8\" offset=\"16\"/>\n  </message>\n</messageSchema>\n",
+      "service-protocol.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<messageSchema package=\"openmdta.service\" id=\"11\" version=\"0\" byteOrder=\"littleEndian\">\n  <types>\n    <composite name=\"messageHeader\">\n      <type name=\"blockLength\" primitiveType=\"uint16\"/>\n      <type name=\"templateId\" primitiveType=\"uint16\"/>\n      <type name=\"schemaId\" primitiveType=\"uint16\"/>\n      <type name=\"version\" primitiveType=\"uint16\"/>\n    </composite>\n    <composite name=\"varDataEncoding\">\n      <type name=\"length\" primitiveType=\"uint32\"/>\n      <type name=\"varData\" primitiveType=\"uint8\" length=\"0\"/>\n    </composite>\n  </types>\n  <message name=\"ServiceRequest\" id=\"1\" blockLength=\"0\">\n    <data name=\"credential\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"requestJson\" id=\"2\" type=\"varDataEncoding\"/>\n  </message>\n  <message name=\"ServiceResult\" id=\"2\" blockLength=\"0\">\n    <data name=\"resultJson\" id=\"1\" type=\"varDataEncoding\"/>\n  </message>\n</messageSchema>\n",
+      "stream-protocol.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<messageSchema package=\"openmdta.stream\" id=\"1\" version=\"17\" byteOrder=\"littleEndian\">\n  <types>\n    <composite name=\"messageHeader\">\n      <type name=\"blockLength\" primitiveType=\"uint16\"/>\n      <type name=\"templateId\" primitiveType=\"uint16\"/>\n      <type name=\"schemaId\" primitiveType=\"uint16\"/>\n      <type name=\"version\" primitiveType=\"uint16\"/>\n    </composite>\n    <composite name=\"groupSizeEncoding\">\n      <type name=\"blockLength\" primitiveType=\"uint16\"/>\n      <type name=\"numInGroup\" primitiveType=\"uint16\"/>\n    </composite>\n    <composite name=\"largeGroupSizeEncoding\">\n      <type name=\"blockLength\" primitiveType=\"uint16\"/>\n      <type name=\"numInGroup\" primitiveType=\"uint32\"/>\n    </composite>\n    <composite name=\"varDataEncoding\">\n      <type name=\"length\" primitiveType=\"uint32\"/>\n      <type name=\"varData\" primitiveType=\"uint8\" length=\"0\"/>\n    </composite>\n    <type name=\"licenseIds\" primitiveType=\"uint16\" length=\"4\"/>\n  </types>\n\n  <message name=\"InstrumentUpdate\" id=\"1\" blockLength=\"24\">\n    <field name=\"messageId\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n    <field name=\"previousMessageId\" id=\"2\" type=\"uint64\" offset=\"8\"/>\n    <field name=\"eventTimeMicros\" id=\"3\" type=\"uint64\" offset=\"16\" sinceVersion=\"3\"/>\n    <group name=\"blockUpdates\" id=\"4\" dimensionType=\"groupSizeEncoding\" blockLength=\"18\">\n      <field name=\"blockId\" id=\"5\" type=\"uint16\" offset=\"0\"/>\n      <field name=\"eventTimeMicros\" id=\"9\" type=\"uint64\" offset=\"2\"/>\n      <field name=\"licenseIds\" id=\"10\" type=\"licenseIds\" offset=\"10\" sinceVersion=\"5\"/>\n      <data name=\"blockBytes\" id=\"7\" type=\"varDataEncoding\"/>\n    </group>\n    <data name=\"instrumentIdentifier\" id=\"8\" type=\"varDataEncoding\"/>\n  </message>\n\n  <message name=\"SnapshotManifest\" id=\"2\" blockLength=\"69\">\n    <field name=\"originId\" id=\"20\" type=\"uint64\" offset=\"0\"/>\n    <field name=\"observedHead\" id=\"21\" type=\"uint64\" offset=\"8\"/>\n    <field name=\"instrumentCapacity\" id=\"22\" type=\"uint32\" offset=\"16\"/>\n    <field name=\"shardCount\" id=\"23\" type=\"uint32\" offset=\"20\"/>\n    <field name=\"slotStride\" id=\"24\" type=\"uint32\" offset=\"24\"/>\n    <field name=\"rawLength\" id=\"25\" type=\"uint64\" offset=\"28\"/>\n    <field name=\"layoutFingerprint\" id=\"26\" type=\"uint64\" offset=\"36\"/>\n    <field name=\"capacityExhausted\" id=\"41\" type=\"uint8\" offset=\"44\"/>\n    <field name=\"capacityExhaustedSinceMicros\" id=\"42\" type=\"uint64\" offset=\"45\"/>\n    <field name=\"capacityGapAfterId\" id=\"43\" type=\"uint64\" offset=\"53\"/>\n    <field name=\"sourcePolicyFingerprint\" id=\"46\" type=\"uint64\" offset=\"61\" sinceVersion=\"4\"/>\n    <group name=\"coverageEntries\" id=\"27\" dimensionType=\"groupSizeEncoding\" blockLength=\"62\">\n      <field name=\"kind\" id=\"28\" type=\"uint8\" offset=\"0\"/>\n      <field name=\"afterId\" id=\"29\" type=\"uint64\" offset=\"1\"/>\n      <field name=\"throughId\" id=\"30\" type=\"uint64\" offset=\"9\"/>\n      <field name=\"firstSeenMicros\" id=\"31\" type=\"uint64\" offset=\"17\"/>\n      <field name=\"lastSeenMicros\" id=\"32\" type=\"uint64\" offset=\"25\"/>\n      <field name=\"attempts\" id=\"33\" type=\"uint32\" offset=\"33\"/>\n      <field name=\"nextRetryMicros\" id=\"34\" type=\"uint64\" offset=\"37\"/>\n      <field name=\"status\" id=\"35\" type=\"uint8\" offset=\"45\"/>\n      <field name=\"beforeEventTimeMicros\" id=\"44\" type=\"uint64\" offset=\"46\" sinceVersion=\"3\"/>\n      <field name=\"afterEventTimeMicros\" id=\"45\" type=\"uint64\" offset=\"54\" sinceVersion=\"3\"/>\n    </group>\n    <group name=\"blockLayouts\" id=\"36\" dimensionType=\"groupSizeEncoding\" blockLength=\"10\">\n      <field name=\"blockId\" id=\"37\" type=\"uint16\" offset=\"0\"/>\n      <field name=\"offset\" id=\"39\" type=\"uint32\" offset=\"2\"/>\n      <field name=\"length\" id=\"40\" type=\"uint32\" offset=\"6\"/>\n    </group>\n  </message>\n\n  <message name=\"InstrumentDirectory\" id=\"3\" blockLength=\"4\">\n    <field name=\"instrumentCount\" id=\"50\" type=\"uint32\" offset=\"0\"/>\n    <group name=\"instruments\" id=\"51\" dimensionType=\"largeGroupSizeEncoding\" blockLength=\"4\">\n      <field name=\"arenaPosition\" id=\"52\" type=\"uint32\" offset=\"0\"/>\n      <data name=\"instrumentIdentifier\" id=\"53\" type=\"varDataEncoding\"/>\n    </group>\n  </message>\n\n  <message name=\"StreamCoverage\" id=\"6\" blockLength=\"33\">\n    <field name=\"afterId\" id=\"80\" type=\"uint64\" offset=\"0\"/>\n    <field name=\"throughId\" id=\"81\" type=\"uint64\" offset=\"8\"/>\n    <field name=\"kind\" id=\"82\" type=\"uint8\" offset=\"16\"/>\n    <field name=\"beforeEventTimeMicros\" id=\"84\" type=\"uint64\" offset=\"17\" sinceVersion=\"3\"/>\n    <field name=\"afterEventTimeMicros\" id=\"85\" type=\"uint64\" offset=\"25\" sinceVersion=\"3\"/>\n  </message>\n\n  <message name=\"StreamSubscribe\" id=\"7\" blockLength=\"0\">\n    <data name=\"datasetIdentifier\" id=\"83\" type=\"varDataEncoding\"/>\n    <data name=\"consumerName\" id=\"111\" type=\"varDataEncoding\" sinceVersion=\"6\"/>\n  </message>\n\n  <message name=\"LatestSnapshot\" id=\"8\" blockLength=\"0\">\n    <group name=\"blockValues\" id=\"91\" dimensionType=\"groupSizeEncoding\" blockLength=\"26\">\n      <field name=\"blockId\" id=\"92\" type=\"uint16\" offset=\"0\"/>\n      <field name=\"messageId\" id=\"94\" type=\"uint64\" offset=\"2\"/>\n      <field name=\"eventTimeMicros\" id=\"95\" type=\"uint64\" offset=\"10\"/>\n      <field name=\"licenseIds\" id=\"99\" type=\"licenseIds\" offset=\"18\" sinceVersion=\"5\"/>\n      <data name=\"blockBytes\" id=\"96\" type=\"varDataEncoding\"/>\n    </group>\n    <data name=\"instrumentIdentifier\" id=\"97\" type=\"varDataEncoding\"/>\n  </message>\n\n  <message name=\"LatestSubscribe\" id=\"9\" blockLength=\"0\">\n    <data name=\"instrumentIdentifier\" id=\"98\" type=\"varDataEncoding\"/>\n  </message>\n\n  <message name=\"ImportBoundary\" id=\"10\" blockLength=\"57\">\n    <field name=\"messageId\" id=\"100\" type=\"uint64\" offset=\"0\"/>\n    <field name=\"previousMessageId\" id=\"101\" type=\"uint64\" offset=\"8\"/>\n    <field name=\"beginMessageId\" id=\"102\" type=\"uint64\" offset=\"16\"/>\n    <field name=\"recordCount\" id=\"103\" type=\"uint64\" offset=\"24\"/>\n    <field name=\"effectiveTimeMicros\" id=\"104\" type=\"uint64\" offset=\"32\"/>\n    <field name=\"kind\" id=\"105\" type=\"uint8\" offset=\"40\"/>\n    <field name=\"incarnation\" id=\"106\" type=\"uint64\" offset=\"41\"/>\n    <field name=\"eventTimeMicros\" id=\"109\" type=\"uint64\" offset=\"49\" sinceVersion=\"3\"/>\n    <data name=\"runId\" id=\"108\" type=\"varDataEncoding\"/>\n  </message>\n\n  <message name=\"CatalogRecord\" id=\"11\" blockLength=\"50\">\n    <field name=\"messageId\" id=\"120\" type=\"uint64\" offset=\"0\"/>\n    <field name=\"previousMessageId\" id=\"121\" type=\"uint64\" offset=\"8\"/>\n    <field name=\"effectiveTimeMicros\" id=\"122\" type=\"uint64\" offset=\"16\"/>\n    <field name=\"eventTimeMicros\" id=\"123\" type=\"uint64\" offset=\"24\"/>\n    <field name=\"listed\" id=\"124\" type=\"uint8\" offset=\"32\"/>\n    <field name=\"activity\" id=\"125\" type=\"uint8\" offset=\"33\"/>\n    <field name=\"licenseIds\" id=\"126\" type=\"licenseIds\" offset=\"34\"/>\n    <field name=\"incarnation\" id=\"131\" type=\"uint64\" offset=\"42\"/>\n    <data name=\"dataset\" id=\"127\" type=\"varDataEncoding\"/>\n    <data name=\"datasetRecordKey\" id=\"128\" type=\"varDataEncoding\"/>\n    <data name=\"metadata\" id=\"129\" type=\"varDataEncoding\"/>\n    <data name=\"payload\" id=\"130\" type=\"varDataEncoding\"/>\n  </message>\n  <!-- Opt-in dataset-wide live subscription. Older StreamSubscribe clients retain their wire contract. -->\n  <message name=\"FeedSubscribe\" id=\"12\" blockLength=\"0\" sinceVersion=\"17\">\n    <data name=\"datasetIdentifier\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"consumerName\" id=\"2\" type=\"varDataEncoding\"/>\n  </message>\n  <!-- Sent first, after the receiver is registered and before any live records. -->\n  <message name=\"FeedFence\" id=\"13\" blockLength=\"8\" sinceVersion=\"17\">\n    <field name=\"throughId\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n  </message>\n  <message name=\"FeedRecoveryRequest\" id=\"14\" blockLength=\"16\" sinceVersion=\"17\">\n    <field name=\"afterId\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n    <field name=\"throughId\" id=\"2\" type=\"uint64\" offset=\"8\"/>\n  </message>\n  <message name=\"FeedSnapshotRequest\" id=\"15\" blockLength=\"0\" sinceVersion=\"17\"/>\n</messageSchema>\n",
+      "timeseries-protocol.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<messageSchema package=\"openmdta.stream.service\" id=\"6\" version=\"5\" byteOrder=\"littleEndian\">\n  <types>\n    <composite name=\"messageHeader\">\n      <type name=\"blockLength\" primitiveType=\"uint16\"/>\n      <type name=\"templateId\" primitiveType=\"uint16\"/>\n      <type name=\"schemaId\" primitiveType=\"uint16\"/>\n      <type name=\"version\" primitiveType=\"uint16\"/>\n    </composite>\n    <composite name=\"largeGroupSizeEncoding\">\n      <type name=\"blockLength\" primitiveType=\"uint16\"/>\n      <type name=\"numInGroup\" primitiveType=\"uint32\"/>\n    </composite>\n    <composite name=\"varDataEncoding\">\n      <type name=\"length\" primitiveType=\"uint32\"/>\n      <type name=\"varData\" primitiveType=\"uint8\" length=\"0\"/>\n    </composite>\n  </types>\n\n  <message name=\"TimeseriesServiceQuery\" id=\"1\" blockLength=\"68\">\n    <field name=\"fromEventTimeMicros\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n    <field name=\"endValue\" id=\"2\" type=\"uint64\" offset=\"8\"/>\n    <field name=\"groupMask\" id=\"3\" type=\"uint64\" offset=\"16\"/>\n    <field name=\"endKind\" id=\"4\" type=\"uint8\" offset=\"24\"/>\n    <field name=\"follow\" id=\"5\" type=\"uint8\" offset=\"25\"/>\n    <field name=\"resolutionMicros\" id=\"6\" type=\"uint64\" offset=\"26\"/>\n    <field name=\"quality\" id=\"7\" type=\"uint8\" offset=\"34\" sinceVersion=\"2\" presence=\"optional\" nullValue=\"255\"/>\n    <field name=\"updateIntervalMillis\" id=\"8\" type=\"uint32\" offset=\"35\" sinceVersion=\"2\" presence=\"optional\" nullValue=\"4294967295\"/>\n    <field name=\"afterMessageId\" id=\"10\" type=\"uint64\" offset=\"39\" sinceVersion=\"3\" presence=\"optional\" nullValue=\"18446744073709551615\"/>\n    <field name=\"pageOrder\" id=\"11\" type=\"uint8\" offset=\"47\" sinceVersion=\"5\" presence=\"optional\" nullValue=\"255\"/>\n    <field name=\"pageLimit\" id=\"12\" type=\"uint32\" offset=\"48\" sinceVersion=\"5\" presence=\"optional\" nullValue=\"4294967295\"/>\n    <field name=\"cursorEventTimeMicros\" id=\"13\" type=\"uint64\" offset=\"52\" sinceVersion=\"5\" presence=\"optional\" nullValue=\"18446744073709551615\"/>\n    <field name=\"cursorMessageId\" id=\"14\" type=\"uint64\" offset=\"60\" sinceVersion=\"5\" presence=\"optional\" nullValue=\"18446744073709551615\"/>\n    <data name=\"instrumentIdentifier\" id=\"9\" type=\"varDataEncoding\"/>\n  </message>\n\n  <message name=\"TimeseriesServiceResponse\" id=\"2\" blockLength=\"53\">\n    <field name=\"kind\" id=\"1\" type=\"uint8\" offset=\"0\"/>\n    <field name=\"complete\" id=\"2\" type=\"uint8\" offset=\"1\"/>\n    <field name=\"groupId\" id=\"3\" type=\"uint16\" offset=\"2\"/>\n    <field name=\"observedHead\" id=\"4\" type=\"uint64\" offset=\"4\"/>\n    <field name=\"retentionOrigin\" id=\"5\" type=\"uint64\" offset=\"12\"/>\n    <field name=\"recordCount\" id=\"6\" type=\"uint32\" offset=\"20\"/>\n    <field name=\"blockLength\" id=\"7\" type=\"uint32\" offset=\"24\"/>\n    <field name=\"resolutionMicros\" id=\"9\" type=\"uint64\" offset=\"28\"/>\n    <field name=\"progressEventTimeMicros\" id=\"10\" type=\"uint64\" offset=\"36\"/>\n    <field name=\"watermarkEventTimeMicros\" id=\"11\" type=\"uint64\" offset=\"44\"/>\n    <field name=\"rangeStatus\" id=\"12\" type=\"uint8\" offset=\"52\"/>\n    <group name=\"gaps\" id=\"13\" dimensionType=\"largeGroupSizeEncoding\" blockLength=\"49\">\n      <field name=\"reason\" id=\"14\" type=\"uint8\" offset=\"0\"/>\n      <field name=\"fromEventTimeMicros\" id=\"15\" type=\"uint64\" offset=\"1\"/>\n      <field name=\"throughEventTimeMicros\" id=\"16\" type=\"uint64\" offset=\"9\"/>\n      <field name=\"afterMessageId\" id=\"17\" type=\"uint64\" offset=\"17\"/>\n      <field name=\"throughMessageId\" id=\"18\" type=\"uint64\" offset=\"25\"/>\n      <field name=\"beforeEventTimeMicros\" id=\"19\" type=\"uint64\" offset=\"33\"/>\n      <field name=\"afterEventTimeMicros\" id=\"20\" type=\"uint64\" offset=\"41\"/>\n    </group>\n    <data name=\"payload\" id=\"21\" type=\"varDataEncoding\"/>\n  </message>\n</messageSchema>\n"
+    },
+    "operations": [
+      {
+        "name": "snapshot",
+        "capability": "latest",
+        "request": {
+          "schemaId": 102,
+          "templateId": 1,
+          "version": 14,
+          "blockLength": 8
+        },
+        "responses": [
+          {
+            "schemaId": 102,
+            "templateId": 108,
+            "version": 12,
+            "blockLength": 1
+          }
+        ],
+        "streaming": false
+      },
+      {
+        "name": "stream",
+        "capability": "latest",
+        "request": {
+          "schemaId": 102,
+          "templateId": 2,
+          "version": 14,
+          "blockLength": 8
+        },
+        "responses": [
+          {
+            "schemaId": 102,
+            "templateId": 108,
+            "version": 12,
+            "blockLength": 1
+          }
+        ],
+        "streaming": true
+      },
+      {
+        "name": "ts-raw",
+        "capability": "timeseries",
+        "request": {
+          "schemaId": 102,
+          "templateId": 3,
+          "version": 14,
+          "blockLength": 28
+        },
+        "responses": [
+          {
+            "schemaId": 102,
+            "templateId": 108,
+            "version": 12,
+            "blockLength": 1
+          }
+        ],
+        "streaming": false
+      },
+      {
+        "name": "ts-candle",
+        "capability": "timeseries",
+        "request": {
+          "schemaId": 102,
+          "templateId": 4,
+          "version": 14,
+          "blockLength": 32
+        },
+        "responses": [
+          {
+            "schemaId": 102,
+            "templateId": 108,
+            "version": 12,
+            "blockLength": 1
+          }
+        ],
+        "streaming": false
+      },
+      {
+        "name": "catalog",
+        "capability": "catalog",
+        "request": {
+          "schemaId": 102,
+          "templateId": 5,
+          "version": 5,
+          "blockLength": 0
+        },
+        "responses": [
+          {
+            "schemaId": 102,
+            "templateId": 102,
+            "version": 5,
+            "blockLength": 30
+          }
+        ],
+        "streaming": false
+      },
+      {
+        "name": "ts-raw-stream",
+        "capability": "timeseries",
+        "request": {
+          "schemaId": 102,
+          "templateId": 6,
+          "version": 14,
+          "blockLength": 28
+        },
+        "responses": [
+          {
+            "schemaId": 102,
+            "templateId": 108,
+            "version": 12,
+            "blockLength": 1
+          }
+        ],
+        "streaming": true
+      },
+      {
+        "name": "ts-candle-stream",
+        "capability": "timeseries",
+        "request": {
+          "schemaId": 102,
+          "templateId": 7,
+          "version": 14,
+          "blockLength": 36
+        },
+        "responses": [
+          {
+            "schemaId": 102,
+            "templateId": 108,
+            "version": 12,
+            "blockLength": 1
+          }
+        ],
+        "streaming": true
+      },
+      {
+        "name": "keyfigures",
+        "capability": "keyfigures",
+        "request": {
+          "schemaId": 102,
+          "templateId": 8,
+          "version": 7,
+          "blockLength": 8
+        },
+        "responses": [
+          {
+            "schemaId": 102,
+            "templateId": 103,
+            "version": 6,
+            "blockLength": 0
+          }
+        ],
+        "streaming": false
+      },
+      {
+        "name": "stream-metadata",
+        "capability": "latest",
+        "request": {
+          "schemaId": 102,
+          "templateId": 9,
+          "version": 13,
+          "blockLength": 0
+        },
+        "responses": [
+          {
+            "schemaId": 102,
+            "templateId": 104,
+            "version": 13,
+            "blockLength": 0
+          }
+        ],
+        "streaming": false
+      },
+      {
+        "name": "catalog-search",
+        "capability": "search",
+        "request": {
+          "schemaId": 102,
+          "templateId": 10,
+          "version": 8,
+          "blockLength": 0
+        },
+        "responses": [
+          {
+            "schemaId": 102,
+            "templateId": 105,
+            "version": 8,
+            "blockLength": 0
+          }
+        ],
+        "streaming": false
+      },
+      {
+        "name": "catalog-lookup",
+        "capability": "catalog",
+        "request": {
+          "schemaId": 102,
+          "templateId": 11,
+          "version": 9,
+          "blockLength": 0
+        },
+        "responses": [
+          {
+            "schemaId": 102,
+            "templateId": 106,
+            "version": 9,
+            "blockLength": 0
+          }
+        ],
+        "streaming": false
+      },
+      {
+        "name": "listing-latest",
+        "capability": "latest",
+        "request": {
+          "schemaId": 102,
+          "templateId": 12,
+          "version": 15,
+          "blockLength": 0
+        },
+        "responses": [
+          {
+            "schemaId": 102,
+            "templateId": 107,
+            "version": 15,
+            "blockLength": 0
+          }
+        ],
+        "streaming": true
+      },
+      {
+        "name": "service-call",
+        "capability": "service",
+        "request": {
+          "schemaId": 102,
+          "templateId": 13,
+          "version": 16,
+          "blockLength": 8
+        },
+        "responses": [
+          {
+            "schemaId": 102,
+            "templateId": 109,
+            "version": 16,
+            "blockLength": 0
+          }
+        ],
+        "streaming": false
+      },
+      {
+        "name": "timeseries-page",
+        "capability": "timeseries",
+        "request": {
+          "schemaId": 102,
+          "templateId": 14,
+          "version": 17,
+          "blockLength": 0
+        },
+        "responses": [
+          {
+            "schemaId": 102,
+            "templateId": 108,
+            "version": 12,
+            "blockLength": 1
+          },
+          {
+            "schemaId": 102,
+            "templateId": 110,
+            "version": 17,
+            "blockLength": 0
+          }
+        ],
+        "streaming": false
+      },
+      {
+        "name": "feed-live",
+        "capability": "feed",
+        "request": {
+          "schemaId": 102,
+          "templateId": 15,
+          "version": 18,
+          "blockLength": 8
+        },
+        "responses": [
+          {
+            "schemaId": 102,
+            "templateId": 111,
+            "version": 18,
+            "blockLength": 17
+          },
+          {
+            "schemaId": 102,
+            "templateId": 108,
+            "version": 12,
+            "blockLength": 1
+          }
+        ],
+        "streaming": true
+      },
+      {
+        "name": "feed-recovery",
+        "capability": "feed",
+        "request": {
+          "schemaId": 102,
+          "templateId": 16,
+          "version": 18,
+          "blockLength": 24
+        },
+        "responses": [
+          {
+            "schemaId": 102,
+            "templateId": 111,
+            "version": 18,
+            "blockLength": 17
+          },
+          {
+            "schemaId": 102,
+            "templateId": 108,
+            "version": 12,
+            "blockLength": 1
+          }
+        ],
+        "streaming": false
+      },
+      {
+        "name": "feed-snapshot",
+        "capability": "feed",
+        "request": {
+          "schemaId": 102,
+          "templateId": 17,
+          "version": 18,
+          "blockLength": 8
+        },
+        "responses": [
+          {
+            "schemaId": 102,
+            "templateId": 112,
+            "version": 18,
+            "blockLength": 8
+          },
+          {
+            "schemaId": 102,
+            "templateId": 108,
+            "version": 12,
+            "blockLength": 1
+          }
+        ],
+        "streaming": false
+      },
+      {
+        "name": "catalog-feed",
+        "capability": "catalog",
+        "request": {
+          "schemaId": 102,
+          "templateId": 18,
+          "version": 19,
+          "blockLength": 0
+        },
+        "responses": [
+          {
+            "schemaId": 102,
+            "templateId": 113,
+            "version": 19,
+            "blockLength": 0
+          },
+          {
+            "schemaId": 102,
+            "templateId": 102,
+            "version": 5,
+            "blockLength": 30
+          }
+        ],
+        "streaming": true
+      }
+    ],
+    "jsonSchemas": {
+      "catalog-lookup-request.json": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dimensions": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "default": {},
+            "type": "object"
+          },
+          "expression": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "limit": {
+            "format": "uint",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "title": "Parameters",
+        "type": "object"
+      },
+      "listing-request.json": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "blocks": {
+            "items": {
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "dataset": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "quality": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "dataset",
+          "quality",
+          "key",
+          "blocks"
+        ],
+        "title": "ListingRequest",
+        "type": "object"
+      },
+      "service-result.json": {
+        "$defs": {
+          "Outcome": {
+            "enum": [
+              "not_applied",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "ServiceError": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "details": true,
+              "message": {
+                "type": "string"
+              },
+              "outcome": {
+                "$ref": "#/$defs/Outcome"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "outcome"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ServiceError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "result": {
+            "default": null
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "ResultEnvelope",
+        "type": "object"
+      },
+      "stream-metadata.json": {
+        "$defs": {
+          "ActivityException": {
+            "additionalProperties": false,
+            "properties": {
+              "close": {
+                "maxLength": 8,
+                "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "closed": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "date": {
+                "maxLength": 10,
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+                "type": "string"
+              },
+              "open": {
+                "maxLength": 8,
+                "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "date"
+            ],
+            "type": "object",
+            "x-kubernetes-validations": [
+              {
+                "message": "require open/close or closed: true exclusively",
+                "rule": "has(self.closed) ? (self.closed && !has(self.open) && !has(self.close)) : (has(self.open) && has(self.close) && self.open < self.close)"
+              }
+            ]
+          },
+          "ActivitySchedule": {
+            "additionalProperties": false,
+            "properties": {
+              "exceptions": {
+                "default": [],
+                "items": {
+                  "$ref": "#/$defs/ActivityException"
+                },
+                "maxItems": 4096,
+                "type": "array",
+                "x-kubernetes-list-map-keys": [
+                  "date"
+                ],
+                "x-kubernetes-list-type": "map"
+              },
+              "times": {
+                "$ref": "#/$defs/WeeklyActivity"
+              }
+            },
+            "required": [
+              "times"
+            ],
+            "type": "object"
+          },
+          "ActivityWindow": {
+            "additionalProperties": false,
+            "properties": {
+              "close": {
+                "maxLength": 8,
+                "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$",
+                "type": "string"
+              },
+              "open": {
+                "maxLength": 8,
+                "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "open",
+              "close"
+            ],
+            "type": "object",
+            "x-kubernetes-validations": [
+              {
+                "message": "open must precede close on the same day",
+                "rule": "self.open < self.close"
+              }
+            ]
+          },
+          "Holiday": {
+            "additionalProperties": false,
+            "properties": {
+              "date": {
+                "maxLength": 10,
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+                "type": "string"
+              },
+              "name": {
+                "maxLength": 256,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "date"
+            ],
+            "type": "object"
+          },
+          "ResolvedHolidayCalendar": {
+            "additionalProperties": false,
+            "properties": {
+              "displayName": {
+                "type": "string"
+              },
+              "holidays": {
+                "items": {
+                  "$ref": "#/$defs/Holiday"
+                },
+                "maxItems": 4096,
+                "type": "array"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "displayName",
+              "holidays"
+            ],
+            "type": "object"
+          },
+          "StreamActivityMetadata": {
+            "additionalProperties": false,
+            "properties": {
+              "activitySchedule": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ActivitySchedule"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "holidayCalendar": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ResolvedHolidayCalendar"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "timeZone": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "timeZone"
+            ],
+            "type": "object"
+          },
+          "WeeklyActivity": {
+            "additionalProperties": false,
+            "properties": {
+              "fri": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ActivityWindow"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "mon": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ActivityWindow"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sat": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ActivityWindow"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sun": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ActivityWindow"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "thu": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ActivityWindow"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "tue": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ActivityWindow"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "wed": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ActivityWindow"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "One source's activity metadata. Missing activity supports older/unconfigured services.",
+        "properties": {
+          "activity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/StreamActivityMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dataset": {
+            "type": "string"
+          },
+          "quality": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "dataset",
+          "quality"
+        ],
+        "title": "StreamMetadata",
+        "type": "object"
+      },
+      "timeseries-page-request.json": {
+        "$defs": {
+          "AdjustmentMode": {
+            "description": "Selects whether gateway responses preserve source prices or restate them\nonto the latest confirmed split basis covered by the request.",
+            "enum": [
+              "raw",
+              "split"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "adjustment": {
+            "$ref": "#/$defs/AdjustmentMode",
+            "default": "raw"
+          },
+          "blockMask": {
+            "type": "string"
+          },
+          "boundary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dataset": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "guard": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "limit": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "order": {
+            "type": "string"
+          },
+          "quality": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resolutionMicros": {
+            "type": "string"
+          },
+          "selector": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "selector",
+          "blockMask",
+          "resolutionMicros",
+          "order",
+          "limit"
+        ],
+        "title": "TimeseriesPageParameters",
+        "type": "object"
+      }
+    }
+  },
+  "owners": {
+    "models": {
+      "globex": "<messageSchema package=\"globex.model\" id=\"900\" version=\"0\" byteOrder=\"littleEndian\"><types><composite name=\"messageHeader\">\n      <type name=\"blockLength\" primitiveType=\"uint16\"/>\n      <type name=\"templateId\" primitiveType=\"uint16\"/>\n      <type name=\"schemaId\" primitiveType=\"uint16\"/>\n      <type name=\"version\" primitiveType=\"uint16\"/>\n    </composite><composite name=\"varDataEncoding\">\n      <type name=\"length\" primitiveType=\"uint32\"/>\n      <type name=\"varData\" primitiveType=\"uint8\" length=\"0\"/>\n    </composite></types><message name=\"DisplayName\" id=\"1\" blockLength=\"0\" description=\"openmdta:entity:INSTRUMENT\">\n    <data name=\"value\" id=\"1\" type=\"varDataEncoding\"/>\n  </message></messageSchema>",
+      "lus": "<messageSchema package=\"lus.default\" id=\"65001\" version=\"0\" byteOrder=\"littleEndian\"><types><composite name=\"messageHeader\">\n      <type name=\"blockLength\" primitiveType=\"uint16\"/>\n      <type name=\"templateId\" primitiveType=\"uint16\"/>\n      <type name=\"schemaId\" primitiveType=\"uint16\"/>\n      <type name=\"version\" primitiveType=\"uint16\"/>\n    </composite><composite name=\"varDataEncoding\">\n      <type name=\"length\" primitiveType=\"uint32\"/>\n      <type name=\"varData\" primitiveType=\"uint8\" length=\"0\"/>\n    </composite></types><message name=\"LusDomainObject\" id=\"65011\" blockLength=\"0\">\n    <data name=\"name\" id=\"1\" type=\"varDataEncoding\"/>\n  </message><message name=\"LusNameHash\" id=\"65012\" blockLength=\"0\">\n    <data name=\"value\" id=\"1\" type=\"varDataEncoding\"/>\n  </message></messageSchema>",
+      "openmdta": "<messageSchema package=\"market.internal\" id=\"100\" byteOrder=\"littleEndian\" version=\"3\"><types><composite name=\"messageHeader\">\n      <type name=\"blockLength\" primitiveType=\"uint16\"/>\n      <type name=\"templateId\" primitiveType=\"uint16\"/>\n      <type name=\"schemaId\" primitiveType=\"uint16\"/>\n      <type name=\"version\" primitiveType=\"uint16\"/>\n    </composite><composite name=\"varDataEncoding\">\n      <type name=\"length\" primitiveType=\"uint32\"/>\n      <type name=\"varData\" primitiveType=\"uint8\" length=\"0\"/>\n    </composite><composite name=\"DecimalEncoding\" semanticType=\"Decimal\">\n      <type name=\"mantissa\" primitiveType=\"int64\"/>\n      <type name=\"exponent\" primitiveType=\"int8\"/>\n    </composite><composite name=\"QuoteLevel\">\n      <ref name=\"price\" type=\"DecimalEncoding\"/>\n      <type name=\"size\" primitiveType=\"uint32\"/>\n    </composite><composite name=\"QuoteSideCandle\">\n      <ref name=\"open\" type=\"DecimalEncoding\"/>\n      <ref name=\"high\" type=\"DecimalEncoding\"/>\n      <ref name=\"low\" type=\"DecimalEncoding\"/>\n      <ref name=\"close\" type=\"DecimalEncoding\"/>\n      <type name=\"closingSize\" primitiveType=\"uint32\"/>\n    </composite><enum name=\"ListingActivity\" encodingType=\"uint8\">\n      <validValue name=\"Active\">0</validValue>\n      <validValue name=\"Inactive\">1</validValue>\n    </enum><enum name=\"CorporateActionKind\" encodingType=\"uint8\">\n      <validValue name=\"Unknown\">0</validValue>\n      <validValue name=\"ShareSplit\">1</validValue>\n      <validValue name=\"StockDividend\">2</validValue>\n      <validValue name=\"RightsIssue\">3</validValue>\n      <validValue name=\"SpinOff\">4</validValue>\n      <validValue name=\"Merger\">5</validValue>\n      <validValue name=\"Other\">254</validValue>\n    </enum><enum name=\"CorporateEventStatus\" encodingType=\"uint8\">\n      <validValue name=\"Unknown\">0</validValue>\n      <validValue name=\"Announced\">1</validValue>\n      <validValue name=\"Confirmed\">2</validValue>\n      <validValue name=\"Cancelled\">3</validValue>\n    </enum><enum name=\"DistributionKind\" encodingType=\"uint8\">\n      <validValue name=\"Unknown\">0</validValue>\n      <validValue name=\"Dividend\">1</validValue>\n      <validValue name=\"Interest\">2</validValue>\n      <validValue name=\"ReturnOfCapital\">3</validValue>\n      <validValue name=\"CapitalGain\">4</validValue>\n      <validValue name=\"Other\">254</validValue>\n    </enum><composite name=\"groupSizeEncoding\">\n      <type name=\"blockLength\" primitiveType=\"uint16\"/>\n      <type name=\"numInGroup\" primitiveType=\"uint16\"/>\n    </composite></types><message name=\"BidAsk\" id=\"10\" blockLength=\"27\">\n    <field name=\"bid\" id=\"1\" type=\"QuoteLevel\" offset=\"0\" presence=\"optional\"/>\n    <field name=\"ask\" id=\"2\" type=\"QuoteLevel\" offset=\"13\" presence=\"optional\"/>\n    <field name=\"quoteCondition\" id=\"3\" type=\"uint8\" offset=\"26\" presence=\"optional\" nullValue=\"255\"/>\n  </message><message name=\"Trade\" id=\"11\" blockLength=\"18\">\n    <field name=\"price\" id=\"1\" type=\"DecimalEncoding\" offset=\"0\"/>\n    <field name=\"volume\" id=\"2\" type=\"uint64\" offset=\"9\"/>\n    <field name=\"saleConditionFlags\" id=\"3\" type=\"uint8\" offset=\"17\" presence=\"optional\" nullValue=\"255\"/>\n  </message><message name=\"BidAskCandle\" id=\"12\" blockLength=\"89\">\n    <field name=\"bid\" id=\"1\" type=\"QuoteSideCandle\" offset=\"0\" presence=\"optional\"/>\n    <field name=\"ask\" id=\"2\" type=\"QuoteSideCandle\" offset=\"40\" presence=\"optional\"/>\n    <field name=\"quoteCount\" id=\"3\" type=\"uint64\" offset=\"80\"/>\n    <field name=\"closingQuoteCondition\" id=\"4\" type=\"uint8\" offset=\"88\" presence=\"optional\" nullValue=\"255\"/>\n  </message><message name=\"TradeCandle\" id=\"13\" blockLength=\"52\">\n    <field name=\"open\" id=\"1\" type=\"DecimalEncoding\" offset=\"0\"/>\n    <field name=\"high\" id=\"2\" type=\"DecimalEncoding\" offset=\"9\"/>\n    <field name=\"low\" id=\"3\" type=\"DecimalEncoding\" offset=\"18\"/>\n    <field name=\"close\" id=\"4\" type=\"DecimalEncoding\" offset=\"27\"/>\n    <field name=\"totalVolume\" id=\"5\" type=\"uint64\" offset=\"36\"/>\n    <field name=\"tradeCount\" id=\"6\" type=\"uint64\" offset=\"44\"/>\n  </message><message name=\"BidDailyOhlc\" id=\"14\" blockLength=\"53\">\n    <field name=\"open\" id=\"1\" type=\"DecimalEncoding\" offset=\"0\"/>\n    <field name=\"high\" id=\"2\" type=\"DecimalEncoding\" offset=\"9\"/>\n    <field name=\"low\" id=\"3\" type=\"DecimalEncoding\" offset=\"18\"/>\n    <field name=\"closeLast\" id=\"4\" type=\"DecimalEncoding\" offset=\"27\"/>\n    <field name=\"closePrevious\" id=\"5\" type=\"DecimalEncoding\" offset=\"36\"/>\n    <field name=\"day\" id=\"6\" type=\"uint32\" offset=\"45\"/>\n    <field name=\"flags\" id=\"7\" type=\"uint32\" offset=\"49\"/>\n  </message><message name=\"AskDailyOhlc\" id=\"15\" blockLength=\"53\">\n    <field name=\"open\" id=\"1\" type=\"DecimalEncoding\" offset=\"0\"/>\n    <field name=\"high\" id=\"2\" type=\"DecimalEncoding\" offset=\"9\"/>\n    <field name=\"low\" id=\"3\" type=\"DecimalEncoding\" offset=\"18\"/>\n    <field name=\"closeLast\" id=\"4\" type=\"DecimalEncoding\" offset=\"27\"/>\n    <field name=\"closePrevious\" id=\"5\" type=\"DecimalEncoding\" offset=\"36\"/>\n    <field name=\"day\" id=\"6\" type=\"uint32\" offset=\"45\"/>\n    <field name=\"flags\" id=\"7\" type=\"uint32\" offset=\"49\"/>\n  </message><message name=\"TradeDailyOhlc\" id=\"16\" blockLength=\"53\">\n    <field name=\"open\" id=\"1\" type=\"DecimalEncoding\" offset=\"0\"/>\n    <field name=\"high\" id=\"2\" type=\"DecimalEncoding\" offset=\"9\"/>\n    <field name=\"low\" id=\"3\" type=\"DecimalEncoding\" offset=\"18\"/>\n    <field name=\"closeLast\" id=\"4\" type=\"DecimalEncoding\" offset=\"27\"/>\n    <field name=\"closePrevious\" id=\"5\" type=\"DecimalEncoding\" offset=\"36\"/>\n    <field name=\"day\" id=\"6\" type=\"uint32\" offset=\"45\"/>\n    <field name=\"flags\" id=\"7\" type=\"uint32\" offset=\"49\"/>\n  </message><message name=\"InstrumentDefinition\" id=\"20\" blockLength=\"1\">\n    <field name=\"activity\" id=\"1\" type=\"ListingActivity\" offset=\"0\"/>\n    <data name=\"instrument\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"isin\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"venue\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"currency\" id=\"5\" type=\"varDataEncoding\"/>\n    <data name=\"name\" id=\"6\" type=\"varDataEncoding\"/>\n  </message><message name=\"Listing\" id=\"30\" blockLength=\"0\">\n    <data name=\"source\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"venue\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"instrument\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"currency\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"isin\" id=\"5\" type=\"varDataEncoding\"/>\n  </message><message name=\"CompanyProfile\" id=\"31\" blockLength=\"1\">\n    <field name=\"hasLei\" id=\"1\" type=\"uint8\" offset=\"0\"/>\n    <data name=\"canonicalName\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"lei\" id=\"3\" type=\"varDataEncoding\"/>\n  </message><message name=\"CompanyAddress\" id=\"32\" blockLength=\"0\">\n    <data name=\"language\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"firstAddressLine\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"additionalAddressLine1\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"additionalAddressLine2\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"additionalAddressLine3\" id=\"5\" type=\"varDataEncoding\"/>\n    <data name=\"addressNumber\" id=\"6\" type=\"varDataEncoding\"/>\n    <data name=\"addressNumberWithinBuilding\" id=\"7\" type=\"varDataEncoding\"/>\n    <data name=\"mailRouting\" id=\"8\" type=\"varDataEncoding\"/>\n    <data name=\"city\" id=\"9\" type=\"varDataEncoding\"/>\n    <data name=\"region\" id=\"10\" type=\"varDataEncoding\"/>\n    <data name=\"country\" id=\"11\" type=\"varDataEncoding\"/>\n    <data name=\"postalCode\" id=\"12\" type=\"varDataEncoding\"/>\n  </message><message name=\"InstrumentIssuer\" id=\"33\" blockLength=\"0\">\n    <data name=\"lei\" id=\"1\" type=\"varDataEncoding\"/>\n  </message><message name=\"BasicMasterdata\" id=\"34\" blockLength=\"0\">\n    <data name=\"name\" id=\"1\" type=\"varDataEncoding\"/>\n  </message><message name=\"InstrumentNames\" id=\"35\" blockLength=\"0\" description=\"openmdta:entity:INSTRUMENT\">\n    <group name=\"localized\" id=\"1\" dimensionType=\"groupSizeEncoding\" blockLength=\"0\">\n      <data name=\"language\" id=\"1\" type=\"varDataEncoding\"/>\n      <data name=\"long\" id=\"2\" type=\"varDataEncoding\"/>\n      <data name=\"short\" id=\"3\" type=\"varDataEncoding\"/>\n    </group>\n    <data name=\"long\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"short\" id=\"3\" type=\"varDataEncoding\"/>\n  </message><message name=\"LegalEntityNames\" id=\"36\" blockLength=\"0\" description=\"openmdta:entity:LEGAL_ENTITY\">\n    <group name=\"localized\" id=\"1\" dimensionType=\"groupSizeEncoding\" blockLength=\"0\">\n      <data name=\"language\" id=\"1\" type=\"varDataEncoding\"/>\n      <data name=\"long\" id=\"2\" type=\"varDataEncoding\"/>\n      <data name=\"short\" id=\"3\" type=\"varDataEncoding\"/>\n    </group>\n    <data name=\"long\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"short\" id=\"3\" type=\"varDataEncoding\"/>\n  </message><message name=\"Classification\" id=\"37\" blockLength=\"0\" description=\"openmdta:entity:INSTRUMENT openmdta:multiple\">\n    <data name=\"code\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"label\" id=\"2\" type=\"varDataEncoding\"/>\n  </message><message name=\"ListingClassification\" id=\"38\" blockLength=\"0\" description=\"openmdta:entity:LISTING openmdta:multiple\">\n    <data name=\"code\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"label\" id=\"2\" type=\"varDataEncoding\"/>\n  </message><message name=\"ListingQuotation\" id=\"39\" blockLength=\"0\" description=\"openmdta:entity:LISTING\">\n    <data name=\"currency\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"unit\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"decimalDigits\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"symbol\" id=\"4\" type=\"varDataEncoding\"/>\n  </message><message name=\"ListingVenue\" id=\"40\" blockLength=\"0\" description=\"openmdta:entity:LISTING\">\n    <data name=\"mic\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"primaryMic\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"reportingMarket\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"offBookReportingMarket\" id=\"4\" type=\"varDataEncoding\"/>\n  </message><message name=\"ListingTradingDates\" id=\"41\" blockLength=\"0\" description=\"openmdta:entity:LISTING\">\n    <data name=\"firstTradingDate\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"lastTradingDate\" id=\"2\" type=\"varDataEncoding\"/>\n  </message><message name=\"ListingTradingRules\" id=\"42\" blockLength=\"0\" description=\"openmdta:entity:LISTING\">\n    <data name=\"tradingModel\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"closedBook\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"marketImbalance\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"auctionType\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"quotingPeriodStart\" id=\"5\" type=\"varDataEncoding\"/>\n    <data name=\"quotingPeriodEnd\" id=\"6\" type=\"varDataEncoding\"/>\n    <data name=\"singleSidedQuotes\" id=\"7\" type=\"varDataEncoding\"/>\n    <data name=\"crossMatchDefault\" id=\"8\" type=\"varDataEncoding\"/>\n  </message><message name=\"ListingQuoteParameters\" id=\"43\" blockLength=\"0\" description=\"openmdta:entity:LISTING\">\n    <data name=\"priceRange\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"priceRangePercent\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"minimumSize\" id=\"3\" type=\"varDataEncoding\"/>\n  </message><message name=\"ListingOrderSize\" id=\"44\" blockLength=\"0\" description=\"openmdta:entity:LISTING\">\n    <data name=\"minimumTradableUnit\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"minimumOrderQuantity\" id=\"2\" type=\"varDataEncoding\"/>\n  </message><message name=\"ListingTickSchedule\" id=\"45\" blockLength=\"0\" description=\"openmdta:entity:LISTING\">\n    <group name=\"tiers\" id=\"1\" dimensionType=\"groupSizeEncoding\" blockLength=\"18\">\n      <field name=\"upperBound\" id=\"1\" type=\"DecimalEncoding\" offset=\"0\"/>\n      <field name=\"increment\" id=\"2\" type=\"DecimalEncoding\" offset=\"9\"/>\n    </group>\n    <data name=\"band\" id=\"2\" type=\"varDataEncoding\"/>\n  </message><message name=\"InstrumentPrimaryListing\" id=\"46\" blockLength=\"0\" description=\"openmdta:entity:INSTRUMENT\">\n    <data name=\"catalog\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"recordKey\" id=\"2\" type=\"varDataEncoding\"/>\n  </message><message name=\"InstrumentListingRecordCount\" id=\"47\" blockLength=\"8\" description=\"openmdta:entity:INSTRUMENT\">\n    <field name=\"count\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n  </message><message name=\"CorporateActions\" id=\"48\" blockLength=\"0\" description=\"openmdta:entity:INSTRUMENT openmdta:multiple\">\n    <group name=\"events\" id=\"1\" dimensionType=\"groupSizeEncoding\" blockLength=\"26\">\n      <field name=\"kind\" id=\"1\" type=\"CorporateActionKind\" offset=\"0\"/>\n      <field name=\"status\" id=\"2\" type=\"CorporateEventStatus\" offset=\"1\"/>\n      <!-- For a split, newShares / oldShares is the share-count ratio. Both\n           are absent for action kinds that have no meaningful ratio. -->\n      <field name=\"newShares\" id=\"3\" type=\"uint64\" offset=\"2\" presence=\"optional\" nullValue=\"18446744073709551615\"/>\n      <field name=\"oldShares\" id=\"4\" type=\"uint64\" offset=\"10\" presence=\"optional\" nullValue=\"18446744073709551615\"/>\n      <field name=\"announcementDay\" id=\"5\" type=\"uint32\" offset=\"18\" presence=\"optional\" nullValue=\"4294967295\"/>\n      <field name=\"recordDay\" id=\"6\" type=\"uint32\" offset=\"22\" presence=\"optional\" nullValue=\"4294967295\"/>\n      <data name=\"eventId\" id=\"7\" type=\"varDataEncoding\"/>\n    </group>\n  </message><message name=\"Distributions\" id=\"49\" blockLength=\"0\" description=\"openmdta:entity:INSTRUMENT openmdta:multiple\">\n    <group name=\"events\" id=\"1\" dimensionType=\"groupSizeEncoding\" blockLength=\"19\">\n      <field name=\"kind\" id=\"1\" type=\"DistributionKind\" offset=\"0\"/>\n      <field name=\"status\" id=\"2\" type=\"CorporateEventStatus\" offset=\"1\"/>\n      <field name=\"amount\" id=\"3\" type=\"DecimalEncoding\" offset=\"2\"/>\n      <field name=\"recordDay\" id=\"4\" type=\"uint32\" offset=\"11\" presence=\"optional\" nullValue=\"4294967295\"/>\n      <field name=\"paymentDay\" id=\"5\" type=\"uint32\" offset=\"15\" presence=\"optional\" nullValue=\"4294967295\"/>\n      <data name=\"currency\" id=\"6\" type=\"varDataEncoding\"/>\n      <data name=\"eventId\" id=\"7\" type=\"varDataEncoding\"/>\n    </group>\n  </message><message name=\"ListDefinition\" id=\"50\" blockLength=\"0\" description=\"openmdta:entity:LIST\">\n    <group name=\"members\" id=\"1\" dimensionType=\"groupSizeEncoding\" blockLength=\"0\">\n      <data name=\"identifier\" id=\"1\" type=\"varDataEncoding\" description=\"openmdta:reference:INSTRUMENT\"/>\n    </group>\n    <group name=\"variants\" id=\"2\" dimensionType=\"groupSizeEncoding\" blockLength=\"0\">\n      <data name=\"returnType\" id=\"1\" type=\"varDataEncoding\"/>\n      <data name=\"currency\" id=\"2\" type=\"varDataEncoding\"/>\n      <data name=\"identifier\" id=\"3\" type=\"varDataEncoding\" description=\"openmdta:reference:INSTRUMENT\"/>\n    </group>\n    <data name=\"code\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"name\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"description\" id=\"5\" type=\"varDataEncoding\"/>\n    <data name=\"kind\" id=\"6\" type=\"varDataEncoding\"/>\n    <data name=\"memberDimension\" id=\"7\" type=\"varDataEncoding\"/>\n    <data name=\"validAt\" id=\"8\" type=\"varDataEncoding\"/>\n  </message></messageSchema>",
+      "xetra": "<messageSchema package=\"openmdta.catalog.source.xetra\" id=\"201\" version=\"1\" byteOrder=\"littleEndian\"><types><composite name=\"messageHeader\">\n      <type name=\"blockLength\" primitiveType=\"uint16\"/>\n      <type name=\"templateId\" primitiveType=\"uint16\"/>\n      <type name=\"schemaId\" primitiveType=\"uint16\"/>\n      <type name=\"version\" primitiveType=\"uint16\"/>\n    </composite><composite name=\"varDataEncoding\">\n      <type name=\"length\" primitiveType=\"uint32\"/>\n      <type name=\"varData\" primitiveType=\"uint8\" length=\"0\"/>\n    </composite><enum name=\"SourceListingStatus\" encodingType=\"uint8\">\n      <validValue name=\"Active\">0</validValue>\n      <validValue name=\"Inactive\">1</validValue>\n    </enum><composite name=\"groupSizeEncoding\"><type name=\"blockLength\" primitiveType=\"uint16\"/><type name=\"numInGroup\" primitiveType=\"uint16\"/></composite></types><message name=\"XetraRecord\" id=\"1\" blockLength=\"3\">\n    <field name=\"presence\" id=\"1\" type=\"uint16\" offset=\"0\"/>\n    <field name=\"listingStatus\" id=\"2\" type=\"SourceListingStatus\" offset=\"2\"/>\n    <data name=\"isin\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"instrumentName\" id=\"4\" type=\"varDataEncoding\" description=\"openmdta:optional:0\"/>\n    <data name=\"mic\" id=\"5\" type=\"varDataEncoding\"/>\n    <data name=\"currency\" id=\"6\" type=\"varDataEncoding\" description=\"openmdta:optional:1\"/>\n    <data name=\"instrumentId\" id=\"7\" type=\"varDataEncoding\"/>\n    <data name=\"wkn\" id=\"8\" type=\"varDataEncoding\" description=\"openmdta:optional:2\"/>\n    <data name=\"mnemonic\" id=\"9\" type=\"varDataEncoding\" description=\"openmdta:optional:3\"/>\n    <data name=\"productStatus\" id=\"10\" type=\"varDataEncoding\"/>\n    <data name=\"instrumentStatus\" id=\"11\" type=\"varDataEncoding\"/>\n    <data name=\"priceDecimals\" id=\"12\" type=\"varDataEncoding\" description=\"openmdta:optional:4\"/>\n  </message><message name=\"Identifiers\" id=\"2\" blockLength=\"0\">\n    <data name=\"isin\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"product_id\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"instrument_id\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"wkn\" id=\"4\" type=\"varDataEncoding\"/>\n  </message><message name=\"DisplayNames\" id=\"3\" blockLength=\"0\">\n    <data name=\"instrument\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"mnemonic\" id=\"2\" type=\"varDataEncoding\"/>\n  </message><message name=\"Classification\" id=\"4\" blockLength=\"0\">\n    <data name=\"product_assignment_group\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"product_assignment_group_description\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"instrument_type\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"market_segment\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"market_segment_supplement\" id=\"5\" type=\"varDataEncoding\"/>\n    <data name=\"security_sub_type\" id=\"6\" type=\"varDataEncoding\"/>\n    <data name=\"security_classification_value\" id=\"7\" type=\"varDataEncoding\"/>\n  </message><message name=\"Lifecycle\" id=\"5\" blockLength=\"0\">\n    <data name=\"product_status\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"instrument_status\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"in_subscription\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"disable_on_book_trading\" id=\"4\" type=\"varDataEncoding\"/>\n  </message><message name=\"TradingVenue\" id=\"6\" blockLength=\"0\">\n    <data name=\"mic_code\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"primary_market_mic_code\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"reporting_market\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"off_book_reporting_market\" id=\"4\" type=\"varDataEncoding\"/>\n  </message><message name=\"TradingDates\" id=\"7\" blockLength=\"0\">\n    <data name=\"first_trading_date\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"last_trading_date\" id=\"2\" type=\"varDataEncoding\"/>\n  </message><message name=\"Quotation\" id=\"8\" blockLength=\"0\">\n    <data name=\"number_of_decimal_digits\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"unit_of_quotation\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"currency\" id=\"3\" type=\"varDataEncoding\"/>\n  </message><message name=\"TradingRules\" id=\"9\" blockLength=\"0\">\n    <data name=\"trading_model_type\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"closed_book_indicator\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"market_imbalance_indicator\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"instrument_auction_type\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"quoting_period_start\" id=\"5\" type=\"varDataEncoding\"/>\n    <data name=\"quoting_period_end\" id=\"6\" type=\"varDataEncoding\"/>\n    <data name=\"single_sided_quote_support\" id=\"7\" type=\"varDataEncoding\"/>\n    <data name=\"cross_match_instruction_default\" id=\"8\" type=\"varDataEncoding\"/>\n  </message><message name=\"MidpointTrading\" id=\"10\" blockLength=\"0\">\n    <data name=\"midpoint_trading\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"midpoint_execution_venue_id\" id=\"2\" type=\"varDataEncoding\"/>\n  </message><message name=\"Settlement\" id=\"11\" blockLength=\"0\">\n    <data name=\"ccp_eligible_code\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"clearing_location\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"settlement_period\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"settlement_currency\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"multi_ccp_eligible\" id=\"5\" type=\"varDataEncoding\"/>\n    <data name=\"deposit_type\" id=\"6\" type=\"varDataEncoding\"/>\n  </message><message name=\"QuoteParameters\" id=\"12\" blockLength=\"0\">\n    <data name=\"price_range_value\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"price_range_percentage\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"minimum_quote_size\" id=\"3\" type=\"varDataEncoding\"/>\n  </message><message name=\"OrderSize\" id=\"13\" blockLength=\"0\">\n    <data name=\"minimum_tradable_unit\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"minimum_order_quantity\" id=\"2\" type=\"varDataEncoding\"/>\n  </message><message name=\"OrderRiskLimits\" id=\"14\" blockLength=\"0\">\n    <data name=\"maximum_order_quantity\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"maximum_order_value\" id=\"2\" type=\"varDataEncoding\"/>\n  </message><message name=\"IcebergRequirements\" id=\"15\" blockLength=\"0\">\n    <data name=\"minimum_iceberg_total_volume\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"minimum_iceberg_display_volume\" id=\"2\" type=\"varDataEncoding\"/>\n  </message><message name=\"TickSizeTable\" id=\"16\" blockLength=\"0\">\n    <data name=\"tick_size_1\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_max\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_2\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_2\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_3\" id=\"5\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_3\" id=\"6\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_4\" id=\"7\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_4\" id=\"8\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_5\" id=\"9\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_5\" id=\"10\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_6\" id=\"11\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_6\" id=\"12\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_7\" id=\"13\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_7\" id=\"14\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_8\" id=\"15\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_8\" id=\"16\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_9\" id=\"17\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_9\" id=\"18\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_10\" id=\"19\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_10\" id=\"20\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_11\" id=\"21\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_11\" id=\"22\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_12\" id=\"23\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_12\" id=\"24\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_13\" id=\"25\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_13\" id=\"26\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_14\" id=\"27\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_14\" id=\"28\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_15\" id=\"29\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_15\" id=\"30\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_16\" id=\"31\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_16\" id=\"32\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_17\" id=\"33\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_17\" id=\"34\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_18\" id=\"35\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_18\" id=\"36\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_19\" id=\"37\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_19\" id=\"38\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_20\" id=\"39\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_20\" id=\"40\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_band\" id=\"41\" type=\"varDataEncoding\"/>\n  </message><message name=\"DesignatedSponsors\" id=\"17\" blockLength=\"0\">\n    <data name=\"designated_sponsor_member_id\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"designated_sponsor\" id=\"2\" type=\"varDataEncoding\"/>\n  </message><message name=\"MarketMakers\" id=\"18\" blockLength=\"0\">\n    <data name=\"market_maker_member_id\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"market_maker\" id=\"2\" type=\"varDataEncoding\"/>\n  </message><message name=\"Specialists\" id=\"19\" blockLength=\"0\">\n    <data name=\"specialist_member_id\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"specialist\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"liquidity_provider_user_group\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"specialist_user_group\" id=\"4\" type=\"varDataEncoding\"/>\n  </message><message name=\"RegulatoryLiquidity\" id=\"20\" blockLength=\"0\">\n    <data name=\"regulatory_liquid_instrument\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"pre_trade_lis_value\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"liquidity_class\" id=\"3\" type=\"varDataEncoding\"/>\n  </message><message name=\"VolatilityCorridors\" id=\"21\" blockLength=\"0\">\n    <data name=\"volatility_corridor_opening_auction\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"volatility_corridor_intraday_auction\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"volatility_corridor_closing_auction\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"volatility_corridor_continuous\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"volatility_corridor_retail_auction\" id=\"5\" type=\"varDataEncoding\"/>\n  </message><message name=\"VolatilityInterruptionLimits\" id=\"22\" blockLength=\"0\">\n    <data name=\"fixed_abs_vola_interruption_limit\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"float_abs_vola_interruption_limit\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"fixed_pct_vola_interruption_limit\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"float_pct_vola_interruption_limit\" id=\"4\" type=\"varDataEncoding\"/>\n  </message><message name=\"SecurityTerms\" id=\"23\" blockLength=\"0\">\n    <data name=\"issue_date\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"maturity_date\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"country_of_issue\" id=\"3\" type=\"varDataEncoding\"/>\n  </message><message name=\"DerivativeTerms\" id=\"24\" blockLength=\"0\">\n    <data name=\"underlying\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"strike_price\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"warrant_type\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"cover_indicator\" id=\"4\" type=\"varDataEncoding\"/>\n  </message><message name=\"CouponTerms\" id=\"25\" blockLength=\"0\">\n    <data name=\"flat_indicator\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"coupon_rate\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"previous_coupon_payment_date\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"next_coupon_payment_date\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"pool_factor\" id=\"5\" type=\"varDataEncoding\"/>\n    <data name=\"indexation_coefficient\" id=\"6\" type=\"varDataEncoding\"/>\n    <data name=\"accrued_interest_calculation_method\" id=\"7\" type=\"varDataEncoding\"/>\n  </message><message name=\"CorporateAction\" id=\"26\" blockLength=\"0\">\n    <data name=\"cum_ex_indicator\" id=\"1\" type=\"varDataEncoding\"/>\n  </message><message name=\"FeedPartition\" id=\"27\" blockLength=\"0\">\n    <data name=\"partition_id\" id=\"1\" type=\"varDataEncoding\"/>\n  </message><message name=\"Emdi\" id=\"28\" blockLength=\"0\">\n    <data name=\"emdi_incremental_a_unnetted\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"emdi_incremental_a_unnetted_port\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"emdi_incremental_b_unnetted\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"emdi_incremental_b_unnetted_port\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"emdi_snapshot_a_unnetted\" id=\"5\" type=\"varDataEncoding\"/>\n    <data name=\"emdi_snapshot_a_unnetted_port\" id=\"6\" type=\"varDataEncoding\"/>\n    <data name=\"emdi_snapshot_b_unnetted\" id=\"7\" type=\"varDataEncoding\"/>\n    <data name=\"emdi_snapshot_b_unnetted_port\" id=\"8\" type=\"varDataEncoding\"/>\n    <data name=\"emdi_market_depth_unnetted\" id=\"9\" type=\"varDataEncoding\"/>\n    <data name=\"emdi_snapshot_recovery_time_interval_unnetted\" id=\"10\" type=\"varDataEncoding\"/>\n  </message><message name=\"Mdi\" id=\"29\" blockLength=\"0\">\n    <data name=\"mdi_address_a_netted\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"mdi_port_a_netted\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"mdi_address_b_netted\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"mdi_port_b_netted\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"mdi_market_depth_netted\" id=\"5\" type=\"varDataEncoding\"/>\n    <data name=\"mdi_market_depth_time_interval_netted\" id=\"6\" type=\"varDataEncoding\"/>\n    <data name=\"mdi_recovery_time_interval_netted\" id=\"7\" type=\"varDataEncoding\"/>\n  </message><message name=\"Eobi\" id=\"30\" blockLength=\"0\">\n    <data name=\"eobi_incremental_a\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"eobi_incremental_port_a\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"eobi_incremental_b\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"eobi_incremental_port_b\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"eobi_snapshot_a\" id=\"5\" type=\"varDataEncoding\"/>\n    <data name=\"eobi_snapshot_port_a\" id=\"6\" type=\"varDataEncoding\"/>\n    <data name=\"eobi_snapshot_b\" id=\"7\" type=\"varDataEncoding\"/>\n    <data name=\"eobi_snapshot_port_b\" id=\"8\" type=\"varDataEncoding\"/>\n  </message><message name=\"InstrumentInput\" id=\"100\" blockLength=\"0\">\n    <data name=\"product_status\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"instrument_status\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"instrument\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"isin\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"product_id\" id=\"5\" type=\"varDataEncoding\"/>\n    <data name=\"instrument_id\" id=\"6\" type=\"varDataEncoding\"/>\n    <data name=\"wkn\" id=\"7\" type=\"varDataEncoding\"/>\n    <data name=\"mnemonic\" id=\"8\" type=\"varDataEncoding\"/>\n    <data name=\"mic_code\" id=\"9\" type=\"varDataEncoding\"/>\n    <data name=\"ccp_eligible_code\" id=\"10\" type=\"varDataEncoding\"/>\n    <data name=\"trading_model_type\" id=\"11\" type=\"varDataEncoding\"/>\n    <data name=\"product_assignment_group\" id=\"12\" type=\"varDataEncoding\"/>\n    <data name=\"product_assignment_group_description\" id=\"13\" type=\"varDataEncoding\"/>\n    <data name=\"designated_sponsor_member_id\" id=\"14\" type=\"varDataEncoding\"/>\n    <data name=\"designated_sponsor\" id=\"15\" type=\"varDataEncoding\"/>\n    <data name=\"price_range_value\" id=\"16\" type=\"varDataEncoding\"/>\n    <data name=\"price_range_percentage\" id=\"17\" type=\"varDataEncoding\"/>\n    <data name=\"minimum_quote_size\" id=\"18\" type=\"varDataEncoding\"/>\n    <data name=\"instrument_type\" id=\"19\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_1\" id=\"20\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_max\" id=\"21\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_2\" id=\"22\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_2\" id=\"23\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_3\" id=\"24\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_3\" id=\"25\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_4\" id=\"26\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_4\" id=\"27\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_5\" id=\"28\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_5\" id=\"29\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_6\" id=\"30\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_6\" id=\"31\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_7\" id=\"32\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_7\" id=\"33\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_8\" id=\"34\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_8\" id=\"35\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_9\" id=\"36\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_9\" id=\"37\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_10\" id=\"38\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_10\" id=\"39\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_11\" id=\"40\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_11\" id=\"41\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_12\" id=\"42\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_12\" id=\"43\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_13\" id=\"44\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_13\" id=\"45\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_14\" id=\"46\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_14\" id=\"47\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_15\" id=\"48\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_15\" id=\"49\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_16\" id=\"50\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_16\" id=\"51\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_17\" id=\"52\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_17\" id=\"53\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_18\" id=\"54\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_18\" id=\"55\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_19\" id=\"56\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_19\" id=\"57\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_20\" id=\"58\" type=\"varDataEncoding\"/>\n    <data name=\"upper_price_limit_20\" id=\"59\" type=\"varDataEncoding\"/>\n    <data name=\"number_of_decimal_digits\" id=\"60\" type=\"varDataEncoding\"/>\n    <data name=\"unit_of_quotation\" id=\"61\" type=\"varDataEncoding\"/>\n    <data name=\"market_segment\" id=\"62\" type=\"varDataEncoding\"/>\n    <data name=\"market_segment_supplement\" id=\"63\" type=\"varDataEncoding\"/>\n    <data name=\"clearing_location\" id=\"64\" type=\"varDataEncoding\"/>\n    <data name=\"primary_market_mic_code\" id=\"65\" type=\"varDataEncoding\"/>\n    <data name=\"reporting_market\" id=\"66\" type=\"varDataEncoding\"/>\n    <data name=\"settlement_period\" id=\"67\" type=\"varDataEncoding\"/>\n    <data name=\"settlement_currency\" id=\"68\" type=\"varDataEncoding\"/>\n    <data name=\"closed_book_indicator\" id=\"69\" type=\"varDataEncoding\"/>\n    <data name=\"market_imbalance_indicator\" id=\"70\" type=\"varDataEncoding\"/>\n    <data name=\"cum_ex_indicator\" id=\"71\" type=\"varDataEncoding\"/>\n    <data name=\"minimum_iceberg_total_volume\" id=\"72\" type=\"varDataEncoding\"/>\n    <data name=\"minimum_iceberg_display_volume\" id=\"73\" type=\"varDataEncoding\"/>\n    <data name=\"emdi_incremental_a_unnetted\" id=\"74\" type=\"varDataEncoding\"/>\n    <data name=\"emdi_incremental_a_unnetted_port\" id=\"75\" type=\"varDataEncoding\"/>\n    <data name=\"emdi_incremental_b_unnetted\" id=\"76\" type=\"varDataEncoding\"/>\n    <data name=\"emdi_incremental_b_unnetted_port\" id=\"77\" type=\"varDataEncoding\"/>\n    <data name=\"emdi_snapshot_a_unnetted\" id=\"78\" type=\"varDataEncoding\"/>\n    <data name=\"emdi_snapshot_a_unnetted_port\" id=\"79\" type=\"varDataEncoding\"/>\n    <data name=\"emdi_snapshot_b_unnetted\" id=\"80\" type=\"varDataEncoding\"/>\n    <data name=\"emdi_snapshot_b_unnetted_port\" id=\"81\" type=\"varDataEncoding\"/>\n    <data name=\"emdi_market_depth_unnetted\" id=\"82\" type=\"varDataEncoding\"/>\n    <data name=\"emdi_snapshot_recovery_time_interval_unnetted\" id=\"83\" type=\"varDataEncoding\"/>\n    <data name=\"mdi_address_a_netted\" id=\"84\" type=\"varDataEncoding\"/>\n    <data name=\"mdi_port_a_netted\" id=\"85\" type=\"varDataEncoding\"/>\n    <data name=\"mdi_address_b_netted\" id=\"86\" type=\"varDataEncoding\"/>\n    <data name=\"mdi_port_b_netted\" id=\"87\" type=\"varDataEncoding\"/>\n    <data name=\"mdi_market_depth_netted\" id=\"88\" type=\"varDataEncoding\"/>\n    <data name=\"mdi_market_depth_time_interval_netted\" id=\"89\" type=\"varDataEncoding\"/>\n    <data name=\"mdi_recovery_time_interval_netted\" id=\"90\" type=\"varDataEncoding\"/>\n    <data name=\"eobi_incremental_a\" id=\"91\" type=\"varDataEncoding\"/>\n    <data name=\"eobi_incremental_port_a\" id=\"92\" type=\"varDataEncoding\"/>\n    <data name=\"eobi_incremental_b\" id=\"93\" type=\"varDataEncoding\"/>\n    <data name=\"eobi_incremental_port_b\" id=\"94\" type=\"varDataEncoding\"/>\n    <data name=\"eobi_snapshot_a\" id=\"95\" type=\"varDataEncoding\"/>\n    <data name=\"eobi_snapshot_port_a\" id=\"96\" type=\"varDataEncoding\"/>\n    <data name=\"eobi_snapshot_b\" id=\"97\" type=\"varDataEncoding\"/>\n    <data name=\"eobi_snapshot_port_b\" id=\"98\" type=\"varDataEncoding\"/>\n    <data name=\"market_maker_member_id\" id=\"99\" type=\"varDataEncoding\"/>\n    <data name=\"market_maker\" id=\"100\" type=\"varDataEncoding\"/>\n    <data name=\"regulatory_liquid_instrument\" id=\"101\" type=\"varDataEncoding\"/>\n    <data name=\"pre_trade_lis_value\" id=\"102\" type=\"varDataEncoding\"/>\n    <data name=\"partition_id\" id=\"103\" type=\"varDataEncoding\"/>\n    <data name=\"multi_ccp_eligible\" id=\"104\" type=\"varDataEncoding\"/>\n    <data name=\"tick_size_band\" id=\"105\" type=\"varDataEncoding\"/>\n    <data name=\"security_sub_type\" id=\"106\" type=\"varDataEncoding\"/>\n    <data name=\"issue_date\" id=\"107\" type=\"varDataEncoding\"/>\n    <data name=\"underlying\" id=\"108\" type=\"varDataEncoding\"/>\n    <data name=\"maturity_date\" id=\"109\" type=\"varDataEncoding\"/>\n    <data name=\"flat_indicator\" id=\"110\" type=\"varDataEncoding\"/>\n    <data name=\"coupon_rate\" id=\"111\" type=\"varDataEncoding\"/>\n    <data name=\"previous_coupon_payment_date\" id=\"112\" type=\"varDataEncoding\"/>\n    <data name=\"next_coupon_payment_date\" id=\"113\" type=\"varDataEncoding\"/>\n    <data name=\"pool_factor\" id=\"114\" type=\"varDataEncoding\"/>\n    <data name=\"indexation_coefficient\" id=\"115\" type=\"varDataEncoding\"/>\n    <data name=\"accrued_interest_calculation_method\" id=\"116\" type=\"varDataEncoding\"/>\n    <data name=\"country_of_issue\" id=\"117\" type=\"varDataEncoding\"/>\n    <data name=\"minimum_tradable_unit\" id=\"118\" type=\"varDataEncoding\"/>\n    <data name=\"in_subscription\" id=\"119\" type=\"varDataEncoding\"/>\n    <data name=\"strike_price\" id=\"120\" type=\"varDataEncoding\"/>\n    <data name=\"minimum_order_quantity\" id=\"121\" type=\"varDataEncoding\"/>\n    <data name=\"off_book_reporting_market\" id=\"122\" type=\"varDataEncoding\"/>\n    <data name=\"instrument_auction_type\" id=\"123\" type=\"varDataEncoding\"/>\n    <data name=\"specialist_member_id\" id=\"124\" type=\"varDataEncoding\"/>\n    <data name=\"specialist\" id=\"125\" type=\"varDataEncoding\"/>\n    <data name=\"liquidity_provider_user_group\" id=\"126\" type=\"varDataEncoding\"/>\n    <data name=\"specialist_user_group\" id=\"127\" type=\"varDataEncoding\"/>\n    <data name=\"quoting_period_start\" id=\"128\" type=\"varDataEncoding\"/>\n    <data name=\"quoting_period_end\" id=\"129\" type=\"varDataEncoding\"/>\n    <data name=\"currency\" id=\"130\" type=\"varDataEncoding\"/>\n    <data name=\"warrant_type\" id=\"131\" type=\"varDataEncoding\"/>\n    <data name=\"first_trading_date\" id=\"132\" type=\"varDataEncoding\"/>\n    <data name=\"last_trading_date\" id=\"133\" type=\"varDataEncoding\"/>\n    <data name=\"deposit_type\" id=\"134\" type=\"varDataEncoding\"/>\n    <data name=\"single_sided_quote_support\" id=\"135\" type=\"varDataEncoding\"/>\n    <data name=\"liquidity_class\" id=\"136\" type=\"varDataEncoding\"/>\n    <data name=\"cover_indicator\" id=\"137\" type=\"varDataEncoding\"/>\n    <data name=\"volatility_corridor_opening_auction\" id=\"138\" type=\"varDataEncoding\"/>\n    <data name=\"volatility_corridor_intraday_auction\" id=\"139\" type=\"varDataEncoding\"/>\n    <data name=\"volatility_corridor_closing_auction\" id=\"140\" type=\"varDataEncoding\"/>\n    <data name=\"volatility_corridor_continuous\" id=\"141\" type=\"varDataEncoding\"/>\n    <data name=\"disable_on_book_trading\" id=\"142\" type=\"varDataEncoding\"/>\n    <data name=\"maximum_order_quantity\" id=\"143\" type=\"varDataEncoding\"/>\n    <data name=\"maximum_order_value\" id=\"144\" type=\"varDataEncoding\"/>\n    <data name=\"security_classification_value\" id=\"145\" type=\"varDataEncoding\"/>\n    <data name=\"midpoint_trading\" id=\"146\" type=\"varDataEncoding\"/>\n    <data name=\"midpoint_execution_venue_id\" id=\"147\" type=\"varDataEncoding\"/>\n    <data name=\"fixed_abs_vola_interruption_limit\" id=\"148\" type=\"varDataEncoding\"/>\n    <data name=\"float_abs_vola_interruption_limit\" id=\"149\" type=\"varDataEncoding\"/>\n    <data name=\"fixed_pct_vola_interruption_limit\" id=\"150\" type=\"varDataEncoding\"/>\n    <data name=\"float_pct_vola_interruption_limit\" id=\"151\" type=\"varDataEncoding\"/>\n    <data name=\"cross_match_instruction_default\" id=\"152\" type=\"varDataEncoding\"/>\n    <data name=\"volatility_corridor_retail_auction\" id=\"153\" type=\"varDataEncoding\"/>\n  </message><message name=\"XetraListing\" id=\"101\" blockLength=\"0\" description=\"openmdta:entity:LISTING\">\n    <data name=\"productId\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"productStatus\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"instrumentStatus\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"inSubscription\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"disableOnBookTrading\" id=\"5\" type=\"varDataEncoding\"/>\n    <data name=\"midpointTrading\" id=\"6\" type=\"varDataEncoding\"/>\n    <data name=\"midpointExecutionVenueId\" id=\"7\" type=\"varDataEncoding\"/>\n    <data name=\"ccpEligibleCode\" id=\"8\" type=\"varDataEncoding\"/>\n    <data name=\"clearingLocation\" id=\"9\" type=\"varDataEncoding\"/>\n    <data name=\"settlementPeriod\" id=\"10\" type=\"varDataEncoding\"/>\n    <data name=\"settlementCurrency\" id=\"11\" type=\"varDataEncoding\"/>\n    <data name=\"multiCcpEligible\" id=\"12\" type=\"varDataEncoding\"/>\n    <data name=\"depositType\" id=\"13\" type=\"varDataEncoding\"/>\n    <data name=\"maximumOrderQuantity\" id=\"14\" type=\"varDataEncoding\"/>\n    <data name=\"maximumOrderValue\" id=\"15\" type=\"varDataEncoding\"/>\n    <data name=\"minimumIcebergTotalVolume\" id=\"16\" type=\"varDataEncoding\"/>\n    <data name=\"minimumIcebergDisplayVolume\" id=\"17\" type=\"varDataEncoding\"/>\n  </message><message name=\"XetraMarketDetails\" id=\"102\" blockLength=\"0\" description=\"openmdta:entity:LISTING\">\n    <group name=\"participants\" id=\"1\" dimensionType=\"groupSizeEncoding\" blockLength=\"0\">\n      <data name=\"role\" id=\"1\" type=\"varDataEncoding\"/>\n      <data name=\"memberId\" id=\"2\" type=\"varDataEncoding\"/>\n      <data name=\"name\" id=\"3\" type=\"varDataEncoding\"/>\n    </group>\n    <data name=\"liquidityProviderUserGroup\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"specialistUserGroup\" id=\"3\" type=\"varDataEncoding\"/>\n  </message></messageSchema>"
+    },
+    "streams": {
+      "openmdta::BidAsk": {
+        "field": "openmdta::BidAsk",
+        "message": "BidAsk",
+        "schema": "<messageSchema package=\"market.internal\" id=\"100\" byteOrder=\"littleEndian\" version=\"3\"><types><composite name=\"messageHeader\">\n      <type name=\"blockLength\" primitiveType=\"uint16\"/>\n      <type name=\"templateId\" primitiveType=\"uint16\"/>\n      <type name=\"schemaId\" primitiveType=\"uint16\"/>\n      <type name=\"version\" primitiveType=\"uint16\"/>\n    </composite><composite name=\"varDataEncoding\">\n      <type name=\"length\" primitiveType=\"uint32\"/>\n      <type name=\"varData\" primitiveType=\"uint8\" length=\"0\"/>\n    </composite><composite name=\"DecimalEncoding\" semanticType=\"Decimal\">\n      <type name=\"mantissa\" primitiveType=\"int64\"/>\n      <type name=\"exponent\" primitiveType=\"int8\"/>\n    </composite><composite name=\"QuoteLevel\">\n      <ref name=\"price\" type=\"DecimalEncoding\"/>\n      <type name=\"size\" primitiveType=\"uint32\"/>\n    </composite><composite name=\"QuoteSideCandle\">\n      <ref name=\"open\" type=\"DecimalEncoding\"/>\n      <ref name=\"high\" type=\"DecimalEncoding\"/>\n      <ref name=\"low\" type=\"DecimalEncoding\"/>\n      <ref name=\"close\" type=\"DecimalEncoding\"/>\n      <type name=\"closingSize\" primitiveType=\"uint32\"/>\n    </composite><enum name=\"ListingActivity\" encodingType=\"uint8\">\n      <validValue name=\"Active\">0</validValue>\n      <validValue name=\"Inactive\">1</validValue>\n    </enum><enum name=\"CorporateActionKind\" encodingType=\"uint8\">\n      <validValue name=\"Unknown\">0</validValue>\n      <validValue name=\"ShareSplit\">1</validValue>\n      <validValue name=\"StockDividend\">2</validValue>\n      <validValue name=\"RightsIssue\">3</validValue>\n      <validValue name=\"SpinOff\">4</validValue>\n      <validValue name=\"Merger\">5</validValue>\n      <validValue name=\"Other\">254</validValue>\n    </enum><enum name=\"CorporateEventStatus\" encodingType=\"uint8\">\n      <validValue name=\"Unknown\">0</validValue>\n      <validValue name=\"Announced\">1</validValue>\n      <validValue name=\"Confirmed\">2</validValue>\n      <validValue name=\"Cancelled\">3</validValue>\n    </enum><enum name=\"DistributionKind\" encodingType=\"uint8\">\n      <validValue name=\"Unknown\">0</validValue>\n      <validValue name=\"Dividend\">1</validValue>\n      <validValue name=\"Interest\">2</validValue>\n      <validValue name=\"ReturnOfCapital\">3</validValue>\n      <validValue name=\"CapitalGain\">4</validValue>\n      <validValue name=\"Other\">254</validValue>\n    </enum><composite name=\"groupSizeEncoding\">\n      <type name=\"blockLength\" primitiveType=\"uint16\"/>\n      <type name=\"numInGroup\" primitiveType=\"uint16\"/>\n    </composite></types><message name=\"BidAsk\" id=\"10\" blockLength=\"27\">\n    <field name=\"bid\" id=\"1\" type=\"QuoteLevel\" offset=\"0\" presence=\"optional\"/>\n    <field name=\"ask\" id=\"2\" type=\"QuoteLevel\" offset=\"13\" presence=\"optional\"/>\n    <field name=\"quoteCondition\" id=\"3\" type=\"uint8\" offset=\"26\" presence=\"optional\" nullValue=\"255\"/>\n  </message><message name=\"Trade\" id=\"11\" blockLength=\"18\">\n    <field name=\"price\" id=\"1\" type=\"DecimalEncoding\" offset=\"0\"/>\n    <field name=\"volume\" id=\"2\" type=\"uint64\" offset=\"9\"/>\n    <field name=\"saleConditionFlags\" id=\"3\" type=\"uint8\" offset=\"17\" presence=\"optional\" nullValue=\"255\"/>\n  </message><message name=\"BidAskCandle\" id=\"12\" blockLength=\"89\">\n    <field name=\"bid\" id=\"1\" type=\"QuoteSideCandle\" offset=\"0\" presence=\"optional\"/>\n    <field name=\"ask\" id=\"2\" type=\"QuoteSideCandle\" offset=\"40\" presence=\"optional\"/>\n    <field name=\"quoteCount\" id=\"3\" type=\"uint64\" offset=\"80\"/>\n    <field name=\"closingQuoteCondition\" id=\"4\" type=\"uint8\" offset=\"88\" presence=\"optional\" nullValue=\"255\"/>\n  </message><message name=\"TradeCandle\" id=\"13\" blockLength=\"52\">\n    <field name=\"open\" id=\"1\" type=\"DecimalEncoding\" offset=\"0\"/>\n    <field name=\"high\" id=\"2\" type=\"DecimalEncoding\" offset=\"9\"/>\n    <field name=\"low\" id=\"3\" type=\"DecimalEncoding\" offset=\"18\"/>\n    <field name=\"close\" id=\"4\" type=\"DecimalEncoding\" offset=\"27\"/>\n    <field name=\"totalVolume\" id=\"5\" type=\"uint64\" offset=\"36\"/>\n    <field name=\"tradeCount\" id=\"6\" type=\"uint64\" offset=\"44\"/>\n  </message><message name=\"BidDailyOhlc\" id=\"14\" blockLength=\"53\">\n    <field name=\"open\" id=\"1\" type=\"DecimalEncoding\" offset=\"0\"/>\n    <field name=\"high\" id=\"2\" type=\"DecimalEncoding\" offset=\"9\"/>\n    <field name=\"low\" id=\"3\" type=\"DecimalEncoding\" offset=\"18\"/>\n    <field name=\"closeLast\" id=\"4\" type=\"DecimalEncoding\" offset=\"27\"/>\n    <field name=\"closePrevious\" id=\"5\" type=\"DecimalEncoding\" offset=\"36\"/>\n    <field name=\"day\" id=\"6\" type=\"uint32\" offset=\"45\"/>\n    <field name=\"flags\" id=\"7\" type=\"uint32\" offset=\"49\"/>\n  </message><message name=\"AskDailyOhlc\" id=\"15\" blockLength=\"53\">\n    <field name=\"open\" id=\"1\" type=\"DecimalEncoding\" offset=\"0\"/>\n    <field name=\"high\" id=\"2\" type=\"DecimalEncoding\" offset=\"9\"/>\n    <field name=\"low\" id=\"3\" type=\"DecimalEncoding\" offset=\"18\"/>\n    <field name=\"closeLast\" id=\"4\" type=\"DecimalEncoding\" offset=\"27\"/>\n    <field name=\"closePrevious\" id=\"5\" type=\"DecimalEncoding\" offset=\"36\"/>\n    <field name=\"day\" id=\"6\" type=\"uint32\" offset=\"45\"/>\n    <field name=\"flags\" id=\"7\" type=\"uint32\" offset=\"49\"/>\n  </message><message name=\"TradeDailyOhlc\" id=\"16\" blockLength=\"53\">\n    <field name=\"open\" id=\"1\" type=\"DecimalEncoding\" offset=\"0\"/>\n    <field name=\"high\" id=\"2\" type=\"DecimalEncoding\" offset=\"9\"/>\n    <field name=\"low\" id=\"3\" type=\"DecimalEncoding\" offset=\"18\"/>\n    <field name=\"closeLast\" id=\"4\" type=\"DecimalEncoding\" offset=\"27\"/>\n    <field name=\"closePrevious\" id=\"5\" type=\"DecimalEncoding\" offset=\"36\"/>\n    <field name=\"day\" id=\"6\" type=\"uint32\" offset=\"45\"/>\n    <field name=\"flags\" id=\"7\" type=\"uint32\" offset=\"49\"/>\n  </message><message name=\"InstrumentDefinition\" id=\"20\" blockLength=\"1\">\n    <field name=\"activity\" id=\"1\" type=\"ListingActivity\" offset=\"0\"/>\n    <data name=\"instrument\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"isin\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"venue\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"currency\" id=\"5\" type=\"varDataEncoding\"/>\n    <data name=\"name\" id=\"6\" type=\"varDataEncoding\"/>\n  </message><message name=\"Listing\" id=\"30\" blockLength=\"0\">\n    <data name=\"source\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"venue\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"instrument\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"currency\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"isin\" id=\"5\" type=\"varDataEncoding\"/>\n  </message><message name=\"CompanyProfile\" id=\"31\" blockLength=\"1\">\n    <field name=\"hasLei\" id=\"1\" type=\"uint8\" offset=\"0\"/>\n    <data name=\"canonicalName\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"lei\" id=\"3\" type=\"varDataEncoding\"/>\n  </message><message name=\"CompanyAddress\" id=\"32\" blockLength=\"0\">\n    <data name=\"language\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"firstAddressLine\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"additionalAddressLine1\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"additionalAddressLine2\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"additionalAddressLine3\" id=\"5\" type=\"varDataEncoding\"/>\n    <data name=\"addressNumber\" id=\"6\" type=\"varDataEncoding\"/>\n    <data name=\"addressNumberWithinBuilding\" id=\"7\" type=\"varDataEncoding\"/>\n    <data name=\"mailRouting\" id=\"8\" type=\"varDataEncoding\"/>\n    <data name=\"city\" id=\"9\" type=\"varDataEncoding\"/>\n    <data name=\"region\" id=\"10\" type=\"varDataEncoding\"/>\n    <data name=\"country\" id=\"11\" type=\"varDataEncoding\"/>\n    <data name=\"postalCode\" id=\"12\" type=\"varDataEncoding\"/>\n  </message><message name=\"InstrumentIssuer\" id=\"33\" blockLength=\"0\">\n    <data name=\"lei\" id=\"1\" type=\"varDataEncoding\"/>\n  </message><message name=\"BasicMasterdata\" id=\"34\" blockLength=\"0\">\n    <data name=\"name\" id=\"1\" type=\"varDataEncoding\"/>\n  </message><message name=\"InstrumentNames\" id=\"35\" blockLength=\"0\" description=\"openmdta:entity:INSTRUMENT\">\n    <group name=\"localized\" id=\"1\" dimensionType=\"groupSizeEncoding\" blockLength=\"0\">\n      <data name=\"language\" id=\"1\" type=\"varDataEncoding\"/>\n      <data name=\"long\" id=\"2\" type=\"varDataEncoding\"/>\n      <data name=\"short\" id=\"3\" type=\"varDataEncoding\"/>\n    </group>\n    <data name=\"long\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"short\" id=\"3\" type=\"varDataEncoding\"/>\n  </message><message name=\"LegalEntityNames\" id=\"36\" blockLength=\"0\" description=\"openmdta:entity:LEGAL_ENTITY\">\n    <group name=\"localized\" id=\"1\" dimensionType=\"groupSizeEncoding\" blockLength=\"0\">\n      <data name=\"language\" id=\"1\" type=\"varDataEncoding\"/>\n      <data name=\"long\" id=\"2\" type=\"varDataEncoding\"/>\n      <data name=\"short\" id=\"3\" type=\"varDataEncoding\"/>\n    </group>\n    <data name=\"long\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"short\" id=\"3\" type=\"varDataEncoding\"/>\n  </message><message name=\"Classification\" id=\"37\" blockLength=\"0\" description=\"openmdta:entity:INSTRUMENT openmdta:multiple\">\n    <data name=\"code\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"label\" id=\"2\" type=\"varDataEncoding\"/>\n  </message><message name=\"ListingClassification\" id=\"38\" blockLength=\"0\" description=\"openmdta:entity:LISTING openmdta:multiple\">\n    <data name=\"code\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"label\" id=\"2\" type=\"varDataEncoding\"/>\n  </message><message name=\"ListingQuotation\" id=\"39\" blockLength=\"0\" description=\"openmdta:entity:LISTING\">\n    <data name=\"currency\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"unit\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"decimalDigits\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"symbol\" id=\"4\" type=\"varDataEncoding\"/>\n  </message><message name=\"ListingVenue\" id=\"40\" blockLength=\"0\" description=\"openmdta:entity:LISTING\">\n    <data name=\"mic\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"primaryMic\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"reportingMarket\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"offBookReportingMarket\" id=\"4\" type=\"varDataEncoding\"/>\n  </message><message name=\"ListingTradingDates\" id=\"41\" blockLength=\"0\" description=\"openmdta:entity:LISTING\">\n    <data name=\"firstTradingDate\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"lastTradingDate\" id=\"2\" type=\"varDataEncoding\"/>\n  </message><message name=\"ListingTradingRules\" id=\"42\" blockLength=\"0\" description=\"openmdta:entity:LISTING\">\n    <data name=\"tradingModel\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"closedBook\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"marketImbalance\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"auctionType\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"quotingPeriodStart\" id=\"5\" type=\"varDataEncoding\"/>\n    <data name=\"quotingPeriodEnd\" id=\"6\" type=\"varDataEncoding\"/>\n    <data name=\"singleSidedQuotes\" id=\"7\" type=\"varDataEncoding\"/>\n    <data name=\"crossMatchDefault\" id=\"8\" type=\"varDataEncoding\"/>\n  </message><message name=\"ListingQuoteParameters\" id=\"43\" blockLength=\"0\" description=\"openmdta:entity:LISTING\">\n    <data name=\"priceRange\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"priceRangePercent\" id=\"2\" type=\"varDataEncoding\"/>\n    <data name=\"minimumSize\" id=\"3\" type=\"varDataEncoding\"/>\n  </message><message name=\"ListingOrderSize\" id=\"44\" blockLength=\"0\" description=\"openmdta:entity:LISTING\">\n    <data name=\"minimumTradableUnit\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"minimumOrderQuantity\" id=\"2\" type=\"varDataEncoding\"/>\n  </message><message name=\"ListingTickSchedule\" id=\"45\" blockLength=\"0\" description=\"openmdta:entity:LISTING\">\n    <group name=\"tiers\" id=\"1\" dimensionType=\"groupSizeEncoding\" blockLength=\"18\">\n      <field name=\"upperBound\" id=\"1\" type=\"DecimalEncoding\" offset=\"0\"/>\n      <field name=\"increment\" id=\"2\" type=\"DecimalEncoding\" offset=\"9\"/>\n    </group>\n    <data name=\"band\" id=\"2\" type=\"varDataEncoding\"/>\n  </message><message name=\"InstrumentPrimaryListing\" id=\"46\" blockLength=\"0\" description=\"openmdta:entity:INSTRUMENT\">\n    <data name=\"catalog\" id=\"1\" type=\"varDataEncoding\"/>\n    <data name=\"recordKey\" id=\"2\" type=\"varDataEncoding\"/>\n  </message><message name=\"InstrumentListingRecordCount\" id=\"47\" blockLength=\"8\" description=\"openmdta:entity:INSTRUMENT\">\n    <field name=\"count\" id=\"1\" type=\"uint64\" offset=\"0\"/>\n  </message><message name=\"CorporateActions\" id=\"48\" blockLength=\"0\" description=\"openmdta:entity:INSTRUMENT openmdta:multiple\">\n    <group name=\"events\" id=\"1\" dimensionType=\"groupSizeEncoding\" blockLength=\"26\">\n      <field name=\"kind\" id=\"1\" type=\"CorporateActionKind\" offset=\"0\"/>\n      <field name=\"status\" id=\"2\" type=\"CorporateEventStatus\" offset=\"1\"/>\n      <!-- For a split, newShares / oldShares is the share-count ratio. Both\n           are absent for action kinds that have no meaningful ratio. -->\n      <field name=\"newShares\" id=\"3\" type=\"uint64\" offset=\"2\" presence=\"optional\" nullValue=\"18446744073709551615\"/>\n      <field name=\"oldShares\" id=\"4\" type=\"uint64\" offset=\"10\" presence=\"optional\" nullValue=\"18446744073709551615\"/>\n      <field name=\"announcementDay\" id=\"5\" type=\"uint32\" offset=\"18\" presence=\"optional\" nullValue=\"4294967295\"/>\n      <field name=\"recordDay\" id=\"6\" type=\"uint32\" offset=\"22\" presence=\"optional\" nullValue=\"4294967295\"/>\n      <data name=\"eventId\" id=\"7\" type=\"varDataEncoding\"/>\n    </group>\n  </message><message name=\"Distributions\" id=\"49\" blockLength=\"0\" description=\"openmdta:entity:INSTRUMENT openmdta:multiple\">\n    <group name=\"events\" id=\"1\" dimensionType=\"groupSizeEncoding\" blockLength=\"19\">\n      <field name=\"kind\" id=\"1\" type=\"DistributionKind\" offset=\"0\"/>\n      <field name=\"status\" id=\"2\" type=\"CorporateEventStatus\" offset=\"1\"/>\n      <field name=\"amount\" id=\"3\" type=\"DecimalEncoding\" offset=\"2\"/>\n      <field name=\"recordDay\" id=\"4\" type=\"uint32\" offset=\"11\" presence=\"optional\" nullValue=\"4294967295\"/>\n      <field name=\"paymentDay\" id=\"5\" type=\"uint32\" offset=\"15\" presence=\"optional\" nullValue=\"4294967295\"/>\n      <data name=\"currency\" id=\"6\" type=\"varDataEncoding\"/>\n      <data name=\"eventId\" id=\"7\" type=\"varDataEncoding\"/>\n    </group>\n  </message><message name=\"ListDefinition\" id=\"50\" blockLength=\"0\" description=\"openmdta:entity:LIST\">\n    <group name=\"members\" id=\"1\" dimensionType=\"groupSizeEncoding\" blockLength=\"0\">\n      <data name=\"identifier\" id=\"1\" type=\"varDataEncoding\" description=\"openmdta:reference:INSTRUMENT\"/>\n    </group>\n    <group name=\"variants\" id=\"2\" dimensionType=\"groupSizeEncoding\" blockLength=\"0\">\n      <data name=\"returnType\" id=\"1\" type=\"varDataEncoding\"/>\n      <data name=\"currency\" id=\"2\" type=\"varDataEncoding\"/>\n      <data name=\"identifier\" id=\"3\" type=\"varDataEncoding\" description=\"openmdta:reference:INSTRUMENT\"/>\n    </group>\n    <data name=\"code\" id=\"3\" type=\"varDataEncoding\"/>\n    <data name=\"name\" id=\"4\" type=\"varDataEncoding\"/>\n    <data name=\"description\" id=\"5\" type=\"varDataEncoding\"/>\n    <data name=\"kind\" id=\"6\" type=\"varDataEncoding\"/>\n    <data name=\"memberDimension\" id=\"7\" type=\"varDataEncoding\"/>\n    <data name=\"validAt\" id=\"8\" type=\"varDataEncoding\"/>\n  </message></messageSchema>",
+        "canonical": true,
+        "commands": [
+          "SNAPSHOT",
+          "STREAM",
+          "TS_RAW",
+          "TS_RAW_STREAM"
+        ]
+      }
+    },
+    "keyfigures": {},
+    "owners": {
+      "model:globex": [
+        "56e7c417b05f2b596e5fe26a8029a4c0524408319107ee740ad5e3a8c7304f65"
+      ],
+      "model:lus": [
+        "aa137c499b06d13a5e405bf32bb9d00e39469064e706999122c4df1ef7387727"
+      ],
+      "model:openmdta": [
+        "56e7c417b05f2b596e5fe26a8029a4c0524408319107ee740ad5e3a8c7304f65",
+        "8b5adf287d66876a21e362089537d6280583511b57eac7f7b4187c608d1bd0f6",
+        "aa137c499b06d13a5e405bf32bb9d00e39469064e706999122c4df1ef7387727"
+      ],
+      "model:xetra": [
+        "8b5adf287d66876a21e362089537d6280583511b57eac7f7b4187c608d1bd0f6"
+      ],
+      "stream:openmdta::BidAsk": [
+        "aa137c499b06d13a5e405bf32bb9d00e39469064e706999122c4df1ef7387727"
+      ]
+    }
+  },
+  "services": {
+    "observation": {
+      "manifest": {
+        "kind": "observation",
+        "apiVersion": 1,
+        "schemas": "stream/crates/observation-service/contract/schema.json",
+        "commands": {
+          "getWatcher": {
+            "input": "GetWatcherRequest",
+            "output": "Watcher",
+            "positional": [
+              "watcherId"
+            ],
+            "objectParameter": null,
+            "effect": "read",
+            "replay": null,
+            "errors": {
+              "not_found": "WatcherNotFound"
+            }
+          },
+          "getWatchers": {
+            "input": "GetWatchersRequest",
+            "output": "WatcherList",
+            "positional": [
+              "accountId"
+            ],
+            "objectParameter": null,
+            "effect": "read",
+            "replay": null,
+            "errors": {}
+          },
+          "setWatcher": {
+            "input": "SetWatcherRequest",
+            "output": "Watcher",
+            "positional": [
+              "watcherId"
+            ],
+            "objectParameter": "update",
+            "effect": "mutation",
+            "replay": "state",
+            "errors": {
+              "conflict": "RevisionConflict",
+              "not_found": "WatcherNotFound"
+            }
+          }
+        }
+      },
+      "schema": {
+        "$defs": {
+          "AlertType": {
+            "enum": [
+              "ALERT_ON_OVER",
+              "ALERT_ON_UNDER"
+            ],
+            "type": "string"
+          },
+          "GetWatcherRequest": {
+            "additionalProperties": false,
+            "properties": {
+              "watcherId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "watcherId"
+            ],
+            "type": "object"
+          },
+          "GetWatchersRequest": {
+            "additionalProperties": false,
+            "properties": {
+              "accountId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "accountId"
+            ],
+            "type": "object"
+          },
+          "NotificationPolicy": {
+            "properties": {
+              "gapRecovery": {
+                "default": true,
+                "type": "boolean"
+              },
+              "liveOff": {
+                "default": true,
+                "type": "boolean"
+              },
+              "liveOn": {
+                "default": true,
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "ObservationStatus": {
+            "enum": [
+              "TRIGGERED",
+              "FLAPPING",
+              "NOT_TRIGGERED"
+            ],
+            "type": "string"
+          },
+          "RevisionConflict": {
+            "additionalProperties": false,
+            "properties": {
+              "actualRevision": {
+                "format": "uint64",
+                "pattern": "^(0|[1-9][0-9]*)$",
+                "type": "string"
+              },
+              "expectedRevision": {
+                "format": "uint64",
+                "pattern": "^(0|[1-9][0-9]*)$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "expectedRevision",
+              "actualRevision"
+            ],
+            "type": "object"
+          },
+          "SetWatcherRequest": {
+            "additionalProperties": false,
+            "properties": {
+              "update": {
+                "$ref": "#/$defs/WatcherUpdate"
+              },
+              "watcherId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "watcherId",
+              "update"
+            ],
+            "type": "object"
+          },
+          "Watcher": {
+            "additionalProperties": false,
+            "properties": {
+              "accountId": {
+                "type": "string"
+              },
+              "activeFrom": {
+                "type": "string"
+              },
+              "activeUntil": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "alertType": {
+                "$ref": "#/$defs/AlertType"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "listingExpression": {
+                "type": "string"
+              },
+              "notifications": {
+                "$ref": "#/$defs/NotificationPolicy"
+              },
+              "revision": {
+                "format": "uint64",
+                "pattern": "^(0|[1-9][0-9]*)$",
+                "type": "string"
+              },
+              "rule": {
+                "$ref": "#/$defs/WatcherRule"
+              },
+              "status": {
+                "$ref": "#/$defs/ObservationStatus"
+              },
+              "updatedAt": {
+                "type": "string"
+              },
+              "watcherId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "watcherId",
+              "accountId",
+              "revision",
+              "listingExpression",
+              "alertType",
+              "rule",
+              "activeFrom",
+              "notifications",
+              "status",
+              "createdAt",
+              "updatedAt"
+            ],
+            "type": "object"
+          },
+          "WatcherList": {
+            "items": {
+              "$ref": "#/$defs/Watcher"
+            },
+            "type": "array"
+          },
+          "WatcherNotFound": {
+            "additionalProperties": false,
+            "properties": {
+              "watcherId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "watcherId"
+            ],
+            "type": "object"
+          },
+          "WatcherRule": {
+            "additionalProperties": false,
+            "properties": {
+              "blockId": {
+                "format": "uint16",
+                "maximum": 65535,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "field": {
+                "type": "string"
+              },
+              "threshold": {
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "field",
+              "blockId",
+              "threshold"
+            ],
+            "type": "object"
+          },
+          "WatcherUpdate": {
+            "additionalProperties": false,
+            "properties": {
+              "expectedRevision": {
+                "format": "uint64",
+                "pattern": "^(0|[1-9][0-9]*)$",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "notifications": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NotificationPolicy"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "rule": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/WatcherRule"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          }
+        }
+      },
+      "sha256": "be43ec05a99d588b03ad04d375884bd2a7c3a853e92be8f11d1c3190019215d3",
+      "fingerprints": {
+        "getWatcher": "f54e77a9f215126a769f6a948c3429a6137253bc46611faa94f9bb892fa70924",
+        "getWatchers": "beb5d1ec561ba6d877ad784ae0f2219a5857cb707f53277c8b689832277d1a9f",
+        "setWatcher": "c547f78cb12e10b1749682027ccf3cdc886362075eee788d09627e99c5e5d7f1"
+      }
+    }
+  }
+}

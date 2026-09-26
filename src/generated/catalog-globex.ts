@@ -18,13 +18,13 @@ class Reader {
 }
 export interface DisplayNameValue { readonly value: string; }
 export const DisplayName = {
-  entityType: "INSTRUMENT", multiple: false,
-  decode(payload: Uint8Array): DisplayNameValue {
-    const reader = new Reader(payload);
-    const block = reader.u16(), version = reader.u16();
-    if (version > 0 || block < 0) throw new RangeError('incompatible DisplayName prefix');
-    const value = reader.record(block, (base) => ({ value: reader.text(), }));
-    reader.finish();
-    return value;
-  }
+    entityType: "INSTRUMENT", multiple: false,
+    decode(payload: Uint8Array): DisplayNameValue {
+        const reader = new Reader(payload);
+        const block = reader.u16(), version = reader.u16();
+        if (version > 0 || block < 0) throw new RangeError("incompatible DisplayName prefix");
+        const value = reader.record(block, (base) => ({ value: reader.text(), }));
+        reader.finish();
+        return value;
+    }
 } as const;

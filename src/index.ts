@@ -7,6 +7,12 @@ export {
   type DatasetClient,
   type DatasetNamespace,
   type DatasetReadOptions,
+  type FeedLiveOptions,
+  type FeedRecoveryOptions,
+  type DatasetStreamFeedOptions,
+  type MemoryStreamFeed,
+  type CatalogFeedOptions,
+  type MemoryCatalogFeed,
   type MultiRequestHandle,
   type MultiSelectedClient,
   type SelectedClient,
@@ -55,6 +61,8 @@ export * from "./generated/export-blocks.js";
 export * from "./catalog.js";
 export { selector, type MarketSelector } from "./selector.js";
 export * from "./external-store.js";
+export * from "./feed.js";
+export * from "./catalog-feed.js";
 
 export { createRestClient, tokenBytes, tokenBearer, type DataToken, type TokenSource, type Grant, type RestOptions, type LatestQuery, type TimeseriesQuery } from "./mdtoken.js";
 
