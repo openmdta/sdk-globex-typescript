@@ -3,7 +3,7 @@
   "environment": {
     "name": "globex",
     "gateway": "gateway",
-    "revision": "0c7da3d46c46b30dbd25370cccb75b1f1f809faf8d3b67ebe00d7dcf77b43ed8",
+    "revision": "895c32a8a7bae95aa51c067171f1ffda1c939fbb523b7a8dc8c1ac0e0ae47ff8",
     "datasets": {
       "globex": {
         "id": "GLOBEX@globex",
@@ -11,7 +11,7 @@
           "catalog",
           "search"
         ],
-        "pluginSha256": "56e7c417b05f2b596e5fe26a8029a4c0524408319107ee740ad5e3a8c7304f65",
+        "pluginSha256": "becef3688461fbbc9d9edeb1806541e78a50175dd158207c3daacc7f5c57299d",
         "qualities": {},
         "fields": {}
       },
@@ -22,7 +22,7 @@
           "latest",
           "timeseries"
         ],
-        "pluginSha256": "aa137c499b06d13a5e405bf32bb9d00e39469064e706999122c4df1ef7387727",
+        "pluginSha256": "af96008fd41e88efe8c56c4ea99cc534760a7d2e29168e97c8a9cb1f3e3a2ca3",
         "qualities": {
           "DL": {
             "latest": true,
@@ -40,7 +40,7 @@
         "capabilities": [
           "catalog"
         ],
-        "pluginSha256": "8b5adf287d66876a21e362089537d6280583511b57eac7f7b4187c608d1bd0f6",
+        "pluginSha256": "623758df1df60e6d8ee785767db74f444030dbb3c922a02544ca98026dab3071",
         "qualities": {},
         "fields": {}
       }
@@ -979,24 +979,24 @@
     "keyfigures": {},
     "owners": {
       "model:globex": [
-        "56e7c417b05f2b596e5fe26a8029a4c0524408319107ee740ad5e3a8c7304f65"
+        "becef3688461fbbc9d9edeb1806541e78a50175dd158207c3daacc7f5c57299d"
       ],
       "model:lus": [
-        "aa137c499b06d13a5e405bf32bb9d00e39469064e706999122c4df1ef7387727"
+        "af96008fd41e88efe8c56c4ea99cc534760a7d2e29168e97c8a9cb1f3e3a2ca3"
       ],
       "model:openmdta": [
-        "56e7c417b05f2b596e5fe26a8029a4c0524408319107ee740ad5e3a8c7304f65",
-        "8b5adf287d66876a21e362089537d6280583511b57eac7f7b4187c608d1bd0f6",
-        "aa137c499b06d13a5e405bf32bb9d00e39469064e706999122c4df1ef7387727"
+        "623758df1df60e6d8ee785767db74f444030dbb3c922a02544ca98026dab3071",
+        "af96008fd41e88efe8c56c4ea99cc534760a7d2e29168e97c8a9cb1f3e3a2ca3",
+        "becef3688461fbbc9d9edeb1806541e78a50175dd158207c3daacc7f5c57299d"
       ],
       "model:xetra": [
-        "8b5adf287d66876a21e362089537d6280583511b57eac7f7b4187c608d1bd0f6"
+        "623758df1df60e6d8ee785767db74f444030dbb3c922a02544ca98026dab3071"
       ],
       "stream:openmdta::BidAsk": [
-        "aa137c499b06d13a5e405bf32bb9d00e39469064e706999122c4df1ef7387727"
+        "af96008fd41e88efe8c56c4ea99cc534760a7d2e29168e97c8a9cb1f3e3a2ca3"
       ],
       "stream:openmdta::BidAskCandle": [
-        "aa137c499b06d13a5e405bf32bb9d00e39469064e706999122c4df1ef7387727"
+        "af96008fd41e88efe8c56c4ea99cc534760a7d2e29168e97c8a9cb1f3e3a2ca3"
       ]
     }
   },
