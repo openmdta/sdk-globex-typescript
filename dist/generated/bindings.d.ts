@@ -1,6 +1,6 @@
-import { BidAsk, type PublicExport, type SbeFormat } from "./export-blocks.js";
+import { BidAsk, BidAskCandle, type PublicExport, type SbeFormat } from "./export-blocks.js";
 export type CommandName = "SNAPSHOT" | "STREAM" | "TS_RAW" | "TS_CANDLE" | "TS_RAW_STREAM" | "TS_CANDLE_STREAM";
-export type BlockName = "BidAsk";
+export type BlockName = "BidAsk" | "BidAskCandle";
 export interface BlockBinding<T extends PublicExport = PublicExport> {
     readonly name: BlockName;
     readonly property: string;
@@ -15,9 +15,11 @@ export interface BlockBinding<T extends PublicExport = PublicExport> {
 export declare const BLOCK_BINDINGS: Readonly<Record<string, BlockBinding>>;
 export interface BlockValueMap {
     readonly BidAsk: BidAsk;
+    readonly BidAskCandle: BidAskCandle;
 }
 export interface BlockPropertyMap {
     readonly BidAsk: "bidAsk";
+    readonly BidAskCandle: "bidAskCandle";
 }
 export type BlockValue<N extends BlockName> = BlockValueMap[N];
 export type BlockPropertyName<N extends BlockName> = BlockPropertyMap[N];
@@ -33,8 +35,8 @@ export type MarketDataField<N extends BlockName> = {
 export type SnapshotBlockName = "BidAsk";
 export type StreamBlockName = "BidAsk";
 export type TsRawBlockName = "BidAsk";
-export type TsCandleBlockName = never;
+export type TsCandleBlockName = "BidAskCandle";
 export type TsRawStreamBlockName = "BidAsk";
-export type TsCandleStreamBlockName = never;
-export declare const BLOCK_NAMES: readonly "BidAsk"[];
+export type TsCandleStreamBlockName = "BidAskCandle";
+export declare const BLOCK_NAMES: readonly BlockName[];
 //# sourceMappingURL=bindings.d.ts.map
