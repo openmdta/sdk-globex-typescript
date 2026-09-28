@@ -1,5 +1,6 @@
 import {decodeListingEvent, type ListingEvent} from "./generated/listing.js";
-import { decodeStreamMetadataJson, type StreamMetadata } from "./generated/activity.js";
+import type { StreamMetadata } from "./generated/activity.js";
+import {decodeStreamMetadataSbe} from "./stream-metadata-wire.js";
 import {
   BLOCK_BINDINGS,
   type BlockName,
@@ -7,8 +8,11 @@ import {
   type MarketDataFields,
 } from "./generated/bindings.js";
 import type { SbeFormat } from "./generated/export-blocks.js";
-import type { CatalogFieldDescriptor, CatalogDescriptorValue } from "./catalog.js";
+import type { CatalogFieldDescriptor, CatalogDescriptorSelection } from "./catalog.js";
+import type { CatalogLookupParameters } from "./lookup.js";
+import type { CatalogSearchParameters } from "./search.js";
 import type { MarketSelector } from "./selector.js";
+import {WireWriter} from "./wire-writer.js";
 
 export const WEBSOCKET_SUBPROTOCOL = "openmdta.sbe-session.v1";
 export const WINDOW_SUBPROTOCOL = "openmdta.sbe-session.v2";
@@ -22,6 +26,7 @@ const MARKET_SCHEMA_VERSION = 5;
 const MESSAGE_BATCH_SCHEMA_VERSION = 12;
 const ADJUSTMENT_SCHEMA_VERSION = 11;
 const METADATA_SCHEMA_VERSION = 13;
+const METADATA_RESPONSE_SCHEMA_VERSION = 24;
 const DATASET_ROUTING_SCHEMA_VERSION = 14;
 const HEADER_LENGTH = 8;
 const AUTH_TEMPLATE_ID = 1;
@@ -59,10 +64,10 @@ export type Request =
   | { readonly command: "FEED_LIVE"; readonly id: bigint; readonly blockMask: bigint; readonly dataset: string; readonly quality: string; readonly trace?: TraceContext }
   | { readonly command: "FEED_RECOVERY"; readonly id: bigint; readonly blockMask: bigint; readonly afterMessageId: bigint; readonly throughMessageId: bigint; readonly dataset: string; readonly quality: string; readonly trace?: TraceContext }
   | { readonly command: "FEED_SNAPSHOT"; readonly id: bigint; readonly blockMask: bigint; readonly dataset: string; readonly quality: string; readonly trace?: TraceContext }
-  | { readonly command: "TS_PAGE"; readonly id: bigint; readonly parameters: string; readonly trace?: TraceContext }
-  | { readonly command: "LISTING_LATEST"; readonly id: bigint; readonly parameters: string; readonly trace?: TraceContext }
-  | { readonly command: "CATALOG_LOOKUP"; readonly id: bigint; readonly catalog: string; readonly parameters: string; readonly trace?: TraceContext }
-  | { readonly command: "CATALOG_SEARCH"; readonly id: bigint; readonly catalog: string; readonly parameters: string; readonly trace?: TraceContext }
+  | { readonly command: "TS_PAGE"; readonly id: bigint; readonly selector: string; readonly dataset?: string; readonly quality?: string; readonly blockMask: bigint; readonly resolutionMicros: bigint; readonly order: "asc" | "desc"; readonly limit: number; readonly boundary?: bigint; readonly guard?: bigint; readonly cursor?: string; readonly adjustment: "raw" | "split"; readonly trace?: TraceContext }
+  | { readonly command: "LISTING_LATEST"; readonly id: bigint; readonly dataset: string; readonly quality: "RT" | "DL" | "EOD"; readonly key: string; readonly blocks: readonly number[]; readonly trace?: TraceContext }
+  | { readonly command: "CATALOG_LOOKUP"; readonly id: bigint; readonly catalog: string; readonly parameters: CatalogLookupParameters; readonly trace?: TraceContext }
+  | { readonly command: "CATALOG_SEARCH"; readonly id: bigint; readonly catalog: string; readonly parameters: CatalogSearchParameters; readonly trace?: TraceContext }
   | { readonly command: "STREAM_METADATA"; readonly id: bigint; readonly dataset: string; readonly quality: string; readonly trace?: TraceContext }
   | { readonly command: "CATALOG_KEYFIGURES"; readonly id: bigint; readonly catalog: string; readonly action: "search" | "instrument" | "schema"; readonly parameters: string; readonly contractFingerprint: string; readonly priceCutoffMs?: bigint; readonly priceAgeMode?: "elapsed" | "trading-time" | "last-completed-session"; readonly trace?: TraceContext }
   | { readonly command: "SERVICE_CALL"; readonly id: bigint; readonly serviceId: string; readonly serviceCommand: string; readonly contractFingerprint: string; readonly mutationId?: string; readonly inputJson: string; readonly deadlineUnixMillis: bigint; readonly trace?: TraceContext }
@@ -170,21 +175,17 @@ export type CatalogFeedWireControl =
 export const decodeCatalogFeedControl = (response: StandardResponse): CatalogFeedWireControl => {
   if (response.status !== "CONTINUE" || !response.message) throw new ProtocolError("Catalog feed control is not a continuing response");
   const {format, body} = response.message;
-  if (format.schemaId !== MARKET_SCHEMA_ID || format.templateId !== 113 || format.version !== 19 || format.blockLength !== 0 || body.byteLength < 4) {
+  if (format.schemaId !== MARKET_SCHEMA_ID || format.templateId !== 113 || format.version !== 19 || format.blockLength !== 1 || body.byteLength < 5) {
     throw new ProtocolError("unsupported Catalog feed control");
   }
   const view = new DataView(body.buffer, body.byteOffset, body.byteLength);
-  const length = view.getUint32(0, true);
-  if (length !== body.byteLength - 4) throw new ProtocolError("malformed Catalog feed control length");
-  let value: unknown;
-  try { value = JSON.parse(new TextDecoder("utf-8", {fatal: true}).decode(body.subarray(4))); }
-  catch { throw new ProtocolError("malformed Catalog feed control JSON"); }
-  if (typeof value !== "object" || value === null || !("kind" in value)) throw new ProtocolError("invalid Catalog feed control");
-  if (value.kind === "snapshot_begin") return {kind: "snapshot_begin"};
-  if ((value.kind === "snapshot_complete" || value.kind === "cursor") && "cursor" in value && typeof value.cursor === "string") {
-    return {kind: value.kind, cursor: value.cursor};
-  }
-  throw new ProtocolError("invalid Catalog feed control kind");
+  const decoded = takeVarData(body, view, 1);
+  if (decoded.next !== body.byteLength) throw new ProtocolError("Catalog feed control contains trailing bytes");
+  const cursor = new TextDecoder("utf-8", {fatal: true}).decode(decoded.value);
+  if (body[0] === 1 && cursor === "") return {kind: "snapshot_begin"};
+  if (body[0] === 2 && cursor !== "") return {kind: "snapshot_complete", cursor};
+  if (body[0] === 3 && cursor !== "") return {kind: "cursor", cursor};
+  throw new ProtocolError("invalid Catalog feed control kind or cursor");
 };
 
 export interface MarketDataMessage<N extends BlockName = BlockName> {
@@ -552,46 +553,53 @@ export const decodeServiceCallResult = (response: StandardResponse): unknown => 
   catch { throw new ProtocolError("invalid service result JSON"); }
 };
 
-export const decodeTimeseriesPageResult = (response: StandardResponse): unknown => {
+export interface TimeseriesPageWireResult {
+  readonly from: bigint;
+  readonly through: bigint;
+  readonly nextCursor: string | null;
+  readonly status: 0 | 1 | 2 | 3;
+}
+
+export const decodeTimeseriesPageResult = (response: StandardResponse): TimeseriesPageWireResult => {
   const message = response.message;
   if (response.status !== "CONTINUE" || !message || message.format.schemaId !== MARKET_SCHEMA_ID
-    || message.format.templateId !== 110 || message.format.version !== 17 || message.format.blockLength !== 0) {
+    || message.format.templateId !== 110 || message.format.version !== 17 || message.format.blockLength !== 17) {
     throw new ProtocolError("unsupported timeseries page result");
   }
   const body = message.body;
-  if (body.byteLength < 4 || body.byteLength > 8196
-    || new DataView(body.buffer, body.byteOffset, body.byteLength).getUint32(0, true) !== body.byteLength - 4) {
-    throw new ProtocolError("invalid timeseries page result length");
-  }
-  try { return JSON.parse(new TextDecoder("utf-8", {fatal: true}).decode(body.subarray(4))); }
-  catch { throw new ProtocolError("invalid timeseries page result JSON"); }
+  if (body.byteLength < 21 || body.byteLength > 8192 + 21) throw new ProtocolError("invalid timeseries page result length");
+  const view = new DataView(body.buffer, body.byteOffset, body.byteLength);
+  const from = view.getBigUint64(0, true), through = view.getBigUint64(8, true);
+  const status = body[16]!;
+  const cursor = takeVarData(body, view, 17);
+  if (cursor.next !== body.byteLength || from > through || status > 3) throw new ProtocolError("invalid timeseries page result");
+  const nextCursor = cursor.value.byteLength ? new TextDecoder("utf-8", {fatal: true}).decode(cursor.value) : null;
+  return {from, through, nextCursor, status: status as 0 | 1 | 2 | 3};
 };
 
-export const decodeCatalogSearchResult = (response: StandardResponse): unknown => {
+export const decodeCatalogSearchResult = (response: StandardResponse): Uint8Array => {
   const message = response.message;
   if (response.status !== "CONTINUE" || !message || message.format.schemaId !== MARKET_SCHEMA_ID
-      || message.format.templateId !== 105 || message.format.version !== 8 || message.format.blockLength !== 0) {
+      || message.format.templateId !== 105 || message.format.version !== 26 || message.format.blockLength !== 0) {
     throw new ProtocolError("unsupported Catalog search result");
   }
   const body = message.body;
   if (body.byteLength < 4 || new DataView(body.buffer, body.byteOffset, body.byteLength).getUint32(0, true) !== body.byteLength - 4) {
     throw new ProtocolError("malformed Catalog search result length");
   }
-  try { return JSON.parse(new TextDecoder("utf-8", {fatal: true}).decode(body.subarray(4))); }
-  catch { throw new ProtocolError("malformed Catalog search result JSON"); }
+  return body.subarray(4);
 };
-export const decodeCatalogLookupResult = (response: StandardResponse): unknown => {
+export const decodeCatalogLookupResult = (response: StandardResponse): Uint8Array => {
   const message = response.message;
   if (response.status !== "CONTINUE" || !message || message.format.schemaId !== MARKET_SCHEMA_ID
-      || message.format.templateId !== 106 || message.format.version !== 9 || message.format.blockLength !== 0) {
+      || message.format.templateId !== 106 || message.format.version !== 25 || message.format.blockLength !== 0) {
     throw new ProtocolError("unsupported Catalog lookup result");
   }
   const body = message.body;
   if (body.byteLength < 4 || new DataView(body.buffer, body.byteOffset, body.byteLength).getUint32(0, true) !== body.byteLength - 4) {
     throw new ProtocolError("malformed Catalog lookup result length");
   }
-  try { return JSON.parse(new TextDecoder("utf-8", {fatal: true}).decode(body.subarray(4))); }
-  catch { throw new ProtocolError("malformed Catalog lookup result JSON"); }
+  return body.subarray(4);
 };
 
 export const decodeCatalogRecord = (response: StandardResponse): CatalogWireRecord => {
@@ -688,7 +696,7 @@ export const decodeCatalogFields = <D extends readonly CatalogFieldDescriptor[]>
   record: CatalogWireRecord,
   descriptors: D,
   requireEveryField = false,
-): { readonly [P in D[number] as P["label"]]?: CatalogDescriptorValue<P> } => {
+): Partial<CatalogDescriptorSelection<D>> => {
   const selected = new Map(descriptors.map((descriptor) => [descriptor.label, descriptor]));
   const decoded: Record<string, unknown> = Object.create(null);
   for (const field of record.fields) {
@@ -704,17 +712,18 @@ export const decodeCatalogFields = <D extends readonly CatalogFieldDescriptor[]>
     ) {
       throw new ProtocolError(`Catalog field ${field.label} has incompatible wire metadata`);
     }
+    const property = descriptor.property ?? field.label;
     if (descriptor.multiple) {
       if (!field.subfield) throw new ProtocolError(`Catalog field ${field.label} requires a subfield`);
-      const values = (decoded[field.label] ??= Object.create(null)) as Record<string, unknown>;
+      const values = (decoded[property] ??= Object.create(null)) as Record<string, unknown>;
       if (Object.hasOwn(values, field.subfield)) throw new ProtocolError("duplicate Catalog subfield");
       values[field.subfield] = descriptor.decode(field.payload);
     } else {
-      if (field.subfield !== null || Object.hasOwn(decoded, field.label)) throw new ProtocolError(`Catalog field ${field.label} requires a multiple descriptor`);
-      decoded[field.label] = descriptor.decode(field.payload);
+      if (field.subfield !== null || Object.hasOwn(decoded, property)) throw new ProtocolError(`Catalog field ${field.label} requires a multiple descriptor`);
+      decoded[property] = descriptor.decode(field.payload);
     }
   }
-  return decoded as { readonly [P in D[number] as P["label"]]?: CatalogDescriptorValue<P> };
+  return decoded as Partial<CatalogDescriptorSelection<D>>;
 };
 
 const encodeMarketRequest = (request: Exclude<Request, { readonly command: "AUTH" | "CANCEL" }>): Uint8Array<ArrayBuffer> => {
@@ -763,11 +772,28 @@ const encodeMarketRequest = (request: Exclude<Request, { readonly command: "AUTH
     return bytes;
   }
   if (request.command === "TS_PAGE") {
-    const value = new TextEncoder().encode(request.parameters);
-    if (value.byteLength > 8192) throw new ProtocolError("timeseries page parameters too large");
-    const bytes = message(MARKET_SCHEMA_ID, 17, MARKET_TEMPLATE.TS_PAGE, 0, 4 + value.byteLength);
-    new DataView(bytes.buffer).setUint32(HEADER_LENGTH, value.byteLength, true);
-    bytes.set(value, HEADER_LENGTH + 4);
+    const strings = [request.selector, request.dataset ?? "", request.quality ?? "", request.cursor ?? ""]
+      .map(value => new TextEncoder().encode(value));
+    if (strings[0]!.byteLength > 1024 || strings[1]!.byteLength > 256 || strings[2]!.byteLength > 8 || strings[3]!.byteLength > 2048
+      || (request.boundary === undefined) === (request.cursor === undefined)) {
+      throw new ProtocolError("invalid timeseries page parameters");
+    }
+    const bytes = message(MARKET_SCHEMA_ID, 20, MARKET_TEMPLATE.TS_PAGE, 39, 16 + strings.reduce((sum, value) => sum + value.byteLength, 0));
+    const view = new DataView(bytes.buffer);
+    view.setBigUint64(HEADER_LENGTH, request.blockMask, true);
+    view.setBigUint64(HEADER_LENGTH + 8, request.resolutionMicros, true);
+    view.setBigUint64(HEADER_LENGTH + 16, request.boundary ?? 0n, true);
+    view.setBigUint64(HEADER_LENGTH + 24, request.guard ?? 0n, true);
+    view.setUint32(HEADER_LENGTH + 32, request.limit, true);
+    view.setUint8(HEADER_LENGTH + 36, Number(request.boundary !== undefined) | Number(request.guard !== undefined) << 1);
+    view.setUint8(HEADER_LENGTH + 37, Number(request.order === "desc"));
+    view.setUint8(HEADER_LENGTH + 38, Number(request.adjustment === "split"));
+    let offset = HEADER_LENGTH + 39;
+    for (const value of strings) {
+      view.setUint32(offset, value.byteLength, true);
+      bytes.set(value, offset + 4);
+      offset += 4 + value.byteLength;
+    }
     return bytes;
   }
   if (request.command === "SNAPSHOT" || request.command === "STREAM") {
@@ -834,11 +860,21 @@ const encodeMarketRequest = (request: Exclude<Request, { readonly command: "AUTH
     return bytes;
   }
   if (request.command === "LISTING_LATEST") {
-    const value = new TextEncoder().encode(request.parameters);
-    if (value.byteLength > 8192) throw new ProtocolError("listing selector too large");
-    const bytes = message(MARKET_SCHEMA_ID, 15, MARKET_TEMPLATE.LISTING_LATEST, 0, 4 + value.byteLength);
-    new DataView(bytes.buffer).setUint32(HEADER_LENGTH, value.byteLength, true);
-    bytes.set(value, HEADER_LENGTH + 4);
+    const values = [request.dataset, request.quality, request.key].map(value => new TextEncoder().encode(value));
+    if (!request.blocks.length || request.blocks.length > 64 || !request.blocks.every(id => Number.isInteger(id) && id >= 0 && id <= 65535)
+      || values[0]!.byteLength > 256 || values[2]!.byteLength > 1024) throw new ProtocolError("invalid listing selector");
+    const bytes = message(MARKET_SCHEMA_ID, 21, MARKET_TEMPLATE.LISTING_LATEST, 0,
+      6 + request.blocks.length * 2 + 12 + values.reduce((sum, value) => sum + value.byteLength, 0));
+    const view = new DataView(bytes.buffer);
+    view.setUint16(HEADER_LENGTH, 2, true);
+    view.setUint32(HEADER_LENGTH + 2, request.blocks.length, true);
+    let offset = HEADER_LENGTH + 6;
+    for (const id of request.blocks) { view.setUint16(offset, id, true); offset += 2; }
+    for (const value of values) {
+      view.setUint32(offset, value.byteLength, true);
+      bytes.set(value, offset + 4);
+      offset += 4 + value.byteLength;
+    }
     return bytes;
   }
   if (request.command === "SERVICE_CALL") {
@@ -871,16 +907,112 @@ const encodeMarketRequest = (request: Exclude<Request, { readonly command: "AUTH
     }
     return bytes;
   }
-  if (request.command === "CATALOG_SEARCH" || request.command === "CATALOG_LOOKUP") {
-    const values = [request.catalog, request.parameters].map(value => new TextEncoder().encode(value));
-    const bytes = message(MARKET_SCHEMA_ID, request.command === "CATALOG_SEARCH" ? 8 : 9, MARKET_TEMPLATE[request.command], 0, values.reduce((sum, value) => sum + 4 + value.byteLength, 0));
+  if (request.command === "CATALOG_LOOKUP") {
+    const encoder = new TextEncoder();
+    const parameters = request.parameters;
+    const expressionMode = parameters.expression !== undefined;
+    const dimensions = Object.entries(parameters.dimensions ?? {}).map(([name, values]) => ({name: encoder.encode(name), values: values.map(value => encoder.encode(value))}));
+    const catalog = encoder.encode(request.catalog);
+    const expression = encoder.encode(parameters.expression ?? "");
+    const cursor = encoder.encode(parameters.cursor ?? "");
+    if (!catalog.length || catalog.length > 256 || dimensions.length > 256 || dimensions.some(dimension => dimension.values.length > 256)
+      || (expressionMode && dimensions.length) || (!expressionMode && expression.length)
+      || (parameters.limit !== undefined && (!Number.isSafeInteger(parameters.limit) || parameters.limit < 0))) throw new RangeError("invalid Catalog lookup parameters");
+    const tailLength = 6 + dimensions.reduce((sum, dimension) => sum + 6 + dimension.values.reduce((length, value) => length + 4 + value.length, 0) + 4 + dimension.name.length, 0)
+      + 12 + catalog.length + expression.length + cursor.length;
+    const bytes = message(MARKET_SCHEMA_ID, 23, MARKET_TEMPLATE.CATALOG_LOOKUP, 10, tailLength);
+    if (bytes.length > 16_896) throw new RangeError("Catalog lookup request exceeds limit");
     const view = new DataView(bytes.buffer);
-    let offset = HEADER_LENGTH;
-    for (const value of values) {
+    view.setUint8(HEADER_LENGTH, expressionMode ? 1 : 0);
+    view.setUint8(HEADER_LENGTH + 1, Number(parameters.cursor !== undefined) | (Number(parameters.limit !== undefined) << 1));
+    view.setBigUint64(HEADER_LENGTH + 2, BigInt(parameters.limit ?? 0), true);
+    let offset = HEADER_LENGTH + 10;
+    view.setUint16(offset, 0, true);
+    view.setUint32(offset + 2, dimensions.length, true);
+    offset += 6;
+    for (const dimension of dimensions) {
+      view.setUint16(offset, 0, true);
+      view.setUint32(offset + 2, dimension.values.length, true);
+      offset += 6;
+      for (const value of dimension.values) {
+        view.setUint32(offset, value.length, true);
+        bytes.set(value, offset + 4);
+        offset += 4 + value.length;
+      }
+      view.setUint32(offset, dimension.name.length, true);
+      bytes.set(dimension.name, offset + 4);
+      offset += 4 + dimension.name.length;
+    }
+    for (const value of [catalog, expression, cursor]) {
       view.setUint32(offset, value.byteLength, true);
       bytes.set(value, offset + 4);
       offset += 4 + value.byteLength;
     }
+    return bytes;
+  }
+  if (request.command === "CATALOG_SEARCH") {
+    const parameters = request.parameters;
+    if (typeof request.catalog !== "string" || Object.keys(parameters).some(name => ![
+      "expression", "text", "filters", "ranges", "facets", "keys", "expected_incarnation",
+      "cursor", "limit", "autocomplete", "describe", "trace",
+    ].includes(name))) throw new RangeError("invalid Catalog search parameters");
+    const catalog = new TextEncoder().encode(request.catalog);
+    const expression = new TextEncoder().encode(parameters.expression ?? "");
+    const filters = Object.entries(parameters.filters ?? {}).sort(([left], [right]) => left.localeCompare(right));
+    const ranges = parameters.ranges ?? [];
+    const facets = parameters.facets ?? [];
+    const keys = parameters.keys ?? null;
+    const limit = parameters.limit ?? 0;
+    if (!catalog.length || catalog.length > 256 || expression.length > 4096 || filters.length > 1024
+      || ranges.length > 1024 || facets.length > 1024 || (keys?.length ?? 0) > 4096
+      || !Array.isArray(ranges) || !Array.isArray(facets) || (keys !== null && !Array.isArray(keys))
+      || facets.some(facet => typeof facet !== "string") || keys?.some(key => typeof key !== "string")
+      || (parameters.text !== undefined && typeof parameters.text !== "string")
+      || (parameters.expected_incarnation !== undefined && typeof parameters.expected_incarnation !== "string")
+      || (parameters.cursor !== undefined && typeof parameters.cursor !== "string")
+      || (parameters.expression !== undefined && typeof parameters.expression !== "string")
+      || (parameters.autocomplete !== undefined && typeof parameters.autocomplete !== "boolean")
+      || (parameters.describe !== undefined && typeof parameters.describe !== "boolean")
+      || !Number.isSafeInteger(limit) || limit < 0 || limit > 0xffffffff
+      || (expression.length > 0 && keys !== null)) throw new RangeError("invalid Catalog search parameters");
+    const query = new WireWriter();
+    query.u16(7).u16(5).u16(7).u16(5);
+    query.u32(limit).u8(parameters.autocomplete ? 1 : 0).u8(parameters.describe ? 1 : 0);
+    query.u8(Number(keys !== null) | (Number(parameters.expected_incarnation !== undefined) << 1) | (Number(parameters.cursor !== undefined) << 2));
+    query.group(0, filters.length);
+    for (const [field, input] of filters) {
+      const values = typeof input === "string" ? [input] : input;
+      if (!Array.isArray(values) || values.length > 16_384 || values.some(value => typeof value !== "string"))
+        throw new RangeError("invalid Catalog search filter");
+      query.group(0, values.length);
+      for (const value of values) query.text(value);
+      query.text(field);
+    }
+    query.group(49, ranges.length);
+    for (const range of ranges) {
+      const bounds = [range.gt, range.ge, range.lt, range.le];
+      if (typeof range.field !== "string" || !range.field || Object.keys(range).some(name => !["field", "gt", "ge", "lt", "le"].includes(name))
+        || (range.gt !== undefined && range.ge !== undefined) || (range.lt !== undefined && range.le !== undefined)
+        || bounds.some(value => value !== undefined && !Number.isFinite(value))) throw new RangeError("invalid Catalog search range");
+      query.u8(bounds.reduce<number>((mask, value, index) => mask | (value === undefined ? 0 : 1 << index), 0));
+      for (const value of bounds) query.f64(value ?? 0);
+      query.f64(0).f64(0).text(range.field);
+    }
+    query.group(0, facets.length);
+    for (const facet of facets) query.text(facet);
+    query.group(0, keys?.length ?? 0);
+    for (const key of keys ?? []) query.text(key);
+    query.text(request.catalog).text(parameters.text ?? "").text(parameters.expected_incarnation ?? "").text(parameters.cursor ?? "");
+    const frame = query.finish();
+    if (frame.byteLength > 16_384) throw new RangeError("Catalog search request exceeds 16 KiB");
+    const bytes = message(MARKET_SCHEMA_ID, 27, MARKET_TEMPLATE.CATALOG_SEARCH, 0,
+      8 + frame.byteLength + expression.byteLength);
+    const view = new DataView(bytes.buffer);
+    view.setUint32(HEADER_LENGTH, frame.byteLength, true);
+    bytes.set(frame, HEADER_LENGTH + 4);
+    const expressionOffset = HEADER_LENGTH + 4 + frame.byteLength;
+    view.setUint32(expressionOffset, expression.byteLength, true);
+    bytes.set(expression, expressionOffset + 4);
     return bytes;
   }
   if (request.command === "CATALOG") {
@@ -1086,19 +1218,15 @@ const decodeBoolean = (value: number, name: string): boolean => {
 export function decodeStreamMetadata(response: StandardResponse): StreamMetadata {
   if (!response.message) throw new ProtocolError("missing Stream metadata response");
   const { format, body } = response.message;
-  if (format.schemaId !== MARKET_SCHEMA_ID || format.templateId !== 104 || format.version !== METADATA_SCHEMA_VERSION || format.blockLength !== 0 || body.byteLength < 4) {
+  if (format.schemaId !== MARKET_SCHEMA_ID || format.templateId !== 104 || format.version !== METADATA_RESPONSE_SCHEMA_VERSION || format.blockLength !== 1 || body.byteLength < 1) {
     throw new ProtocolError("unsupported Stream metadata response");
   }
-  const length = new DataView(body.buffer, body.byteOffset, body.byteLength).getUint32(0, true);
-  if (length !== body.byteLength - 4) throw new ProtocolError("invalid Stream metadata length");
-  try { return decodeStreamMetadataJson(body.subarray(4)); }
+  try { return decodeStreamMetadataSbe(body); }
   catch (error) { throw new ProtocolError(error instanceof Error ? error.message : "invalid Stream metadata"); }
 }
 
 export function decodeListingResponse(response: StandardResponse): ListingEvent {
   const message = response.message;
-  if (response.status !== "CONTINUE" || !message || message.format.schemaId !== MARKET_SCHEMA_ID || message.format.templateId !== 107 || message.format.version !== 15 || message.format.blockLength !== 0) throw new ProtocolError("unsupported listing response");
-  const body = message.body;
-  if (body.byteLength < 4 || new DataView(body.buffer, body.byteOffset, body.byteLength).getUint32(0, true) !== body.byteLength - 4) throw new ProtocolError("invalid listing response length");
-  return decodeListingEvent(body.subarray(4));
+  if (response.status !== "CONTINUE" || !message || message.format.schemaId !== MARKET_SCHEMA_ID || message.format.templateId !== 107 || message.format.version !== 21 || message.format.blockLength !== 2) throw new ProtocolError("unsupported listing response");
+  return decodeListingEvent(message.body);
 }

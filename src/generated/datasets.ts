@@ -1,7 +1,7 @@
 export const DATASETS = {
-  "globex": "GLOBEX@globex",
-  "lus": "LUS@lus",
-  "xetra": "XETR@xetra"
+  "globex": "globex/globex",
+  "lus": "globex/lus",
+  "xetra": "globex/xetra"
 } as const;
 export const DATASET_CAPABILITIES = {
   "globex": [

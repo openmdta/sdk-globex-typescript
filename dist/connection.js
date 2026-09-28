@@ -1,4 +1,6 @@
 import { DATASETS, DATASET_CAPABILITIES } from "./generated/datasets.js";
+import { DATASET_CATALOG_FIELDS } from "./generated/dataset-catalog-fields.js";
+import { DATASET_STREAM_BLOCKS } from "./generated/dataset-stream-blocks.js";
 import { decodeCatalogLookup } from "./lookup.js";
 import { decodeCatalogSearch } from "./search.js";
 import { KEYFIGURES_CONTRACTS, decodeKeyfigures } from "./keyfigures.js";
@@ -219,9 +221,10 @@ class ReconnectingConnection {
         }
     }
     get dataset() {
-        const get = (id, capabilities) => ({
+        const get = (id, capabilities, defaultFields) => ({
             id,
             ...(capabilities.includes("catalog") ? {
+                catalogFields: defaultFields,
                 catalogFeed: (fields, sink, options) => this.#runCatalogFeed(id, fields, sink, options),
                 catalogFeedMemory: (fields, options) => {
                     const sink = new MemoryCatalogFeedSink();
@@ -232,7 +235,7 @@ class ReconnectingConnection {
                         options?.signal?.addEventListener("abort", () => controller.abort(options.signal?.reason), { once: true });
                     return { sink, completion: this.#runCatalogFeed(id, fields, sink, { ...options, signal: controller.signal }), cancel: () => controller.abort() };
                 },
-                read: (selector, options = {}) => this.#startCatalog(id, [selectorExpression(selector)], options.fields ?? "*", options.trace, new Map([[selectorExpression(selector), selector]])),
+                read: (selector, options = {}) => this.#startCatalog(id, [selectorExpression(selector)], options.fields ?? "*", options.trace, new Map([[selectorExpression(selector), selector]]), defaultFields),
                 lookup: (query, options) => this.#catalogLookup(id, {
                     ...(typeof query === "string" ? { expression: query } : { dimensions: query }),
                     ...options,
@@ -272,7 +275,7 @@ class ReconnectingConnection {
             } : {}),
         });
         return Object.freeze({
-            ...Object.fromEntries(Object.entries(DATASETS).map(([alias, id]) => [alias, get(id, DATASET_CAPABILITIES[alias])])),
+            ...Object.fromEntries(Object.entries(DATASETS).map(([alias, id]) => [alias, get(id, DATASET_CAPABILITIES[alias], DATASET_CATALOG_FIELDS[alias])])),
         });
     }
     #startFeedLive(dataset, blocks, options = {}) {
@@ -598,21 +601,18 @@ class ReconnectingConnection {
         if (typeof boundary === "string" && (!boundary || boundary.length > 2048)) {
             throw new TypeError("invalid timeseries page cursor");
         }
-        const parameters = JSON.stringify({
-            selector: selectorExpression(selector),
-            ...(options.dataset === undefined ? {} : { dataset: options.dataset }),
-            ...(options.quality === undefined ? {} : { quality: options.quality.trim().toUpperCase() }),
-            blockMask: blockMask(options.blocks).toString(),
-            resolutionMicros: cadenceMicros.toString(),
-            order,
-            limit,
-            ...(typeof boundary === "bigint" ? { boundary: boundary.toString() } : { cursor: boundary }),
-            ...(guard === undefined ? {} : { guard: guard.toString() }),
-            adjustment: options.adjustment ?? "raw",
-        });
         const id = this.#nextId;
         this.#nextId += 1n;
-        const request = { command: "TS_PAGE", id, parameters, ...(options.trace ? { trace: options.trace } : {}) };
+        const request = {
+            command: "TS_PAGE", id, selector: selectorExpression(selector),
+            ...(options.dataset === undefined ? {} : { dataset: options.dataset }),
+            ...(options.quality === undefined ? {} : { quality: options.quality.trim().toUpperCase() }),
+            blockMask: blockMask(options.blocks), resolutionMicros: cadenceMicros, order, limit,
+            ...(typeof boundary === "bigint" ? { boundary } : { cursor: boundary }),
+            ...(guard === undefined ? {} : { guard }),
+            adjustment: options.adjustment ?? "raw",
+            ...(options.trace ? { trace: options.trace } : {}),
+        };
         const handle = new Handle(id, () => this.#cancel(id));
         const rows = [];
         const gaps = [];
@@ -634,15 +634,10 @@ class ReconnectingConnection {
                     return [];
                 }
                 const result = decodeTimeseriesPageResult(response);
-                if (typeof result.from !== "string" || typeof result.through !== "string"
-                    || result.nextCursor !== null && typeof result.nextCursor !== "string"
-                    || result.status !== 0 && result.status !== 1 && result.status !== 2 && result.status !== 3) {
-                    throw new ProtocolError("invalid timeseries page result");
-                }
                 return [{
                         rows: [...rows],
-                        from: BigInt(result.from),
-                        through: BigInt(result.through),
+                        from: result.from,
+                        through: result.through,
                         nextCursor: result.nextCursor,
                         status: result.status,
                         gaps: [...gaps],
@@ -775,16 +770,9 @@ class ReconnectingConnection {
         if (this.#closing)
             throw new ConnectionClosedError();
         const { trace, ...query } = parameters;
-        const json = JSON.stringify(query, (_key, value) => {
-            if (typeof value === "number" && !Number.isFinite(value))
-                throw new RangeError("search numbers must be finite");
-            return value;
-        });
-        if (!catalog.trim() || new TextEncoder().encode(catalog).length > 256 || new TextEncoder().encode(json).length > 16_384)
-            throw new RangeError("invalid Catalog search request size");
         const id = this.#nextId++, handle = new Handle(id, () => this.#cancel(id));
         const active = { command: "CATALOG_SEARCH", handle: handle,
-            encoded: encodeRequest({ command: "CATALOG_SEARCH", id, catalog, parameters: json, ...(trace ? { trace } : {}) }),
+            encoded: encodeRequest({ command: "CATALOG_SEARCH", id, catalog, parameters: query, ...(trace ? { trace } : {}) }),
             decode: response => decodeCatalogSearch(decodeCatalogSearchResult(response)) };
         this.#track(active);
         if (this.#authenticated && this.#socket?.readyState === this.#WebSocket.OPEN)
@@ -795,16 +783,11 @@ class ReconnectingConnection {
         if (this.#closing)
             throw new ConnectionClosedError();
         const { trace, ...query } = parameters;
-        const json = JSON.stringify(query, (_key, value) => {
-            if (typeof value === "number" && !Number.isFinite(value))
-                throw new RangeError("search numbers must be finite");
-            return value;
-        });
-        if (!catalog.trim() || new TextEncoder().encode(catalog).length > 256 || new TextEncoder().encode(json).length > 16_384)
-            throw new RangeError("invalid Catalog search request size");
+        if (!catalog.trim() || new TextEncoder().encode(catalog).length > 256)
+            throw new RangeError("invalid Catalog lookup request size");
         const id = this.#nextId++, handle = new Handle(id, () => this.#cancel(id));
         const active = { command: "CATALOG_LOOKUP", handle: handle,
-            encoded: encodeRequest({ command: "CATALOG_LOOKUP", id, catalog, parameters: json, ...(trace ? { trace } : {}) }),
+            encoded: encodeRequest({ command: "CATALOG_LOOKUP", id, catalog, parameters: query, ...(trace ? { trace } : {}) }),
             decode: response => decodeCatalogLookup(decodeCatalogLookupResult(response)) };
         this.#track(active);
         if (this.#authenticated && this.#socket?.readyState === this.#WebSocket.OPEN)
@@ -819,7 +802,7 @@ class ReconnectingConnection {
             throw new TypeError("invalid listing selector");
         const id = this.#nextId++;
         const handle = new Handle(id, () => this.#cancel(id));
-        const active = { command: "LISTING_LATEST", encoded: encodeRequest({ command: "LISTING_LATEST", id, parameters: JSON.stringify(selector), ...(trace ? { trace } : {}) }), handle: handle, decode: response => {
+        const active = { command: "LISTING_LATEST", encoded: encodeRequest({ command: "LISTING_LATEST", id, ...selector, ...(trace ? { trace } : {}) }), handle: handle, decode: response => {
                 const event = decodeListingResponse(response);
                 if (event.source.dataset !== selector.dataset || event.source.quality !== selector.quality || event.source.key !== selector.key || event.source.blocks.length !== selector.blocks.length || event.source.blocks.some((id, index) => id !== selector.blocks[index]))
                     throw new ProtocolError("listing source does not match request");
@@ -1027,7 +1010,7 @@ class ReconnectingConnection {
             }
         }
     }
-    #startCatalog(catalog, identifiers, selection, trace, selectors = new Map()) {
+    #startCatalog(catalog, identifiers, selection, trace, selectors = new Map(), defaultFields = []) {
         if (this.#closing)
             throw new ConnectionClosedError();
         if (!identifiers.length || identifiers.length > 256 || identifiers.some((identifier) => !identifier.trim())) {
@@ -1040,7 +1023,7 @@ class ReconnectingConnection {
             throw new TypeError("omit Dataset fields to request every field");
         }
         const wildcard = selection === "*";
-        const descriptors = wildcard ? [] : selection;
+        const descriptors = wildcard ? defaultFields : selection;
         const id = this.#nextId;
         this.#nextId += 1n;
         const request = {
@@ -1070,7 +1053,7 @@ class ReconnectingConnection {
                     exists: wire.exists,
                     lifecycle: wire.lifecycle,
                     rawFields: wire.fields,
-                    fields: decodeCatalogFields(wire, descriptors, wildcard),
+                    fields: decodeCatalogFields(wire, descriptors, wildcard && defaultFields.length === 0),
                 };
             },
         };

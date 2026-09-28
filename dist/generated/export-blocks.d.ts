@@ -4,9 +4,13 @@ export interface SbeFormat {
     readonly version: number;
     readonly blockLength: number;
 }
-import { BidAsk as BidAsk } from "./stream-0.js";
+import { AskDailyOhlc as AskDailyOhlc } from "./stream-0.js";
+export { AskDailyOhlc };
+import { BidAsk as BidAsk } from "./stream-1.js";
 export { BidAsk };
-import { BidAskCandle as BidAskCandle } from "./stream-1.js";
+import { BidAskCandle as BidAskCandle } from "./stream-2.js";
 export { BidAskCandle };
-export type PublicExport = BidAsk | BidAskCandle;
+import { BidDailyOhlc as BidDailyOhlc } from "./stream-3.js";
+export { BidDailyOhlc };
+export type PublicExport = AskDailyOhlc | BidAsk | BidAskCandle | BidDailyOhlc;
 //# sourceMappingURL=export-blocks.d.ts.map

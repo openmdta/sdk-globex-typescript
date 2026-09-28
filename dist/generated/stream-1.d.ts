@@ -24,44 +24,36 @@ export declare class Decimal {
     toString(): string;
     toLocaleString(locales?: Intl.LocalesArgument, options?: Intl.NumberFormatOptions): string;
 }
-export interface QuoteSideCandleValue {
-    readonly open: Decimal;
-    readonly high: Decimal;
-    readonly low: Decimal;
-    readonly close: Decimal;
-    readonly closingSize: number;
+export interface QuoteLevelValue {
+    readonly price: Decimal;
+    readonly size: number;
 }
-export declare class QuoteSideCandle {
-    readonly open: Decimal;
-    readonly high: Decimal;
-    readonly low: Decimal;
-    readonly close: Decimal;
-    readonly closingSize: number;
-    constructor(value: QuoteSideCandleValue);
+export declare class QuoteLevel {
+    readonly price: Decimal;
+    readonly size: number;
+    constructor(value: QuoteLevelValue);
 }
-export interface BidAskCandleValue {
+export interface BidAskValue {
     readonly eventTimeMicros: bigint;
-    readonly bid: QuoteSideCandle | null;
-    readonly ask: QuoteSideCandle | null;
-    readonly quoteCount: bigint;
-    readonly closingQuoteCondition: number | null;
+    readonly bid: QuoteLevel | null;
+    readonly ask: QuoteLevel | null;
+    readonly quoteCondition: number | null;
 }
-export declare class BidAskCandle {
+export declare class BidAsk {
     static readonly SCHEMA_ID = 100;
-    static readonly TEMPLATE_ID = 12;
+    static readonly TEMPLATE_ID = 10;
     static readonly VERSION = 3;
-    static readonly BLOCK_LENGTH = 97;
+    static readonly BLOCK_LENGTH = 35;
     static readonly format: SbeFormat;
     readonly eventTimeMicros: bigint;
-    readonly bid: QuoteSideCandle | null;
-    readonly ask: QuoteSideCandle | null;
-    readonly quoteCount: bigint;
-    readonly closingQuoteCondition: number | null;
-    constructor(value: BidAskCandleValue);
-    static decodeBody(source: ArrayBuffer | ArrayBufferView, offset?: number, actingVersion?: number, actingBlockLength?: number): BidAskCandle;
-    static encodeBody(value: BidAskCandleValue): Uint8Array;
+    readonly bid: QuoteLevel | null;
+    readonly ask: QuoteLevel | null;
+    readonly quoteCondition: number | null;
+    constructor(value: BidAskValue);
+    static decodeBody(source: ArrayBuffer | ArrayBufferView, offset?: number, actingVersion?: number, actingBlockLength?: number): BidAsk;
+    static encodeBody(value: BidAskValue): Uint8Array;
 }
-export type PublicExport = BidAskCandle;
+export type PublicExport = BidAsk;
 export declare const PUBLIC_EXPORT_CODECS: Map<number, {
     readonly format: SbeFormat;
     decodeBody(source: ArrayBuffer | ArrayBufferView, offset?: number, actingVersion?: number, actingBlockLength?: number): PublicExport;

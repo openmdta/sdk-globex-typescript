@@ -1,5 +1,7 @@
 import type {ListingSelector, ListingEvent} from "./generated/listing.js";
 import {DATASETS, DATASET_CAPABILITIES} from "./generated/datasets.js";
+import {DATASET_CATALOG_FIELDS} from "./generated/dataset-catalog-fields.js";
+import {DATASET_STREAM_BLOCKS} from "./generated/dataset-stream-blocks.js";
 import {decodeCatalogLookup, type CatalogDimensions, type CatalogLookupParameters, type CatalogLookupResult} from "./lookup.js";
 import {decodeCatalogSearch, type CatalogSearchParameters, type CatalogSearchResult} from "./search.js";
 import type { StreamMetadata } from "./generated/activity.js";
@@ -224,32 +226,34 @@ export interface MemoryCatalogFeed {
   cancel(): void;
 }
 
-export interface DatasetClient<C extends string> {
+export interface DatasetClient<C extends string, DefaultFields extends readonly CatalogFieldDescriptor[] = readonly CatalogFieldDescriptor[], Available extends BlockName = BlockName> {
   readonly id: C;
-  read<const D extends readonly CatalogFieldDescriptor[]>(selector: MarketSelector, options?: DatasetReadOptions<D>): RequestHandle<DatasetRecord<C, CatalogDescriptorSelection<D>>>;
+  readonly catalogFields: DefaultFields;
+  read(selector: MarketSelector, options?: Omit<DatasetReadOptions, "fields">): RequestHandle<DatasetRecord<C, CatalogDescriptorSelection<DefaultFields>>>;
+  read<const D extends readonly CatalogFieldDescriptor[]>(selector: MarketSelector, options: DatasetReadOptions<D> & {readonly fields: D}): RequestHandle<DatasetRecord<C, CatalogDescriptorSelection<D>>>;
   catalogFeed(fields: readonly CatalogFieldDescriptor[] | "*", sink: CatalogFeedSink, options?: CatalogFeedOptions): Promise<void>;
   catalogFeedMemory(fields: readonly CatalogFieldDescriptor[] | "*", options?: CatalogFeedOptions): MemoryCatalogFeed;
   search(parameters?: CatalogSearchParameters): SingleRequestHandle<CatalogSearchResult>;
   lookup(query: string | CatalogDimensions, options?: Pick<CatalogLookupParameters, "cursor" | "limit" | "trace">): SingleRequestHandle<CatalogLookupResult>;
-  latest<const B extends SnapshotBlockName>(selector: MarketSelector, options?: LatestOptions<B>): RequestHandle<ResolvedMarketDataMessage<B>>;
-  latestBatched<const B extends SnapshotBlockName>(selector: MarketSelector, options?: LatestOptions<B>): RequestHandle<MarketDataBatch<B>>;
-  latestStream<const B extends StreamBlockName>(selector: MarketSelector, options?: LatestStreamOptions<B>): RequestHandle<ResolvedMarketDataMessage<B>>;
-  latestStreamBatched<const B extends StreamBlockName>(selector: MarketSelector, options?: LatestStreamOptions<B>): RequestHandle<MarketDataBatch<B>>;
-  streamSubscribe<const B extends StreamBlockName>(blocks: readonly B[], options?: FeedLiveOptions): RequestHandle<FeedEvent<BlockValue<B> | null>>;
-  streamRecover<const B extends StreamBlockName>(afterMessageId: bigint, throughMessageId: bigint, blocks: readonly B[], options?: FeedRecoveryOptions): RequestHandle<FeedMessage<BlockValue<B> | null>>;
-  streamSnapshot<const B extends SnapshotBlockName>(blocks: readonly B[], options?: FeedLiveOptions): Promise<FeedSnapshot<BlockValue<B> | null>>;
-  streamFeed<const B extends StreamBlockName>(blocks: readonly B[], sink: FeedSink<BlockValue<B> | null>, options?: DatasetStreamFeedOptions): Promise<void>;
-  streamFeedMemory<const B extends StreamBlockName>(blocks: readonly B[], onWrite?: (batch: FeedWrite<BlockValue<B> | null>) => void, options?: DatasetStreamFeedOptions): MemoryStreamFeed<BlockValue<B> | null>;
-  timeseries<const B extends TsRawBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataMessage<B>>;
-  timeseriesBatched<const B extends TsRawBlockName>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataBatch<B>>;
-  timeseriesPage<const B extends TsRawBlockName>(selector: MarketSelector, order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor, limit: number, options?: Omit<TimeseriesPageOptions<B>, "dataset">): SingleRequestHandle<TimeseriesPage<B>>;
-  candlePage<const B extends TsCandleBlockName>(selector: MarketSelector, cadenceMicros: bigint, order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor, limit: number, options?: Omit<TimeseriesPageOptions<B>, "dataset">): SingleRequestHandle<TimeseriesPage<B>>;
+  latest<const B extends Extract<Available, SnapshotBlockName>>(selector: MarketSelector, options?: LatestOptions<B>): RequestHandle<ResolvedMarketDataMessage<B>>;
+  latestBatched<const B extends Extract<Available, SnapshotBlockName>>(selector: MarketSelector, options?: LatestOptions<B>): RequestHandle<MarketDataBatch<B>>;
+  latestStream<const B extends Extract<Available, StreamBlockName>>(selector: MarketSelector, options?: LatestStreamOptions<B>): RequestHandle<ResolvedMarketDataMessage<B>>;
+  latestStreamBatched<const B extends Extract<Available, StreamBlockName>>(selector: MarketSelector, options?: LatestStreamOptions<B>): RequestHandle<MarketDataBatch<B>>;
+  streamSubscribe<const B extends Extract<Available, StreamBlockName>>(blocks: readonly B[], options?: FeedLiveOptions): RequestHandle<FeedEvent<BlockValue<B> | null>>;
+  streamRecover<const B extends Extract<Available, StreamBlockName>>(afterMessageId: bigint, throughMessageId: bigint, blocks: readonly B[], options?: FeedRecoveryOptions): RequestHandle<FeedMessage<BlockValue<B> | null>>;
+  streamSnapshot<const B extends Extract<Available, SnapshotBlockName>>(blocks: readonly B[], options?: FeedLiveOptions): Promise<FeedSnapshot<BlockValue<B> | null>>;
+  streamFeed<const B extends Extract<Available, StreamBlockName>>(blocks: readonly B[], sink: FeedSink<BlockValue<B> | null>, options?: DatasetStreamFeedOptions): Promise<void>;
+  streamFeedMemory<const B extends Extract<Available, StreamBlockName>>(blocks: readonly B[], onWrite?: (batch: FeedWrite<BlockValue<B> | null>) => void, options?: DatasetStreamFeedOptions): MemoryStreamFeed<BlockValue<B> | null>;
+  timeseries<const B extends Extract<Available, TsRawBlockName>>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataMessage<B>>;
+  timeseriesBatched<const B extends Extract<Available, TsRawBlockName>>(selector: MarketSelector, from: bigint, through: bigint, options?: TsRawOptions<B>): RequestHandle<MarketDataBatch<B>>;
+  timeseriesPage<const B extends Extract<Available, TsRawBlockName>>(selector: MarketSelector, order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor, limit: number, options?: Omit<TimeseriesPageOptions<B>, "dataset">): SingleRequestHandle<TimeseriesPage<B>>;
+  candlePage<const B extends Extract<Available, TsCandleBlockName>>(selector: MarketSelector, cadenceMicros: bigint, order: TimeseriesPageOrder, boundary: bigint | TimeseriesPageCursor, limit: number, options?: Omit<TimeseriesPageOptions<B>, "dataset">): SingleRequestHandle<TimeseriesPage<B>>;
 }
 
 export type DatasetNamespace = {
-  readonly [Alias in keyof typeof DATASETS]: Pick<DatasetClient<(typeof DATASETS)[Alias]>,
+  readonly [Alias in keyof typeof DATASETS]: Pick<DatasetClient<(typeof DATASETS)[Alias], (typeof DATASET_CATALOG_FIELDS)[Alias], Extract<(typeof DATASET_STREAM_BLOCKS)[Alias][number], BlockName>>,
     "id" |
-    ("catalog" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "read" | "lookup" | "catalogFeed" | "catalogFeedMemory" : never) |
+    ("catalog" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "catalogFields" | "read" | "lookup" | "catalogFeed" | "catalogFeedMemory" : never) |
     ("search" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "search" : never) |
     ("latest" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "latest" | "latestBatched" | "latestStream" | "latestStreamBatched" | "streamSubscribe" | "streamRecover" | "streamSnapshot" | "streamFeed" | "streamFeedMemory" : never) |
     ("timeseries" extends (typeof DATASET_CAPABILITIES)[Alias][number] ? "timeseries" | "timeseriesBatched" | "timeseriesPage" | "candlePage" : never)>;
@@ -544,9 +548,10 @@ class ReconnectingConnection implements Connection {
   }
 
   get dataset(): DatasetNamespace {
-    const get = <C extends string>(id: C, capabilities: readonly string[]): DatasetClient<C> => ({
+    const get = <C extends string, F extends readonly CatalogFieldDescriptor[]>(id: C, capabilities: readonly string[], defaultFields: F): DatasetClient<C, F> => ({
       id,
       ...(capabilities.includes("catalog") ? {
+        catalogFields: defaultFields,
         catalogFeed: (fields, sink, options) => this.#runCatalogFeed(id, fields, sink, options),
         catalogFeedMemory: (fields, options) => {
           const sink = new MemoryCatalogFeedSink();
@@ -562,6 +567,7 @@ class ReconnectingConnection implements Connection {
             options.fields ?? "*",
             options.trace,
             new Map([[selectorExpression(selector), selector]]),
+            defaultFields,
           ) as RequestHandle<DatasetRecord<C, CatalogDescriptorSelection<D>>>,
         lookup: (query, options) => this.#catalogLookup(id, {
           ...(typeof query === "string" ? {expression: query} : {dimensions: query}),
@@ -600,9 +606,9 @@ class ReconnectingConnection implements Connection {
         candlePage: (selector, cadenceMicros, order, boundary, limit, options) =>
           this.tsCandlePage(selector, cadenceMicros, order, boundary, limit, {...options, dataset: id}),
       } : {}),
-    }) as DatasetClient<C>;
+    }) as DatasetClient<C, F>;
     return Object.freeze({
-      ...Object.fromEntries(Object.entries(DATASETS).map(([alias, id]) => [alias, get(id, DATASET_CAPABILITIES[alias as keyof typeof DATASETS])])),
+      ...Object.fromEntries(Object.entries(DATASETS).map(([alias, id]) => [alias, get(id, DATASET_CAPABILITIES[alias as keyof typeof DATASETS], DATASET_CATALOG_FIELDS[alias as keyof typeof DATASETS])])),
     }) as unknown as DatasetNamespace;
   }
 
@@ -956,21 +962,18 @@ class ReconnectingConnection implements Connection {
     if (typeof boundary === "string" && (!boundary || boundary.length > 2048)) {
       throw new TypeError("invalid timeseries page cursor");
     }
-    const parameters = JSON.stringify({
-      selector: selectorExpression(selector),
-      ...(options.dataset === undefined ? {} : {dataset: options.dataset}),
-      ...(options.quality === undefined ? {} : {quality: options.quality.trim().toUpperCase()}),
-      blockMask: blockMask(options.blocks).toString(),
-      resolutionMicros: cadenceMicros.toString(),
-      order,
-      limit,
-      ...(typeof boundary === "bigint" ? {boundary: boundary.toString()} : {cursor: boundary}),
-      ...(guard === undefined ? {} : {guard: guard.toString()}),
-      adjustment: options.adjustment ?? "raw",
-    });
     const id = this.#nextId;
     this.#nextId += 1n;
-    const request: Request = {command: "TS_PAGE", id, parameters, ...(options.trace ? {trace: options.trace} : {})};
+    const request: Request = {
+      command: "TS_PAGE", id, selector: selectorExpression(selector),
+      ...(options.dataset === undefined ? {} : {dataset: options.dataset}),
+      ...(options.quality === undefined ? {} : {quality: options.quality.trim().toUpperCase()}),
+      blockMask: blockMask(options.blocks), resolutionMicros: cadenceMicros, order, limit,
+      ...(typeof boundary === "bigint" ? {boundary} : {cursor: boundary}),
+      ...(guard === undefined ? {} : {guard}),
+      adjustment: options.adjustment ?? "raw",
+      ...(options.trace ? {trace: options.trace} : {}),
+    };
     const handle = new Handle<TimeseriesPage<B>>(id, () => this.#cancel(id));
     const rows: MarketDataMessage<B>[] = [];
     const gaps: MarketDataGap[] = [];
@@ -989,16 +992,11 @@ class ReconnectingConnection implements Connection {
           gaps.push(...batch.gaps);
           return [];
         }
-        const result = decodeTimeseriesPageResult(response) as Record<string, unknown>;
-        if (typeof result.from !== "string" || typeof result.through !== "string"
-          || result.nextCursor !== null && typeof result.nextCursor !== "string"
-          || result.status !== 0 && result.status !== 1 && result.status !== 2 && result.status !== 3) {
-          throw new ProtocolError("invalid timeseries page result");
-        }
+        const result = decodeTimeseriesPageResult(response);
         return [{
           rows: [...rows],
-          from: BigInt(result.from),
-          through: BigInt(result.through),
+          from: result.from,
+          through: result.through,
           nextCursor: result.nextCursor,
           status: result.status,
           gaps: [...gaps],
@@ -1128,14 +1126,9 @@ class ReconnectingConnection implements Connection {
   #catalogSearch(catalog: string, parameters: CatalogSearchParameters = {}): SingleRequestHandle<CatalogSearchResult> {
     if (this.#closing) throw new ConnectionClosedError();
     const {trace, ...query} = parameters;
-    const json = JSON.stringify(query, (_key, value) => {
-      if (typeof value === "number" && !Number.isFinite(value)) throw new RangeError("search numbers must be finite");
-      return value;
-    });
-    if (!catalog.trim() || new TextEncoder().encode(catalog).length > 256 || new TextEncoder().encode(json).length > 16_384) throw new RangeError("invalid Catalog search request size");
     const id = this.#nextId++, handle = new Handle<CatalogSearchResult>(id, () => this.#cancel(id));
     const active: ActiveRequest = {command: "CATALOG_SEARCH", handle: handle as Handle<unknown>,
-      encoded: encodeRequest({command:"CATALOG_SEARCH",id,catalog,parameters:json,...(trace ? {trace} : {})}),
+      encoded: encodeRequest({command:"CATALOG_SEARCH",id,catalog,parameters:query,...(trace ? {trace} : {})}),
       decode: response => decodeCatalogSearch(decodeCatalogSearchResult(response))};
     this.#track(active);
     if (this.#authenticated && this.#socket?.readyState === this.#WebSocket.OPEN) this.#socket.send(active.encoded);
@@ -1144,14 +1137,10 @@ class ReconnectingConnection implements Connection {
   #catalogLookup(catalog: string, parameters: CatalogLookupParameters): SingleRequestHandle<CatalogLookupResult> {
     if (this.#closing) throw new ConnectionClosedError();
     const {trace, ...query} = parameters;
-    const json = JSON.stringify(query, (_key, value) => {
-      if (typeof value === "number" && !Number.isFinite(value)) throw new RangeError("search numbers must be finite");
-      return value;
-    });
-    if (!catalog.trim() || new TextEncoder().encode(catalog).length > 256 || new TextEncoder().encode(json).length > 16_384) throw new RangeError("invalid Catalog search request size");
+    if (!catalog.trim() || new TextEncoder().encode(catalog).length > 256) throw new RangeError("invalid Catalog lookup request size");
     const id = this.#nextId++, handle = new Handle<CatalogLookupResult>(id, () => this.#cancel(id));
     const active: ActiveRequest = {command: "CATALOG_LOOKUP", handle: handle as Handle<unknown>,
-      encoded: encodeRequest({command:"CATALOG_LOOKUP",id,catalog,parameters:json,...(trace ? {trace} : {})}),
+      encoded: encodeRequest({command:"CATALOG_LOOKUP",id,catalog,parameters:query,...(trace ? {trace} : {})}),
       decode: response => decodeCatalogLookup(decodeCatalogLookupResult(response))};
     this.#track(active);
     if (this.#authenticated && this.#socket?.readyState === this.#WebSocket.OPEN) this.#socket.send(active.encoded);
@@ -1164,7 +1153,7 @@ class ReconnectingConnection implements Connection {
     if (!selector.dataset || !selector.key || new TextEncoder().encode(selector.key).length > 1024 || !["RT", "DL", "EOD"].includes(selector.quality) || !selector.blocks.length || selector.blocks.length > 64 || !selector.blocks.every(id => Number.isInteger(id) && id >= 0 && id <= 65535)) throw new TypeError("invalid listing selector");
     const id = this.#nextId++;
     const handle = new Handle<ListingEvent>(id, () => this.#cancel(id));
-    const active: ActiveRequest = {command: "LISTING_LATEST", encoded: encodeRequest({command:"LISTING_LATEST",id,parameters:JSON.stringify(selector),...(trace ? {trace} : {})}), handle: handle as Handle<unknown>, decode: response => {
+    const active: ActiveRequest = {command: "LISTING_LATEST", encoded: encodeRequest({command:"LISTING_LATEST",id,...selector,...(trace ? {trace} : {})}), handle: handle as Handle<unknown>, decode: response => {
       const event = decodeListingResponse(response);
       if (event.source.dataset !== selector.dataset || event.source.quality !== selector.quality || event.source.key !== selector.key || event.source.blocks.length !== selector.blocks.length || event.source.blocks.some((id,index) => id !== selector.blocks[index])) throw new ProtocolError("listing source does not match request");
       return event;
@@ -1369,6 +1358,7 @@ class ReconnectingConnection implements Connection {
     selection: readonly CatalogFieldDescriptor[] | CatalogFieldWildcard,
     trace: TraceContext | undefined,
     selectors: ReadonlyMap<string, MarketSelector> = new Map(),
+    defaultFields: readonly CatalogFieldDescriptor[] = [],
   ): RequestHandle<DatasetRecord<string, Record<string, unknown>>> {
     if (this.#closing) throw new ConnectionClosedError();
     if (!identifiers.length || identifiers.length > 256 || identifiers.some((identifier) => !identifier.trim())) {
@@ -1381,7 +1371,7 @@ class ReconnectingConnection implements Connection {
       throw new TypeError("omit Dataset fields to request every field");
     }
     const wildcard = selection === "*";
-    const descriptors = wildcard ? [] : selection;
+    const descriptors = wildcard ? defaultFields : selection;
     const id = this.#nextId;
     this.#nextId += 1n;
     const request: Request = {
@@ -1410,7 +1400,7 @@ class ReconnectingConnection implements Connection {
           exists: wire.exists,
           lifecycle: wire.lifecycle,
           rawFields: wire.fields,
-          fields: decodeCatalogFields(wire, descriptors, wildcard),
+          fields: decodeCatalogFields(wire, descriptors, wildcard && defaultFields.length === 0),
         };
       },
     };

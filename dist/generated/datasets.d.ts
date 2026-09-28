@@ -1,7 +1,7 @@
 export declare const DATASETS: {
-    readonly globex: "GLOBEX@globex";
-    readonly lus: "LUS@lus";
-    readonly xetra: "XETR@xetra";
+    readonly globex: "globex/globex";
+    readonly lus: "globex/lus";
+    readonly xetra: "globex/xetra";
 };
 export declare const DATASET_CAPABILITIES: {
     readonly globex: readonly ["catalog", "search"];

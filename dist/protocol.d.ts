@@ -1,8 +1,10 @@
 import { type ListingEvent } from "./generated/listing.js";
-import { type StreamMetadata } from "./generated/activity.js";
+import type { StreamMetadata } from "./generated/activity.js";
 import { type BlockName, type MarketDataField, type MarketDataFields } from "./generated/bindings.js";
 import type { SbeFormat } from "./generated/export-blocks.js";
-import type { CatalogFieldDescriptor, CatalogDescriptorValue } from "./catalog.js";
+import type { CatalogFieldDescriptor, CatalogDescriptorSelection } from "./catalog.js";
+import type { CatalogLookupParameters } from "./lookup.js";
+import type { CatalogSearchParameters } from "./search.js";
 import type { MarketSelector } from "./selector.js";
 export declare const WEBSOCKET_SUBPROTOCOL = "openmdta.sbe-session.v1";
 export declare const WINDOW_SUBPROTOCOL = "openmdta.sbe-session.v2";
@@ -42,24 +44,37 @@ export type Request = {
 } | {
     readonly command: "TS_PAGE";
     readonly id: bigint;
-    readonly parameters: string;
+    readonly selector: string;
+    readonly dataset?: string;
+    readonly quality?: string;
+    readonly blockMask: bigint;
+    readonly resolutionMicros: bigint;
+    readonly order: "asc" | "desc";
+    readonly limit: number;
+    readonly boundary?: bigint;
+    readonly guard?: bigint;
+    readonly cursor?: string;
+    readonly adjustment: "raw" | "split";
     readonly trace?: TraceContext;
 } | {
     readonly command: "LISTING_LATEST";
     readonly id: bigint;
-    readonly parameters: string;
+    readonly dataset: string;
+    readonly quality: "RT" | "DL" | "EOD";
+    readonly key: string;
+    readonly blocks: readonly number[];
     readonly trace?: TraceContext;
 } | {
     readonly command: "CATALOG_LOOKUP";
     readonly id: bigint;
     readonly catalog: string;
-    readonly parameters: string;
+    readonly parameters: CatalogLookupParameters;
     readonly trace?: TraceContext;
 } | {
     readonly command: "CATALOG_SEARCH";
     readonly id: bigint;
     readonly catalog: string;
-    readonly parameters: string;
+    readonly parameters: CatalogSearchParameters;
     readonly trace?: TraceContext;
 } | {
     readonly command: "STREAM_METADATA";
@@ -262,11 +277,17 @@ export declare const decodeResponse: (source: ArrayBuffer | ArrayBufferView) => 
 export declare const decodeBatch: (response: StandardResponse, selector: MarketSelector) => MarketDataBatch;
 export declare const decodeKeyfiguresResult: (response: StandardResponse) => unknown;
 export declare const decodeServiceCallResult: (response: StandardResponse) => unknown;
-export declare const decodeTimeseriesPageResult: (response: StandardResponse) => unknown;
-export declare const decodeCatalogSearchResult: (response: StandardResponse) => unknown;
-export declare const decodeCatalogLookupResult: (response: StandardResponse) => unknown;
+export interface TimeseriesPageWireResult {
+    readonly from: bigint;
+    readonly through: bigint;
+    readonly nextCursor: string | null;
+    readonly status: 0 | 1 | 2 | 3;
+}
+export declare const decodeTimeseriesPageResult: (response: StandardResponse) => TimeseriesPageWireResult;
+export declare const decodeCatalogSearchResult: (response: StandardResponse) => Uint8Array;
+export declare const decodeCatalogLookupResult: (response: StandardResponse) => Uint8Array;
 export declare const decodeCatalogRecord: (response: StandardResponse) => CatalogWireRecord;
-export declare const decodeCatalogFields: <D extends readonly CatalogFieldDescriptor[]>(record: CatalogWireRecord, descriptors: D, requireEveryField?: boolean) => { readonly [P in D[number] as P["label"]]?: CatalogDescriptorValue<P>; };
+export declare const decodeCatalogFields: <D extends readonly CatalogFieldDescriptor[]>(record: CatalogWireRecord, descriptors: D, requireEveryField?: boolean) => Partial<CatalogDescriptorSelection<D>>;
 export declare function decodeStreamMetadata(response: StandardResponse): StreamMetadata;
 export declare function decodeListingResponse(response: StandardResponse): ListingEvent;
 export {};

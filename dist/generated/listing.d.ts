@@ -9,6 +9,11 @@ export interface ListingEvent {
     readonly incarnation: string;
     readonly snapshot: boolean;
     readonly connected: boolean;
+    readonly aggregationQuality?: {
+        readonly tradingDay: number;
+        readonly partial: boolean;
+        readonly lastAppliedId: bigint;
+    };
     readonly blocks: readonly {
         readonly id: number;
         readonly messageId: bigint;

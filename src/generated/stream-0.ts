@@ -83,110 +83,123 @@ export class Decimal {
 
 }
 
-export interface QuoteLevelValue {
-    readonly price: Decimal;
-
-    readonly size: number;
-}
-export class QuoteLevel {
-    readonly price: Decimal;
-
-    readonly size: number;
-
-    constructor(value: QuoteLevelValue) {
-        this.price = value.price;
-
-        this.size = value.size;
-    }
-}
-
-export interface BidAskValue {
+export interface AskDailyOhlcValue {
      readonly eventTimeMicros: bigint;
 
-     readonly bid: QuoteLevel | null;
+     readonly open: Decimal;
 
-     readonly ask: QuoteLevel | null;
+     readonly high: Decimal;
 
-     readonly quoteCondition: number | null;
+     readonly low: Decimal;
+
+     readonly closeLast: Decimal;
+
+     readonly closePrevious: Decimal;
+
+     readonly day: number;
+
+     readonly flags: number;
 }
-export class BidAsk {
+export class AskDailyOhlc {
     static readonly SCHEMA_ID = 100;
-    static readonly TEMPLATE_ID = 10;
+    static readonly TEMPLATE_ID = 15;
     static readonly VERSION = 3;
-    static readonly BLOCK_LENGTH = 35;
+    static readonly BLOCK_LENGTH = 61;
     static readonly format: SbeFormat = { schemaId: this.SCHEMA_ID, templateId: this.TEMPLATE_ID, version: this.VERSION, blockLength: this.BLOCK_LENGTH };
      readonly eventTimeMicros: bigint;
 
-     readonly bid: QuoteLevel | null;
+     readonly open: Decimal;
 
-     readonly ask: QuoteLevel | null;
+     readonly high: Decimal;
 
-     readonly quoteCondition: number | null;
+     readonly low: Decimal;
 
-    constructor(value: BidAskValue) {
+     readonly closeLast: Decimal;
+
+     readonly closePrevious: Decimal;
+
+     readonly day: number;
+
+     readonly flags: number;
+
+    constructor(value: AskDailyOhlcValue) {
         this.eventTimeMicros = value.eventTimeMicros;
 
-        this.bid = value.bid;
+        this.open = value.open;
 
-        this.ask = value.ask;
+        this.high = value.high;
 
-        this.quoteCondition = value.quoteCondition;
+        this.low = value.low;
+
+        this.closeLast = value.closeLast;
+
+        this.closePrevious = value.closePrevious;
+
+        this.day = value.day;
+
+        this.flags = value.flags;
     }
-    static decodeBody(source: ArrayBuffer | ArrayBufferView, offset = 0, actingVersion = this.VERSION, actingBlockLength = this.BLOCK_LENGTH): BidAsk {
+    static decodeBody(source: ArrayBuffer | ArrayBufferView, offset = 0, actingVersion = this.VERSION, actingBlockLength = this.BLOCK_LENGTH): AskDailyOhlc {
         const view = viewOf(source);
         requireBytes(view, offset, actingBlockLength);
         return new this({
             eventTimeMicros: view.getBigUint64(offset + 0, true),
 
-            bid: (() => { if (view.getBigInt64(offset + 8 + 0 + 0, true) === -9223372036854775808n && view.getInt8(offset + 8 + 0 + 8) === -128) return null; return new QuoteLevel({
-        price: new Decimal({
-        mantissa: view.getBigInt64(offset + 8 + 0 + 0, true),
-        exponent: view.getInt8(offset + 8 + 0 + 8),
+            open: new Decimal({
+        mantissa: view.getBigInt64(offset + 8 + 0, true),
+        exponent: view.getInt8(offset + 8 + 8),
       }),
-        size: view.getUint32(offset + 8 + 9, true),
-      }); })(),
 
-            ask: (() => { if (view.getBigInt64(offset + 21 + 0 + 0, true) === -9223372036854775808n && view.getInt8(offset + 21 + 0 + 8) === -128) return null; return new QuoteLevel({
-        price: new Decimal({
-        mantissa: view.getBigInt64(offset + 21 + 0 + 0, true),
-        exponent: view.getInt8(offset + 21 + 0 + 8),
+            high: new Decimal({
+        mantissa: view.getBigInt64(offset + 17 + 0, true),
+        exponent: view.getInt8(offset + 17 + 8),
       }),
-        size: view.getUint32(offset + 21 + 9, true),
-      }); })(),
 
-            quoteCondition: (() => { const decoded = view.getUint8(offset + 34); return decoded === 255 ? null : decoded; })(),
+            low: new Decimal({
+        mantissa: view.getBigInt64(offset + 26 + 0, true),
+        exponent: view.getInt8(offset + 26 + 8),
+      }),
+
+            closeLast: new Decimal({
+        mantissa: view.getBigInt64(offset + 35 + 0, true),
+        exponent: view.getInt8(offset + 35 + 8),
+      }),
+
+            closePrevious: new Decimal({
+        mantissa: view.getBigInt64(offset + 44 + 0, true),
+        exponent: view.getInt8(offset + 44 + 8),
+      }),
+
+            day: view.getUint32(offset + 53, true),
+
+            flags: view.getUint32(offset + 57, true),
         });
     }
-    static encodeBody(value: BidAskValue): Uint8Array {
+    static encodeBody(value: AskDailyOhlcValue): Uint8Array {
         const bytes = new Uint8Array(this.BLOCK_LENGTH);
         const view = new DataView(bytes.buffer);
             view.setBigUint64(0 + 0, value.eventTimeMicros, true);
-    { const encoded = value.bid; if (encoded === null) {
-      view.setBigInt64(0 + 8 + 0 + 0, -9223372036854775808n, true);
-      view.setInt8(0 + 8 + 0 + 8, -128);
-    } else {
-    view.setBigInt64(0 + 8 + 0 + 0, encoded.price.mantissa, true);
-    view.setInt8(0 + 8 + 0 + 8, encoded.price.exponent);
-    view.setUint32(0 + 8 + 9, encoded.size, true);
-    } }
-    { const encoded = value.ask; if (encoded === null) {
-      view.setBigInt64(0 + 21 + 0 + 0, -9223372036854775808n, true);
-      view.setInt8(0 + 21 + 0 + 8, -128);
-    } else {
-    view.setBigInt64(0 + 21 + 0 + 0, encoded.price.mantissa, true);
-    view.setInt8(0 + 21 + 0 + 8, encoded.price.exponent);
-    view.setUint32(0 + 21 + 9, encoded.size, true);
-    } }
-    view.setUint8(0 + 34, value.quoteCondition ?? 255);
+    view.setBigInt64(0 + 8 + 0, value.open.mantissa, true);
+    view.setInt8(0 + 8 + 8, value.open.exponent);
+    view.setBigInt64(0 + 17 + 0, value.high.mantissa, true);
+    view.setInt8(0 + 17 + 8, value.high.exponent);
+    view.setBigInt64(0 + 26 + 0, value.low.mantissa, true);
+    view.setInt8(0 + 26 + 8, value.low.exponent);
+    view.setBigInt64(0 + 35 + 0, value.closeLast.mantissa, true);
+    view.setInt8(0 + 35 + 8, value.closeLast.exponent);
+    view.setBigInt64(0 + 44 + 0, value.closePrevious.mantissa, true);
+    view.setInt8(0 + 44 + 8, value.closePrevious.exponent);
+    view.setUint32(0 + 53, value.day, true);
+    view.setUint32(0 + 57, value.flags, true);
 
         return bytes;
     }
 }
 
-export type PublicExport = BidAsk;
+export type PublicExport = AskDailyOhlc;
 export const PUBLIC_EXPORT_CODECS = new Map<number, {
     readonly format: SbeFormat;
     decodeBody(source: ArrayBuffer | ArrayBufferView, offset?: number, actingVersion?: number, actingBlockLength?: number): PublicExport;
 }>([
-    [BidAsk.TEMPLATE_ID, BidAsk],
+    [AskDailyOhlc.TEMPLATE_ID, AskDailyOhlc],
 ] as const);

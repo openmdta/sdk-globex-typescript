@@ -1,8 +1,7 @@
-/** Bind a dataset-local label to a generated Catalog model. */
-export function catalogField(label, model) {
+export function catalogField(label, model, property) {
     if (!label.trim())
         throw new TypeError("Catalog field label must not be empty");
-    return { label, multiple: model.multiple, decode: payload => model.decode(payload) };
+    return { label, ...(property === undefined ? {} : { property }), multiple: model.multiple, decode: payload => model.decode(payload) };
 }
 /** Choose a localized pair first, then fall back from short to long within it. */
 export function catalogDisplayName(names, language, short = false) {

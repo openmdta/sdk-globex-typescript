@@ -1,0 +1,1 @@
+{"version":3,"file":"dataset-stream-blocks.js","sourceRoot":"","sources":["../../src/generated/dataset-stream-blocks.ts"],"names":[],"mappings":"AAAA,MAAM,CAAC,MAAM,qBAAqB,GAAG;IACnC,QAAQ,EAAE,EAAE;IACZ,KAAK,EAAE;QACL,cAAc;QACd,QAAQ;QACR,cAAc;QACd,cAAc;KACf;IACD,OAAO,EAAE,EAAE;CACH,CAAC"}

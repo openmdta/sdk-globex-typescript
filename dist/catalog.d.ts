@@ -1,6 +1,7 @@
 /** Catalog fields use dataset metadata; callers may supply a decoder for a known semantic field. */
 export interface CatalogFieldDescriptor<L extends string = string, V = unknown> {
     readonly label: L;
+    readonly property?: string;
     readonly multiple?: boolean;
     readonly wireId?: number;
     readonly fixedLength?: number | null;
@@ -13,6 +14,13 @@ export declare function catalogField<const L extends string, V, const M extends 
 }): CatalogFieldDescriptor<L, V> & {
     readonly multiple: M;
 };
+export declare function catalogField<const L extends string, V, const M extends boolean, const P extends string>(label: L, model: {
+    readonly multiple: M;
+    decode(payload: Uint8Array): V;
+}, property: P): CatalogFieldDescriptor<L, V> & {
+    readonly multiple: M;
+    readonly property: P;
+};
 export type CatalogName = string;
 export type CatalogValueMap = Record<string, Record<string, Uint8Array>>;
 export type CatalogFieldName<C extends CatalogName> = keyof CatalogValueMap[C] & string;
@@ -23,7 +31,9 @@ export type CatalogDescriptorValue<D> = D extends CatalogFieldDescriptor<string,
     readonly multiple: true;
 } ? Readonly<Record<string, V>> : V : never;
 export type CatalogDescriptorSelection<D extends readonly CatalogFieldDescriptor[]> = {
-    readonly [P in D[number] as P["label"]]: CatalogDescriptorValue<P>;
+    readonly [P in D[number] as P extends {
+        readonly property: infer Name extends string;
+    } ? Name : P["label"]]: CatalogDescriptorValue<P>;
 };
 /** Choose a localized pair first, then fall back from short to long within it. */
 export declare function catalogDisplayName(names: {
