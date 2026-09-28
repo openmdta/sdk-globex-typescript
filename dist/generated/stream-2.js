@@ -72,7 +72,7 @@ export class QuoteSideCandle {
 export class BidAskCandle {
     static SCHEMA_ID = 100;
     static TEMPLATE_ID = 12;
-    static VERSION = 3;
+    static VERSION = 4;
     static BLOCK_LENGTH = 97;
     static format = { schemaId: this.SCHEMA_ID, templateId: this.TEMPLATE_ID, version: this.VERSION, blockLength: this.BLOCK_LENGTH };
     eventTimeMicros;

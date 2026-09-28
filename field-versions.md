@@ -1,0 +1,3 @@
+# Versioned finite reads
+
+`field-versions.json` declares the exact owner contracts this SDK understands. Send a JSON array of supported family/version IDs with digest pins in the `versions` query parameter on `/api/v1/datasets/{alias}/records`, using `delivery: {kind: get}`. The gateway returns `versionedFields` with a selected contract, exact numeric strings, SBE payloadBase64 and mapping fingerprints. TypeScript exposes createRestClient(...).versionedRecords; Java exposes VersionedReads.read. An empty manifest means no version families were supplied at generation. Stream feeds never use this adapter.

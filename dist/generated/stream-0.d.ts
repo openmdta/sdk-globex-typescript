@@ -24,35 +24,35 @@ export declare class Decimal {
     toString(): string;
     toLocaleString(locales?: Intl.LocalesArgument, options?: Intl.NumberFormatOptions): string;
 }
-export interface AskDailyOhlcValue {
+export interface AskOhlcValue {
     readonly eventTimeMicros: bigint;
     readonly open: Decimal;
     readonly high: Decimal;
     readonly low: Decimal;
-    readonly closeLast: Decimal;
-    readonly closePrevious: Decimal;
+    readonly close: Decimal;
+    readonly closingSize: bigint;
     readonly day: number;
     readonly flags: number;
 }
-export declare class AskDailyOhlc {
+export declare class AskOhlc {
     static readonly SCHEMA_ID = 100;
-    static readonly TEMPLATE_ID = 15;
-    static readonly VERSION = 3;
-    static readonly BLOCK_LENGTH = 61;
+    static readonly TEMPLATE_ID = 18;
+    static readonly VERSION = 4;
+    static readonly BLOCK_LENGTH = 60;
     static readonly format: SbeFormat;
     readonly eventTimeMicros: bigint;
     readonly open: Decimal;
     readonly high: Decimal;
     readonly low: Decimal;
-    readonly closeLast: Decimal;
-    readonly closePrevious: Decimal;
+    readonly close: Decimal;
+    readonly closingSize: bigint;
     readonly day: number;
     readonly flags: number;
-    constructor(value: AskDailyOhlcValue);
-    static decodeBody(source: ArrayBuffer | ArrayBufferView, offset?: number, actingVersion?: number, actingBlockLength?: number): AskDailyOhlc;
-    static encodeBody(value: AskDailyOhlcValue): Uint8Array;
+    constructor(value: AskOhlcValue);
+    static decodeBody(source: ArrayBuffer | ArrayBufferView, offset?: number, actingVersion?: number, actingBlockLength?: number): AskOhlc;
+    static encodeBody(value: AskOhlcValue): Uint8Array;
 }
-export type PublicExport = AskDailyOhlc;
+export type PublicExport = AskOhlc;
 export declare const PUBLIC_EXPORT_CODECS: Map<number, {
     readonly format: SbeFormat;
     decodeBody(source: ArrayBuffer | ArrayBufferView, offset?: number, actingVersion?: number, actingBlockLength?: number): PublicExport;

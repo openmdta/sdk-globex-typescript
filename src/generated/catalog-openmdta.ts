@@ -22,7 +22,7 @@ export const InstrumentNames = {
     decode(payload: Uint8Array): InstrumentNamesValue {
         const reader = new Reader(payload);
         const block = reader.u16(), version = reader.u16();
-        if (version > 3 || block < 0) throw new RangeError("incompatible InstrumentNames prefix");
+        if (version > 4 || block < 0) throw new RangeError("incompatible InstrumentNames prefix");
         const value = reader.record(block, (base) => ({ localized: reader.group(0, (base) => ({ language: reader.text(), long: reader.text(), short: reader.text(), })), long: reader.text(), short: reader.text(), }));
         reader.finish();
         return value;
@@ -34,7 +34,7 @@ export const LegalEntityNames = {
     decode(payload: Uint8Array): LegalEntityNamesValue {
         const reader = new Reader(payload);
         const block = reader.u16(), version = reader.u16();
-        if (version > 3 || block < 0) throw new RangeError("incompatible LegalEntityNames prefix");
+        if (version > 4 || block < 0) throw new RangeError("incompatible LegalEntityNames prefix");
         const value = reader.record(block, (base) => ({ localized: reader.group(0, (base) => ({ language: reader.text(), long: reader.text(), short: reader.text(), })), long: reader.text(), short: reader.text(), }));
         reader.finish();
         return value;
@@ -46,7 +46,7 @@ export const Classification = {
     decode(payload: Uint8Array): ClassificationValue {
         const reader = new Reader(payload);
         const block = reader.u16(), version = reader.u16();
-        if (version > 3 || block < 0) throw new RangeError("incompatible Classification prefix");
+        if (version > 4 || block < 0) throw new RangeError("incompatible Classification prefix");
         const value = reader.record(block, (base) => ({ code: reader.text(), label: reader.text(), }));
         reader.finish();
         return value;
@@ -58,7 +58,7 @@ export const ListingClassification = {
     decode(payload: Uint8Array): ListingClassificationValue {
         const reader = new Reader(payload);
         const block = reader.u16(), version = reader.u16();
-        if (version > 3 || block < 0) throw new RangeError("incompatible ListingClassification prefix");
+        if (version > 4 || block < 0) throw new RangeError("incompatible ListingClassification prefix");
         const value = reader.record(block, (base) => ({ code: reader.text(), label: reader.text(), }));
         reader.finish();
         return value;
@@ -70,7 +70,7 @@ export const ListingQuotation = {
     decode(payload: Uint8Array): ListingQuotationValue {
         const reader = new Reader(payload);
         const block = reader.u16(), version = reader.u16();
-        if (version > 3 || block < 0) throw new RangeError("incompatible ListingQuotation prefix");
+        if (version > 4 || block < 0) throw new RangeError("incompatible ListingQuotation prefix");
         const value = reader.record(block, (base) => ({ currency: reader.text(), unit: reader.text(), decimalDigits: reader.text(), symbol: reader.text(), }));
         reader.finish();
         return value;
@@ -82,7 +82,7 @@ export const ListingVenue = {
     decode(payload: Uint8Array): ListingVenueValue {
         const reader = new Reader(payload);
         const block = reader.u16(), version = reader.u16();
-        if (version > 3 || block < 0) throw new RangeError("incompatible ListingVenue prefix");
+        if (version > 4 || block < 0) throw new RangeError("incompatible ListingVenue prefix");
         const value = reader.record(block, (base) => ({ mic: reader.text(), primaryMic: reader.text(), reportingMarket: reader.text(), offBookReportingMarket: reader.text(), }));
         reader.finish();
         return value;
@@ -94,7 +94,7 @@ export const ListingTradingDates = {
     decode(payload: Uint8Array): ListingTradingDatesValue {
         const reader = new Reader(payload);
         const block = reader.u16(), version = reader.u16();
-        if (version > 3 || block < 0) throw new RangeError("incompatible ListingTradingDates prefix");
+        if (version > 4 || block < 0) throw new RangeError("incompatible ListingTradingDates prefix");
         const value = reader.record(block, (base) => ({ firstTradingDate: reader.text(), lastTradingDate: reader.text(), }));
         reader.finish();
         return value;
@@ -106,7 +106,7 @@ export const ListingTradingRules = {
     decode(payload: Uint8Array): ListingTradingRulesValue {
         const reader = new Reader(payload);
         const block = reader.u16(), version = reader.u16();
-        if (version > 3 || block < 0) throw new RangeError("incompatible ListingTradingRules prefix");
+        if (version > 4 || block < 0) throw new RangeError("incompatible ListingTradingRules prefix");
         const value = reader.record(block, (base) => ({ tradingModel: reader.text(), closedBook: reader.text(), marketImbalance: reader.text(), auctionType: reader.text(), quotingPeriodStart: reader.text(), quotingPeriodEnd: reader.text(), singleSidedQuotes: reader.text(), crossMatchDefault: reader.text(), }));
         reader.finish();
         return value;
@@ -118,7 +118,7 @@ export const ListingQuoteParameters = {
     decode(payload: Uint8Array): ListingQuoteParametersValue {
         const reader = new Reader(payload);
         const block = reader.u16(), version = reader.u16();
-        if (version > 3 || block < 0) throw new RangeError("incompatible ListingQuoteParameters prefix");
+        if (version > 4 || block < 0) throw new RangeError("incompatible ListingQuoteParameters prefix");
         const value = reader.record(block, (base) => ({ priceRange: reader.text(), priceRangePercent: reader.text(), minimumSize: reader.text(), }));
         reader.finish();
         return value;
@@ -130,7 +130,7 @@ export const ListingOrderSize = {
     decode(payload: Uint8Array): ListingOrderSizeValue {
         const reader = new Reader(payload);
         const block = reader.u16(), version = reader.u16();
-        if (version > 3 || block < 0) throw new RangeError("incompatible ListingOrderSize prefix");
+        if (version > 4 || block < 0) throw new RangeError("incompatible ListingOrderSize prefix");
         const value = reader.record(block, (base) => ({ minimumTradableUnit: reader.text(), minimumOrderQuantity: reader.text(), }));
         reader.finish();
         return value;
@@ -142,7 +142,7 @@ export const ListingTickSchedule = {
     decode(payload: Uint8Array): ListingTickScheduleValue {
         const reader = new Reader(payload);
         const block = reader.u16(), version = reader.u16();
-        if (version > 3 || block < 0) throw new RangeError("incompatible ListingTickSchedule prefix");
+        if (version > 4 || block < 0) throw new RangeError("incompatible ListingTickSchedule prefix");
         const value = reader.record(block, (base) => ({ tiers: reader.group(18, (base) => ({ upperBound: { mantissa: reader.view.getBigInt64(base + 0 + 0, true), exponent: reader.view.getInt8(base + 0 + 8), }, increment: { mantissa: reader.view.getBigInt64(base + 9 + 0, true), exponent: reader.view.getInt8(base + 9 + 8), }, })), band: reader.text(), }));
         reader.finish();
         return value;
@@ -154,7 +154,7 @@ export const InstrumentPrimaryListing = {
     decode(payload: Uint8Array): InstrumentPrimaryListingValue {
         const reader = new Reader(payload);
         const block = reader.u16(), version = reader.u16();
-        if (version > 3 || block < 0) throw new RangeError("incompatible InstrumentPrimaryListing prefix");
+        if (version > 4 || block < 0) throw new RangeError("incompatible InstrumentPrimaryListing prefix");
         const value = reader.record(block, (base) => ({ catalog: reader.text(), recordKey: reader.text(), }));
         reader.finish();
         return value;
@@ -166,7 +166,7 @@ export const InstrumentListingRecordCount = {
     decode(payload: Uint8Array): InstrumentListingRecordCountValue {
         const reader = new Reader(payload);
         const block = reader.u16(), version = reader.u16();
-        if (version > 3 || block < 8) throw new RangeError("incompatible InstrumentListingRecordCount prefix");
+        if (version > 4 || block < 8) throw new RangeError("incompatible InstrumentListingRecordCount prefix");
         const value = reader.record(block, (base) => ({ count: reader.view.getBigUint64(base + 0, true), }));
         reader.finish();
         return value;
@@ -178,7 +178,7 @@ export const CorporateActions = {
     decode(payload: Uint8Array): CorporateActionsValue {
         const reader = new Reader(payload);
         const block = reader.u16(), version = reader.u16();
-        if (version > 3 || block < 0) throw new RangeError("incompatible CorporateActions prefix");
+        if (version > 4 || block < 0) throw new RangeError("incompatible CorporateActions prefix");
         const value = reader.record(block, (base) => ({ events: reader.group(26, (base) => ({ kind: ((value): "Unknown" | "ShareSplit" | "StockDividend" | "RightsIssue" | "SpinOff" | "Merger" | "Other" => { switch (value) { case 0: return "Unknown"; case 1: return "ShareSplit"; case 2: return "StockDividend"; case 3: return "RightsIssue"; case 4: return "SpinOff"; case 5: return "Merger"; case 254: return "Other"; default: throw new RangeError('invalid Catalog enum CorporateActionKind'); } })(reader.view.getUint8(base + 0)), status: ((value): "Unknown" | "Announced" | "Confirmed" | "Cancelled" => { switch (value) { case 0: return "Unknown"; case 1: return "Announced"; case 2: return "Confirmed"; case 3: return "Cancelled"; default: throw new RangeError('invalid Catalog enum CorporateEventStatus'); } })(reader.view.getUint8(base + 1)), newShares: reader.view.getBigUint64(base + 2, true) === 18446744073709551615n ? null : reader.view.getBigUint64(base + 2, true), oldShares: reader.view.getBigUint64(base + 10, true) === 18446744073709551615n ? null : reader.view.getBigUint64(base + 10, true), announcementDay: reader.view.getUint32(base + 18, true) === 4294967295 ? null : reader.view.getUint32(base + 18, true), recordDay: reader.view.getUint32(base + 22, true) === 4294967295 ? null : reader.view.getUint32(base + 22, true), eventId: reader.text(), })), }));
         reader.finish();
         return value;
@@ -190,7 +190,7 @@ export const Distributions = {
     decode(payload: Uint8Array): DistributionsValue {
         const reader = new Reader(payload);
         const block = reader.u16(), version = reader.u16();
-        if (version > 3 || block < 0) throw new RangeError("incompatible Distributions prefix");
+        if (version > 4 || block < 0) throw new RangeError("incompatible Distributions prefix");
         const value = reader.record(block, (base) => ({ events: reader.group(19, (base) => ({ kind: ((value): "Unknown" | "Dividend" | "Interest" | "ReturnOfCapital" | "CapitalGain" | "Other" => { switch (value) { case 0: return "Unknown"; case 1: return "Dividend"; case 2: return "Interest"; case 3: return "ReturnOfCapital"; case 4: return "CapitalGain"; case 254: return "Other"; default: throw new RangeError('invalid Catalog enum DistributionKind'); } })(reader.view.getUint8(base + 0)), status: ((value): "Unknown" | "Announced" | "Confirmed" | "Cancelled" => { switch (value) { case 0: return "Unknown"; case 1: return "Announced"; case 2: return "Confirmed"; case 3: return "Cancelled"; default: throw new RangeError('invalid Catalog enum CorporateEventStatus'); } })(reader.view.getUint8(base + 1)), amount: { mantissa: reader.view.getBigInt64(base + 2 + 0, true), exponent: reader.view.getInt8(base + 2 + 8), }, recordDay: reader.view.getUint32(base + 11, true) === 4294967295 ? null : reader.view.getUint32(base + 11, true), paymentDay: reader.view.getUint32(base + 15, true) === 4294967295 ? null : reader.view.getUint32(base + 15, true), currency: reader.text(), eventId: reader.text(), })), }));
         reader.finish();
         return value;
@@ -202,7 +202,7 @@ export const ListDefinition = {
     decode(payload: Uint8Array): ListDefinitionValue {
         const reader = new Reader(payload);
         const block = reader.u16(), version = reader.u16();
-        if (version > 3 || block < 0) throw new RangeError("incompatible ListDefinition prefix");
+        if (version > 4 || block < 0) throw new RangeError("incompatible ListDefinition prefix");
         const value = reader.record(block, (base) => ({ members: reader.group(0, (base) => ({ identifier: reader.text(), })), variants: reader.group(0, (base) => ({ returnType: reader.text(), currency: reader.text(), identifier: reader.text(), })), code: reader.text(), name: reader.text(), description: reader.text(), kind: reader.text(), memberDimension: reader.text(), validAt: reader.text(), }));
         reader.finish();
         return value;

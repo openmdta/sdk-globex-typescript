@@ -1,3 +1,5 @@
+import { VERSION_CONTRACTS } from "./generated/version-contracts.js";
+import { versionRequests, validateVersionedRecords } from "./versioned-reads.js";
 export const tokenBytes = (token) => {
     if (token instanceof Uint8Array) {
         if (!token.length || token.length > 6144)
@@ -37,6 +39,14 @@ export const createRestClient = (options) => {
         });
     };
     return {
+        /** Converts on the gateway to the latest version this generated SDK understands. */
+        versionedRecords: async (datasetAlias, selector, families, allowLossy = false) => {
+            const versions = versionRequests(VERSION_CONTRACTS, families, allowLossy);
+            const response = await request(`/api/v1/datasets/${encodeURIComponent(datasetAlias)}/records`, { selector, versions: JSON.stringify(versions) });
+            if (!response.ok)
+                throw new Error(`Versioned read failed: ${response.status}`);
+            return validateVersionedRecords(await response.json(), VERSION_CONTRACTS, versions);
+        },
         latest: (selector, options = {}) => request("/api/v1/snapshot", { selector, ...options }),
         timeseries: (selector, from, through, options = {}) => request("/api/v1/timeseries", { selector, from, through, ...options }),
     };

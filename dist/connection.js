@@ -12,7 +12,7 @@ import { MemoryFeedSink, streamFeed as runStreamFeed } from "./feed.js";
 import { MemoryCatalogFeedSink } from "./catalog-feed.js";
 import { BLOCK_BINDINGS, } from "./generated/bindings.js";
 import {} from "./catalog.js";
-import { ProtocolError, RequestError, WEBSOCKET_SUBPROTOCOL, blockMask, decodeBatch, decodeStreamMetadata, decodeListingResponse, decodeCatalogFields, decodeCatalogRecord, decodeKeyfiguresResult, decodeServiceCallResult, decodeTimeseriesPageResult, decodeCatalogSearchResult, decodeCatalogLookupResult, decodeFeedControl, decodeFeedSnapshotHeader, decodeCatalogFeedControl, decodeResponse, encodeCredit, encodeWindow, encodeRelease, splitResponseBatch, WINDOW_SUBPROTOCOL, RESPONSE_WINDOW_BYTES, RESPONSE_COST_OVERHEAD, encodeRequest, } from "./protocol.js";
+import { ProtocolError, RequestError, WEBSOCKET_SUBPROTOCOL, decodeBatch, decodeStreamMetadata, decodeListingResponse, decodeCatalogFields, decodeCatalogRecord, decodeKeyfiguresResult, decodeServiceCallResult, decodeTimeseriesPageResult, decodeCatalogSearchResult, decodeCatalogLookupResult, decodeFeedControl, decodeFeedSnapshotHeader, decodeCatalogFeedControl, decodeResponse, encodeCredit, encodeWindow, encodeRelease, splitResponseBatch, WINDOW_SUBPROTOCOL, RESPONSE_WINDOW_BYTES, RESPONSE_COST_OVERHEAD, encodeRequest, } from "./protocol.js";
 export class ConnectionClosedError extends Error {
     constructor() {
         super("market-data connection was closed");
@@ -296,7 +296,7 @@ class ReconnectingConnection {
             options.signal?.addEventListener("abort", () => void handle.cancel(), { once: true });
         const active = {
             command: "FEED_LIVE",
-            encoded: encodeRequest({ command: "FEED_LIVE", id, blockMask: blockMask(blocks), dataset, quality,
+            encoded: encodeRequest({ command: "FEED_LIVE", id, blockMask: 0n, selectedFields: blocks, dataset, quality,
                 ...(options.trace ? { trace: options.trace } : {}) }),
             handle: handle,
             many: true,
@@ -401,7 +401,7 @@ class ReconnectingConnection {
             options.signal?.addEventListener("abort", () => void handle.cancel(), { once: true });
         const active = {
             command: "FEED_RECOVERY",
-            encoded: encodeRequest({ command: "FEED_RECOVERY", id, blockMask: blockMask(blocks),
+            encoded: encodeRequest({ command: "FEED_RECOVERY", id, blockMask: 0n, selectedFields: blocks,
                 afterMessageId, throughMessageId, dataset, quality, ...(options.trace ? { trace: options.trace } : {}) }),
             handle: handle,
             many: true,
@@ -440,7 +440,7 @@ class ReconnectingConnection {
             options.signal?.addEventListener("abort", () => void handle.cancel(), { once: true });
         const active = {
             command: "FEED_SNAPSHOT",
-            encoded: encodeRequest({ command: "FEED_SNAPSHOT", id, blockMask: blockMask(blocks), dataset, quality,
+            encoded: encodeRequest({ command: "FEED_SNAPSHOT", id, blockMask: 0n, selectedFields: blocks, dataset, quality,
                 ...(options.trace ? { trace: options.trace } : {}) }),
             handle: handle,
             many: true,
@@ -607,7 +607,7 @@ class ReconnectingConnection {
             command: "TS_PAGE", id, selector: selectorExpression(selector),
             ...(options.dataset === undefined ? {} : { dataset: options.dataset }),
             ...(options.quality === undefined ? {} : { quality: options.quality.trim().toUpperCase() }),
-            blockMask: blockMask(options.blocks), resolutionMicros: cadenceMicros, order, limit,
+            blockMask: 0n, selectedFields: options.blocks ?? [], resolutionMicros: cadenceMicros, order, limit,
             ...(typeof boundary === "bigint" ? { boundary } : { cursor: boundary }),
             ...(guard === undefined ? {} : { guard }),
             adjustment: options.adjustment ?? "raw",
@@ -705,20 +705,20 @@ class ReconnectingConnection {
     catalog_keyfigures(catalog) {
         if (!Object.hasOwn(KEYFIGURES_CONTRACTS, catalog))
             throw new TypeError(`unknown keyfigures catalog ${catalog}`);
-        const start = (action, parameters, policy = {}) => {
+        const start = (action, key, policy = {}, searchQuery) => {
             if (this.#closing)
                 throw new ConnectionClosedError();
             if (policy.price_cutoff_ms !== undefined && (!Number.isSafeInteger(policy.price_cutoff_ms) || policy.price_cutoff_ms < 0))
                 throw new RangeError("price_cutoff_ms must be a nonnegative safe integer");
             if (policy.price_age_mode !== undefined && !["elapsed", "trading-time", "last-completed-session"].includes(policy.price_age_mode))
                 throw new RangeError("price_age_mode is invalid");
-            if (new TextEncoder().encode(parameters).byteLength > 16_384)
+            if (new TextEncoder().encode(key).byteLength > 16_384)
                 throw new RangeError("keyfigures request exceeds 16 KiB");
             const id = this.#nextId++;
             const handle = new Handle(id, () => this.#cancel(id));
             const active = {
                 command: "CATALOG_KEYFIGURES", handle,
-                encoded: encodeRequest({ command: "CATALOG_KEYFIGURES", id, catalog, action, parameters, contractFingerprint: KEYFIGURES_CONTRACTS[catalog].fingerprint,
+                encoded: encodeRequest({ command: "CATALOG_KEYFIGURES", id, catalog, action, key, after: 0n, ...(searchQuery === undefined ? {} : { searchQuery }), contractFingerprint: KEYFIGURES_CONTRACTS[catalog].fingerprint,
                     ...(policy.price_cutoff_ms === undefined ? {} : { priceCutoffMs: BigInt(policy.price_cutoff_ms) }), ...(policy.price_age_mode === undefined ? {} : { priceAgeMode: policy.price_age_mode }), ...(policy.trace ? { trace: policy.trace } : {}) }),
                 decode: response => decodeKeyfigures(catalog, action, decodeKeyfiguresResult(response)),
             };
@@ -731,11 +731,7 @@ class ReconnectingConnection {
             search: (parameters = {}) => {
                 const { price_cutoff_ms, price_age_mode, trace, ...query } = parameters;
                 const policy = { ...(price_cutoff_ms === undefined ? {} : { price_cutoff_ms }), ...(price_age_mode === undefined ? {} : { price_age_mode }), ...(trace ? { trace } : {}) };
-                return start("search", JSON.stringify(query, (_key, value) => {
-                    if (typeof value === "number" && !Number.isFinite(value))
-                        throw new RangeError("keyfigures numbers must be finite");
-                    return value;
-                }), policy);
+                return start("search", "", policy, query);
             },
             instrument: (key, policy) => {
                 if (!key.trim())
@@ -857,7 +853,8 @@ class ReconnectingConnection {
             request = {
                 command,
                 id,
-                blockMask: blockMask(parameters.blocks),
+                blockMask: 0n,
+                selectedFields: parameters.blocks ?? [],
                 expression,
                 ...(parameters.dataset === undefined ? {} : { dataset: parameters.dataset }),
                 adjustment: parameters.adjustment ?? "raw",
@@ -869,7 +866,8 @@ class ReconnectingConnection {
             request = {
                 command,
                 id,
-                blockMask: blockMask(history.blocks),
+                blockMask: 0n,
+                selectedFields: history.blocks ?? [],
                 from: history.from,
                 through: history.through,
                 maxRows: normalized?.maxMessages ?? 100,
@@ -884,7 +882,8 @@ class ReconnectingConnection {
             const history = parameters;
             const candle = {
                 id,
-                blockMask: blockMask(history.blocks),
+                blockMask: 0n,
+                selectedFields: history.blocks ?? [],
                 from: history.from,
                 through: history.through,
                 cadenceMicros: history.cadenceMicros,

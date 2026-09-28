@@ -22,6 +22,7 @@ export type Request = {
     readonly command: "FEED_LIVE";
     readonly id: bigint;
     readonly blockMask: bigint;
+    readonly selectedFields?: readonly BlockName[];
     readonly dataset: string;
     readonly quality: string;
     readonly trace?: TraceContext;
@@ -29,6 +30,7 @@ export type Request = {
     readonly command: "FEED_RECOVERY";
     readonly id: bigint;
     readonly blockMask: bigint;
+    readonly selectedFields?: readonly BlockName[];
     readonly afterMessageId: bigint;
     readonly throughMessageId: bigint;
     readonly dataset: string;
@@ -38,6 +40,7 @@ export type Request = {
     readonly command: "FEED_SNAPSHOT";
     readonly id: bigint;
     readonly blockMask: bigint;
+    readonly selectedFields?: readonly BlockName[];
     readonly dataset: string;
     readonly quality: string;
     readonly trace?: TraceContext;
@@ -48,6 +51,7 @@ export type Request = {
     readonly dataset?: string;
     readonly quality?: string;
     readonly blockMask: bigint;
+    readonly selectedFields?: readonly BlockName[];
     readonly resolutionMicros: bigint;
     readonly order: "asc" | "desc";
     readonly limit: number;
@@ -87,7 +91,33 @@ export type Request = {
     readonly id: bigint;
     readonly catalog: string;
     readonly action: "search" | "instrument" | "schema";
-    readonly parameters: string;
+    readonly key: string;
+    readonly after: bigint;
+    readonly searchQuery?: {
+        readonly expression?: string;
+        readonly cursor?: string;
+        readonly facets?: readonly string[];
+        readonly text?: string;
+        readonly filters?: Partial<Record<string, readonly string[]>>;
+        readonly ranges?: readonly {
+            readonly field: string;
+            readonly gt?: number;
+            readonly ge?: number;
+            readonly lt?: number;
+            readonly le?: number;
+            readonly min?: number;
+            readonly max?: number;
+            readonly absolute_margin?: number;
+            readonly relative_margin?: number;
+        }[];
+        readonly sorts?: readonly {
+            readonly field: string;
+            readonly descending?: boolean;
+        }[];
+        readonly offset?: number;
+        readonly limit?: number;
+        readonly budget?: number;
+    };
     readonly contractFingerprint: string;
     readonly priceCutoffMs?: bigint;
     readonly priceAgeMode?: "elapsed" | "trading-time" | "last-completed-session";
@@ -114,6 +144,7 @@ export type Request = {
     readonly command: "SNAPSHOT" | "STREAM";
     readonly id: bigint;
     readonly blockMask: bigint;
+    readonly selectedFields?: readonly BlockName[];
     readonly expression: string;
     readonly dataset?: string;
     readonly adjustment: "raw" | "split";
@@ -122,6 +153,7 @@ export type Request = {
     readonly command: "TS_RAW" | "TS_RAW_STREAM";
     readonly id: bigint;
     readonly blockMask: bigint;
+    readonly selectedFields?: readonly BlockName[];
     readonly from: bigint;
     readonly through: bigint;
     readonly maxRows: number;
@@ -134,6 +166,7 @@ export type Request = {
     readonly command: "TS_CANDLE";
     readonly id: bigint;
     readonly blockMask: bigint;
+    readonly selectedFields?: readonly BlockName[];
     readonly from: bigint;
     readonly through: bigint;
     readonly cadenceMicros: bigint;
@@ -146,6 +179,7 @@ export type Request = {
     readonly command: "TS_CANDLE_STREAM";
     readonly id: bigint;
     readonly blockMask: bigint;
+    readonly selectedFields?: readonly BlockName[];
     readonly from: bigint;
     readonly through: bigint;
     readonly cadenceMicros: bigint;
@@ -267,6 +301,7 @@ export declare class RequestError extends Error {
     constructor(requestId: bigint, message: string);
 }
 export declare const blockMask: (blocks: readonly BlockName[] | undefined) => bigint;
+export declare const encodeFieldSelection: (fields: readonly BlockName[]) => Uint8Array<ArrayBuffer>;
 export declare const encodeRequest: (request: Request) => Uint8Array<ArrayBuffer>;
 export declare const encodeCredit: (targetId: bigint, credits?: number) => Uint8Array<ArrayBuffer>;
 export declare const encodeWindow: (targetId: bigint) => Uint8Array<ArrayBuffer>;

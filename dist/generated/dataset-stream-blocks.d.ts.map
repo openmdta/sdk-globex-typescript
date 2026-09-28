@@ -1,1 +1,1 @@
-{"version":3,"file":"dataset-stream-blocks.d.ts","sourceRoot":"","sources":["../../src/generated/dataset-stream-blocks.ts"],"names":[],"mappings":"AAAA,eAAO,MAAM,qBAAqB;aAChC,MAAQ;aACR,GAAK,YACH,cAAc,EACd,QAAQ,EACR,cAAc,EACd,cAAc;aAEhB,KAAO;CACC,CAAC"}
+{"version":3,"file":"dataset-stream-blocks.d.ts","sourceRoot":"","sources":["../../src/generated/dataset-stream-blocks.ts"],"names":[],"mappings":"AAAA,eAAO,MAAM,qBAAqB;aAChC,MAAQ;aACR,GAAK,YACH,SAAS,EACT,QAAQ,EACR,cAAc,EACd,SAAS;aAEX,KAAO;CACC,CAAC"}

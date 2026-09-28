@@ -134,10 +134,43 @@ export const blockMask = (blocks) => {
         const binding = BLOCK_BINDINGS[block];
         if (!binding)
             throw new ProtocolError(`unknown export block ${block}`);
+        const id = (binding.canonicalFormat ?? binding.format).templateId;
+        if (id >= 64)
+            throw new ProtocolError(`export block ${block} cannot fit in a legacy block mask`);
         // Masks carry template IDs only; combining schemas can select a different block with the same ID.
-        mask |= 1n << BigInt((binding.canonicalFormat ?? binding.format).templateId);
+        mask |= 1n << BigInt(id);
     }
     return mask;
+};
+export const encodeFieldSelection = (fields) => {
+    if (fields.length > 256)
+        throw new ProtocolError("invalid field selection");
+    const values = fields.map(field => {
+        const binding = BLOCK_BINDINGS[field];
+        if (!binding)
+            throw new ProtocolError(`unknown export field ${field}`);
+        const bytes = new TextEncoder().encode(binding.semantic);
+        if (!bytes.length || bytes.length > 256)
+            throw new ProtocolError("invalid field selection name");
+        return bytes;
+    });
+    if (new Set(values.map(value => new TextDecoder().decode(value))).size !== values.length)
+        throw new ProtocolError("duplicate selected field");
+    const bytes = message(MARKET_SCHEMA_ID, 29, 27, 0, 6 + values.reduce((sum, value) => sum + 4 + value.length, 0));
+    putGroupHeader(bytes, new DataView(bytes.buffer), HEADER_LENGTH, values);
+    return bytes;
+};
+const appendFieldSelection = (base, fields) => {
+    if (new DataView(base.buffer).getBigUint64(HEADER_LENGTH, true) !== 0n)
+        throw new ProtocolError("legacy block mask conflicts with field selection");
+    const frame = encodeFieldSelection(fields);
+    const bytes = new Uint8Array(base.length + 4 + frame.length);
+    bytes.set(base);
+    const view = new DataView(bytes.buffer);
+    view.setUint16(6, 29, true);
+    view.setUint32(base.length, frame.length, true);
+    bytes.set(frame, base.length + 4);
+    return bytes;
 };
 export const encodeRequest = (request) => {
     if (request.command === "AUTH") {
@@ -152,7 +185,9 @@ export const encodeRequest = (request) => {
         view.setBigUint64(HEADER_LENGTH + 8, request.targetId, true);
         return bytes;
     }
-    return encodeOpen(request.id, encodeMarketRequest(request), request.trace);
+    const market = encodeMarketRequest(request);
+    const fields = "selectedFields" in request ? request.selectedFields : undefined;
+    return encodeOpen(request.id, fields === undefined ? market : appendFieldSelection(market, fields), request.trace);
 };
 export const encodeCredit = (targetId, credits = 1) => {
     const bytes = message(SESSION_SCHEMA_ID, SESSION_SCHEMA_VERSION, CREDIT_TEMPLATE_ID, 12);
@@ -720,13 +755,65 @@ const encodeMarketRequest = (request) => {
         return bytes;
     }
     if (request.command === "CATALOG_KEYFIGURES") {
-        const strings = [request.catalog, request.action, request.parameters, request.contractFingerprint].map(value => new TextEncoder().encode(value));
-        strings.push(new TextEncoder().encode(request.priceAgeMode ?? ""));
-        const bytes = message(MARKET_SCHEMA_ID, 7, MARKET_TEMPLATE.CATALOG_KEYFIGURES, 8, strings.reduce((n, value) => n + 4 + value.byteLength, 0));
+        const query = request.searchQuery;
+        if ((request.action === "search") !== (query !== undefined) || (request.action !== "instrument" && request.key)
+            || (request.action !== "search" && query?.expression) || request.after !== 0n)
+            throw new ProtocolError("invalid Keyfigures request");
+        const expression = new TextEncoder().encode(query?.expression ?? "");
+        const writer = new WireWriter();
+        if (query) {
+            const filters = Object.entries(query.filters ?? {}).sort(([left], [right]) => left.localeCompare(right));
+            const facets = query.facets ?? [], ranges = query.ranges ?? [], sorts = query.sorts ?? [{ field: "name", descending: false }];
+            const keys = query.keys;
+            const offset = query.offset ?? 0, limit = query.limit ?? 25, budget = query.budget ?? 500;
+            if (expression.length > 4096 || (expression.length && keys !== undefined)
+                || [offset, limit, budget].some(value => !Number.isSafeInteger(value) || value < 0 || value > 0xffffffff))
+                throw new RangeError("invalid Keyfigures query");
+            writer.u16(13).u16(3).u16(10).u16(1);
+            writer.u32(offset).u32(limit).u32(budget).u8(Number(keys !== undefined) | (Number(query.cursor !== undefined) << 1));
+            writer.group(0, filters.length);
+            for (const [field, values] of filters) {
+                if (!Array.isArray(values) || values.some(value => typeof value !== "string"))
+                    throw new RangeError("invalid Keyfigures filter");
+                writer.group(0, values.length);
+                for (const value of values)
+                    writer.text(value);
+                writer.text(field);
+            }
+            writer.group(0, facets.length);
+            for (const facet of facets)
+                writer.text(facet);
+            writer.group(0, keys?.length ?? 0);
+            for (const key of keys ?? [])
+                writer.text(key);
+            writer.group(49, ranges.length);
+            for (const range of ranges) {
+                const bounds = [range.gt, range.ge ?? range.min, range.lt, range.le ?? range.max];
+                if (bounds.some(value => value !== undefined && !Number.isFinite(value))
+                    || !Number.isFinite(range.absolute_margin ?? 0) || !Number.isFinite(range.relative_margin ?? 0))
+                    throw new RangeError("invalid Keyfigures range");
+                writer.u8(bounds.reduce((mask, value, index) => mask | (value === undefined ? 0 : 1 << index), 0));
+                for (const value of bounds)
+                    writer.f64(value ?? 0);
+                writer.f64(range.absolute_margin ?? 0).f64(range.relative_margin ?? 0).text(range.field);
+            }
+            writer.group(1, sorts.length);
+            for (const sort of sorts)
+                writer.u8(sort.descending ? 1 : 0).text(sort.field);
+            writer.text(query.text ?? "").text(query.cursor ?? "");
+        }
+        const queryFrame = writer.finish();
+        if (queryFrame.length > 16_384)
+            throw new RangeError("Keyfigures query exceeds 16 KiB");
+        const values = [request.catalog, request.action, request.key, request.contractFingerprint, request.priceAgeMode ?? ""]
+            .map(value => new TextEncoder().encode(value));
+        values.push(expression, queryFrame);
+        const bytes = message(MARKET_SCHEMA_ID, 28, MARKET_TEMPLATE.CATALOG_KEYFIGURES, 16, values.reduce((n, value) => n + 4 + value.byteLength, 0));
         const view = new DataView(bytes.buffer);
         view.setBigUint64(HEADER_LENGTH, request.priceCutoffMs ?? 0xffffffffffffffffn, true);
-        let offset = HEADER_LENGTH + 8;
-        for (const value of strings) {
+        view.setBigUint64(HEADER_LENGTH + 8, request.after, true);
+        let offset = HEADER_LENGTH + 16;
+        for (const value of values) {
             view.setUint32(offset, value.byteLength, true);
             bytes.set(value, offset + 4);
             offset += 4 + value.byteLength;

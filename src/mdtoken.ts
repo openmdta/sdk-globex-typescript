@@ -1,3 +1,5 @@
+import {VERSION_CONTRACTS} from "./generated/version-contracts.js";
+import {versionRequests,validateVersionedRecords} from "./versioned-reads.js";
 /** Opaque signed token bytes, or their unpadded base64url HTTP representation. */
 export type DataToken = Uint8Array | string;
 export type TokenSource = DataToken | (() => DataToken | Promise<DataToken>);
@@ -51,7 +53,7 @@ export interface TimeseriesQuery extends LatestQuery {
 
 /** Each request obtains a token; the provider may reuse one until its expiry. */
 export const createRestClient = (options: RestOptions) => {
-  const request = async (path: string, query: LatestQuery | TimeseriesQuery): Promise<Response> => {
+  const request = async (path: string, query: LatestQuery | TimeseriesQuery | {selector:string;versions:string}): Promise<Response> => {
     const url = new URL(path, options.url);
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined) url.searchParams.set(key, String(value));
@@ -64,6 +66,13 @@ export const createRestClient = (options: RestOptions) => {
     });
   };
   return {
+    /** Converts on the gateway to the latest version this generated SDK understands. */
+    versionedRecords: async (datasetAlias:string,selector:string,families?:readonly string[],allowLossy=false) => {
+      const versions=versionRequests(VERSION_CONTRACTS,families,allowLossy);
+      const response=await request(`/api/v1/datasets/${encodeURIComponent(datasetAlias)}/records`,{selector,versions:JSON.stringify(versions)});
+      if(!response.ok)throw new Error(`Versioned read failed: ${response.status}`);
+      return validateVersionedRecords(await response.json(),VERSION_CONTRACTS,versions);
+    },
     latest: (selector: string, options: Omit<LatestQuery, "selector"> = {}) =>
       request("/api/v1/snapshot", {selector, ...options}),
     timeseries: (selector: string, from: bigint | string, through: bigint | string, options: Omit<TimeseriesQuery, "selector" | "from" | "through"> = {}) =>

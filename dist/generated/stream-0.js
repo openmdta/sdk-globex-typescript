@@ -55,18 +55,18 @@ export class Decimal {
         return formatExact(this.toString());
     }
 }
-export class AskDailyOhlc {
+export class AskOhlc {
     static SCHEMA_ID = 100;
-    static TEMPLATE_ID = 15;
-    static VERSION = 3;
-    static BLOCK_LENGTH = 61;
+    static TEMPLATE_ID = 18;
+    static VERSION = 4;
+    static BLOCK_LENGTH = 60;
     static format = { schemaId: this.SCHEMA_ID, templateId: this.TEMPLATE_ID, version: this.VERSION, blockLength: this.BLOCK_LENGTH };
     eventTimeMicros;
     open;
     high;
     low;
-    closeLast;
-    closePrevious;
+    close;
+    closingSize;
     day;
     flags;
     constructor(value) {
@@ -74,8 +74,8 @@ export class AskDailyOhlc {
         this.open = value.open;
         this.high = value.high;
         this.low = value.low;
-        this.closeLast = value.closeLast;
-        this.closePrevious = value.closePrevious;
+        this.close = value.close;
+        this.closingSize = value.closingSize;
         this.day = value.day;
         this.flags = value.flags;
     }
@@ -96,16 +96,13 @@ export class AskDailyOhlc {
                 mantissa: view.getBigInt64(offset + 26 + 0, true),
                 exponent: view.getInt8(offset + 26 + 8),
             }),
-            closeLast: new Decimal({
+            close: new Decimal({
                 mantissa: view.getBigInt64(offset + 35 + 0, true),
                 exponent: view.getInt8(offset + 35 + 8),
             }),
-            closePrevious: new Decimal({
-                mantissa: view.getBigInt64(offset + 44 + 0, true),
-                exponent: view.getInt8(offset + 44 + 8),
-            }),
-            day: view.getUint32(offset + 53, true),
-            flags: view.getUint32(offset + 57, true),
+            closingSize: view.getBigUint64(offset + 44, true),
+            day: view.getUint32(offset + 52, true),
+            flags: view.getUint32(offset + 56, true),
         });
     }
     static encodeBody(value) {
@@ -118,16 +115,15 @@ export class AskDailyOhlc {
         view.setInt8(0 + 17 + 8, value.high.exponent);
         view.setBigInt64(0 + 26 + 0, value.low.mantissa, true);
         view.setInt8(0 + 26 + 8, value.low.exponent);
-        view.setBigInt64(0 + 35 + 0, value.closeLast.mantissa, true);
-        view.setInt8(0 + 35 + 8, value.closeLast.exponent);
-        view.setBigInt64(0 + 44 + 0, value.closePrevious.mantissa, true);
-        view.setInt8(0 + 44 + 8, value.closePrevious.exponent);
-        view.setUint32(0 + 53, value.day, true);
-        view.setUint32(0 + 57, value.flags, true);
+        view.setBigInt64(0 + 35 + 0, value.close.mantissa, true);
+        view.setInt8(0 + 35 + 8, value.close.exponent);
+        view.setBigUint64(0 + 44, value.closingSize, true);
+        view.setUint32(0 + 52, value.day, true);
+        view.setUint32(0 + 56, value.flags, true);
         return bytes;
     }
 }
 export const PUBLIC_EXPORT_CODECS = new Map([
-    [AskDailyOhlc.TEMPLATE_ID, AskDailyOhlc],
+    [AskOhlc.TEMPLATE_ID, AskOhlc],
 ]);
 //# sourceMappingURL=stream-0.js.map

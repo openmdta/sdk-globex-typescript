@@ -132,7 +132,7 @@ export interface BidAskCandleValue {
 export class BidAskCandle {
     static readonly SCHEMA_ID = 100;
     static readonly TEMPLATE_ID = 12;
-    static readonly VERSION = 3;
+    static readonly VERSION = 4;
     static readonly BLOCK_LENGTH = 97;
     static readonly format: SbeFormat = { schemaId: this.SCHEMA_ID, templateId: this.TEMPLATE_ID, version: this.VERSION, blockLength: this.BLOCK_LENGTH };
      readonly eventTimeMicros: bigint;

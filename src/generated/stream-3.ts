@@ -83,7 +83,7 @@ export class Decimal {
 
 }
 
-export interface BidDailyOhlcValue {
+export interface BidOhlcValue {
      readonly eventTimeMicros: bigint;
 
      readonly open: Decimal;
@@ -92,19 +92,19 @@ export interface BidDailyOhlcValue {
 
      readonly low: Decimal;
 
-     readonly closeLast: Decimal;
+     readonly close: Decimal;
 
-     readonly closePrevious: Decimal;
+     readonly closingSize: bigint;
 
      readonly day: number;
 
      readonly flags: number;
 }
-export class BidDailyOhlc {
+export class BidOhlc {
     static readonly SCHEMA_ID = 100;
-    static readonly TEMPLATE_ID = 14;
-    static readonly VERSION = 3;
-    static readonly BLOCK_LENGTH = 61;
+    static readonly TEMPLATE_ID = 17;
+    static readonly VERSION = 4;
+    static readonly BLOCK_LENGTH = 60;
     static readonly format: SbeFormat = { schemaId: this.SCHEMA_ID, templateId: this.TEMPLATE_ID, version: this.VERSION, blockLength: this.BLOCK_LENGTH };
      readonly eventTimeMicros: bigint;
 
@@ -114,15 +114,15 @@ export class BidDailyOhlc {
 
      readonly low: Decimal;
 
-     readonly closeLast: Decimal;
+     readonly close: Decimal;
 
-     readonly closePrevious: Decimal;
+     readonly closingSize: bigint;
 
      readonly day: number;
 
      readonly flags: number;
 
-    constructor(value: BidDailyOhlcValue) {
+    constructor(value: BidOhlcValue) {
         this.eventTimeMicros = value.eventTimeMicros;
 
         this.open = value.open;
@@ -131,15 +131,15 @@ export class BidDailyOhlc {
 
         this.low = value.low;
 
-        this.closeLast = value.closeLast;
+        this.close = value.close;
 
-        this.closePrevious = value.closePrevious;
+        this.closingSize = value.closingSize;
 
         this.day = value.day;
 
         this.flags = value.flags;
     }
-    static decodeBody(source: ArrayBuffer | ArrayBufferView, offset = 0, actingVersion = this.VERSION, actingBlockLength = this.BLOCK_LENGTH): BidDailyOhlc {
+    static decodeBody(source: ArrayBuffer | ArrayBufferView, offset = 0, actingVersion = this.VERSION, actingBlockLength = this.BLOCK_LENGTH): BidOhlc {
         const view = viewOf(source);
         requireBytes(view, offset, actingBlockLength);
         return new this({
@@ -160,22 +160,19 @@ export class BidDailyOhlc {
         exponent: view.getInt8(offset + 26 + 8),
       }),
 
-            closeLast: new Decimal({
+            close: new Decimal({
         mantissa: view.getBigInt64(offset + 35 + 0, true),
         exponent: view.getInt8(offset + 35 + 8),
       }),
 
-            closePrevious: new Decimal({
-        mantissa: view.getBigInt64(offset + 44 + 0, true),
-        exponent: view.getInt8(offset + 44 + 8),
-      }),
+            closingSize: view.getBigUint64(offset + 44, true),
 
-            day: view.getUint32(offset + 53, true),
+            day: view.getUint32(offset + 52, true),
 
-            flags: view.getUint32(offset + 57, true),
+            flags: view.getUint32(offset + 56, true),
         });
     }
-    static encodeBody(value: BidDailyOhlcValue): Uint8Array {
+    static encodeBody(value: BidOhlcValue): Uint8Array {
         const bytes = new Uint8Array(this.BLOCK_LENGTH);
         const view = new DataView(bytes.buffer);
             view.setBigUint64(0 + 0, value.eventTimeMicros, true);
@@ -185,21 +182,20 @@ export class BidDailyOhlc {
     view.setInt8(0 + 17 + 8, value.high.exponent);
     view.setBigInt64(0 + 26 + 0, value.low.mantissa, true);
     view.setInt8(0 + 26 + 8, value.low.exponent);
-    view.setBigInt64(0 + 35 + 0, value.closeLast.mantissa, true);
-    view.setInt8(0 + 35 + 8, value.closeLast.exponent);
-    view.setBigInt64(0 + 44 + 0, value.closePrevious.mantissa, true);
-    view.setInt8(0 + 44 + 8, value.closePrevious.exponent);
-    view.setUint32(0 + 53, value.day, true);
-    view.setUint32(0 + 57, value.flags, true);
+    view.setBigInt64(0 + 35 + 0, value.close.mantissa, true);
+    view.setInt8(0 + 35 + 8, value.close.exponent);
+    view.setBigUint64(0 + 44, value.closingSize, true);
+    view.setUint32(0 + 52, value.day, true);
+    view.setUint32(0 + 56, value.flags, true);
 
         return bytes;
     }
 }
 
-export type PublicExport = BidDailyOhlc;
+export type PublicExport = BidOhlc;
 export const PUBLIC_EXPORT_CODECS = new Map<number, {
     readonly format: SbeFormat;
     decodeBody(source: ArrayBuffer | ArrayBufferView, offset?: number, actingVersion?: number, actingBlockLength?: number): PublicExport;
 }>([
-    [BidDailyOhlc.TEMPLATE_ID, BidDailyOhlc],
+    [BidOhlc.TEMPLATE_ID, BidOhlc],
 ] as const);

@@ -61,22 +61,22 @@ const MARKET_TEMPLATE = {
 
 export type Request =
   | { readonly command: "CATALOG_FEED"; readonly id: bigint; readonly catalog: string; readonly fields: readonly string[]; readonly cursor: string | null; readonly trace?: TraceContext }
-  | { readonly command: "FEED_LIVE"; readonly id: bigint; readonly blockMask: bigint; readonly dataset: string; readonly quality: string; readonly trace?: TraceContext }
-  | { readonly command: "FEED_RECOVERY"; readonly id: bigint; readonly blockMask: bigint; readonly afterMessageId: bigint; readonly throughMessageId: bigint; readonly dataset: string; readonly quality: string; readonly trace?: TraceContext }
-  | { readonly command: "FEED_SNAPSHOT"; readonly id: bigint; readonly blockMask: bigint; readonly dataset: string; readonly quality: string; readonly trace?: TraceContext }
-  | { readonly command: "TS_PAGE"; readonly id: bigint; readonly selector: string; readonly dataset?: string; readonly quality?: string; readonly blockMask: bigint; readonly resolutionMicros: bigint; readonly order: "asc" | "desc"; readonly limit: number; readonly boundary?: bigint; readonly guard?: bigint; readonly cursor?: string; readonly adjustment: "raw" | "split"; readonly trace?: TraceContext }
+  | { readonly command: "FEED_LIVE"; readonly id: bigint; readonly blockMask: bigint; readonly selectedFields?: readonly BlockName[]; readonly dataset: string; readonly quality: string; readonly trace?: TraceContext }
+  | { readonly command: "FEED_RECOVERY"; readonly id: bigint; readonly blockMask: bigint; readonly selectedFields?: readonly BlockName[]; readonly afterMessageId: bigint; readonly throughMessageId: bigint; readonly dataset: string; readonly quality: string; readonly trace?: TraceContext }
+  | { readonly command: "FEED_SNAPSHOT"; readonly id: bigint; readonly blockMask: bigint; readonly selectedFields?: readonly BlockName[]; readonly dataset: string; readonly quality: string; readonly trace?: TraceContext }
+  | { readonly command: "TS_PAGE"; readonly id: bigint; readonly selector: string; readonly dataset?: string; readonly quality?: string; readonly blockMask: bigint; readonly selectedFields?: readonly BlockName[]; readonly resolutionMicros: bigint; readonly order: "asc" | "desc"; readonly limit: number; readonly boundary?: bigint; readonly guard?: bigint; readonly cursor?: string; readonly adjustment: "raw" | "split"; readonly trace?: TraceContext }
   | { readonly command: "LISTING_LATEST"; readonly id: bigint; readonly dataset: string; readonly quality: "RT" | "DL" | "EOD"; readonly key: string; readonly blocks: readonly number[]; readonly trace?: TraceContext }
   | { readonly command: "CATALOG_LOOKUP"; readonly id: bigint; readonly catalog: string; readonly parameters: CatalogLookupParameters; readonly trace?: TraceContext }
   | { readonly command: "CATALOG_SEARCH"; readonly id: bigint; readonly catalog: string; readonly parameters: CatalogSearchParameters; readonly trace?: TraceContext }
   | { readonly command: "STREAM_METADATA"; readonly id: bigint; readonly dataset: string; readonly quality: string; readonly trace?: TraceContext }
-  | { readonly command: "CATALOG_KEYFIGURES"; readonly id: bigint; readonly catalog: string; readonly action: "search" | "instrument" | "schema"; readonly parameters: string; readonly contractFingerprint: string; readonly priceCutoffMs?: bigint; readonly priceAgeMode?: "elapsed" | "trading-time" | "last-completed-session"; readonly trace?: TraceContext }
+  | { readonly command: "CATALOG_KEYFIGURES"; readonly id: bigint; readonly catalog: string; readonly action: "search" | "instrument" | "schema"; readonly key: string; readonly after: bigint; readonly searchQuery?: {readonly expression?: string; readonly cursor?: string; readonly facets?: readonly string[]; readonly text?: string; readonly filters?: Partial<Record<string, readonly string[]>>; readonly ranges?: readonly {readonly field: string; readonly gt?: number; readonly ge?: number; readonly lt?: number; readonly le?: number; readonly min?: number; readonly max?: number; readonly absolute_margin?: number; readonly relative_margin?: number}[]; readonly sorts?: readonly {readonly field: string; readonly descending?: boolean}[]; readonly offset?: number; readonly limit?: number; readonly budget?: number}; readonly contractFingerprint: string; readonly priceCutoffMs?: bigint; readonly priceAgeMode?: "elapsed" | "trading-time" | "last-completed-session"; readonly trace?: TraceContext }
   | { readonly command: "SERVICE_CALL"; readonly id: bigint; readonly serviceId: string; readonly serviceCommand: string; readonly contractFingerprint: string; readonly mutationId?: string; readonly inputJson: string; readonly deadlineUnixMillis: bigint; readonly trace?: TraceContext }
   | { readonly command: "AUTH"; readonly id: bigint; readonly token: string | Uint8Array }
   | { readonly command: "CANCEL"; readonly id: bigint; readonly targetId: bigint }
-  | { readonly command: "SNAPSHOT" | "STREAM"; readonly id: bigint; readonly blockMask: bigint; readonly expression: string; readonly dataset?: string; readonly adjustment: "raw" | "split"; readonly trace?: TraceContext }
-  | { readonly command: "TS_RAW" | "TS_RAW_STREAM"; readonly id: bigint; readonly blockMask: bigint; readonly from: bigint; readonly through: bigint; readonly maxRows: number; readonly expression: string; readonly quality?: string; readonly dataset?: string; readonly adjustment: "raw" | "split"; readonly trace?: TraceContext }
-  | { readonly command: "TS_CANDLE"; readonly id: bigint; readonly blockMask: bigint; readonly from: bigint; readonly through: bigint; readonly cadenceMicros: bigint; readonly expression: string; readonly quality?: string; readonly dataset?: string; readonly adjustment: "raw" | "split"; readonly trace?: TraceContext }
-  | { readonly command: "TS_CANDLE_STREAM"; readonly id: bigint; readonly blockMask: bigint; readonly from: bigint; readonly through: bigint; readonly cadenceMicros: bigint; readonly updateIntervalMillis: number; readonly expression: string; readonly quality?: string; readonly dataset?: string; readonly adjustment: "raw" | "split"; readonly trace?: TraceContext }
+  | { readonly command: "SNAPSHOT" | "STREAM"; readonly id: bigint; readonly blockMask: bigint; readonly selectedFields?: readonly BlockName[]; readonly expression: string; readonly dataset?: string; readonly adjustment: "raw" | "split"; readonly trace?: TraceContext }
+  | { readonly command: "TS_RAW" | "TS_RAW_STREAM"; readonly id: bigint; readonly blockMask: bigint; readonly selectedFields?: readonly BlockName[]; readonly from: bigint; readonly through: bigint; readonly maxRows: number; readonly expression: string; readonly quality?: string; readonly dataset?: string; readonly adjustment: "raw" | "split"; readonly trace?: TraceContext }
+  | { readonly command: "TS_CANDLE"; readonly id: bigint; readonly blockMask: bigint; readonly selectedFields?: readonly BlockName[]; readonly from: bigint; readonly through: bigint; readonly cadenceMicros: bigint; readonly expression: string; readonly quality?: string; readonly dataset?: string; readonly adjustment: "raw" | "split"; readonly trace?: TraceContext }
+  | { readonly command: "TS_CANDLE_STREAM"; readonly id: bigint; readonly blockMask: bigint; readonly selectedFields?: readonly BlockName[]; readonly from: bigint; readonly through: bigint; readonly cadenceMicros: bigint; readonly updateIntervalMillis: number; readonly expression: string; readonly quality?: string; readonly dataset?: string; readonly adjustment: "raw" | "split"; readonly trace?: TraceContext }
   | { readonly command: "CATALOG"; readonly id: bigint; readonly catalog: string; readonly identifiers: readonly string[]; readonly fields: readonly string[]; readonly trace?: TraceContext };
 
 export interface TraceContext {
@@ -259,10 +259,39 @@ export const blockMask = (blocks: readonly BlockName[] | undefined): bigint => {
   for (const block of blocks) {
     const binding = BLOCK_BINDINGS[block];
     if (!binding) throw new ProtocolError(`unknown export block ${block}`);
+    const id = (binding.canonicalFormat ?? binding.format).templateId;
+    if (id >= 64) throw new ProtocolError(`export block ${block} cannot fit in a legacy block mask`);
     // Masks carry template IDs only; combining schemas can select a different block with the same ID.
-    mask |= 1n << BigInt((binding.canonicalFormat ?? binding.format).templateId);
+    mask |= 1n << BigInt(id);
   }
   return mask;
+};
+
+export const encodeFieldSelection = (fields: readonly BlockName[]): Uint8Array<ArrayBuffer> => {
+  if (fields.length > 256) throw new ProtocolError("invalid field selection");
+  const values = fields.map(field => {
+    const binding = BLOCK_BINDINGS[field];
+    if (!binding) throw new ProtocolError(`unknown export field ${field}`);
+    const bytes = new TextEncoder().encode(binding.semantic);
+    if (!bytes.length || bytes.length > 256) throw new ProtocolError("invalid field selection name");
+    return bytes;
+  });
+  if (new Set(values.map(value => new TextDecoder().decode(value))).size !== values.length) throw new ProtocolError("duplicate selected field");
+  const bytes = message(MARKET_SCHEMA_ID, 29, 27, 0, 6 + values.reduce((sum, value) => sum + 4 + value.length, 0));
+  putGroupHeader(bytes, new DataView(bytes.buffer), HEADER_LENGTH, values);
+  return bytes;
+};
+
+const appendFieldSelection = (base: Uint8Array<ArrayBuffer>, fields: readonly BlockName[]): Uint8Array<ArrayBuffer> => {
+  if (new DataView(base.buffer).getBigUint64(HEADER_LENGTH, true) !== 0n) throw new ProtocolError("legacy block mask conflicts with field selection");
+  const frame = encodeFieldSelection(fields);
+  const bytes = new Uint8Array(base.length + 4 + frame.length);
+  bytes.set(base);
+  const view = new DataView(bytes.buffer);
+  view.setUint16(6, 29, true);
+  view.setUint32(base.length, frame.length, true);
+  bytes.set(frame, base.length + 4);
+  return bytes;
 };
 
 export const encodeRequest = (request: Request): Uint8Array<ArrayBuffer> => {
@@ -278,7 +307,9 @@ export const encodeRequest = (request: Request): Uint8Array<ArrayBuffer> => {
     view.setBigUint64(HEADER_LENGTH + 8, request.targetId, true);
     return bytes;
   }
-  return encodeOpen(request.id, encodeMarketRequest(request), request.trace);
+  const market = encodeMarketRequest(request);
+  const fields = "selectedFields" in request ? request.selectedFields : undefined;
+  return encodeOpen(request.id, fields === undefined ? market : appendFieldSelection(market, fields), request.trace);
 };
 
 export const encodeCredit = (targetId: bigint, credits = 1): Uint8Array<ArrayBuffer> => {
@@ -846,13 +877,55 @@ const encodeMarketRequest = (request: Exclude<Request, { readonly command: "AUTH
     return bytes;
   }
   if (request.command === "CATALOG_KEYFIGURES") {
-    const strings = [request.catalog, request.action, request.parameters, request.contractFingerprint].map(value => new TextEncoder().encode(value));
-    strings.push(new TextEncoder().encode(request.priceAgeMode ?? ""));
-    const bytes = message(MARKET_SCHEMA_ID, 7, MARKET_TEMPLATE.CATALOG_KEYFIGURES, 8, strings.reduce((n, value) => n + 4 + value.byteLength, 0));
+    const query = request.searchQuery;
+    if ((request.action === "search") !== (query !== undefined) || (request.action !== "instrument" && request.key)
+      || (request.action !== "search" && query?.expression) || request.after !== 0n) throw new ProtocolError("invalid Keyfigures request");
+    const expression = new TextEncoder().encode(query?.expression ?? "");
+    const writer = new WireWriter();
+    if (query) {
+      const filters = Object.entries(query.filters ?? {}).sort(([left], [right]) => left.localeCompare(right));
+      const facets = query.facets ?? [], ranges = query.ranges ?? [], sorts = query.sorts ?? [{field: "name", descending: false}];
+      const keys = (query as {keys?: readonly string[]}).keys;
+      const offset = query.offset ?? 0, limit = query.limit ?? 25, budget = query.budget ?? 500;
+      if (expression.length > 4096 || (expression.length && keys !== undefined)
+        || [offset, limit, budget].some(value => !Number.isSafeInteger(value) || value < 0 || value > 0xffffffff)) throw new RangeError("invalid Keyfigures query");
+      writer.u16(13).u16(3).u16(10).u16(1);
+      writer.u32(offset).u32(limit).u32(budget).u8(Number(keys !== undefined) | (Number(query.cursor !== undefined) << 1));
+      writer.group(0, filters.length);
+      for (const [field, values] of filters) {
+        if (!Array.isArray(values) || values.some(value => typeof value !== "string")) throw new RangeError("invalid Keyfigures filter");
+        writer.group(0, values.length);
+        for (const value of values) writer.text(value);
+        writer.text(field);
+      }
+      writer.group(0, facets.length);
+      for (const facet of facets) writer.text(facet);
+      writer.group(0, keys?.length ?? 0);
+      for (const key of keys ?? []) writer.text(key);
+      writer.group(49, ranges.length);
+      for (const range of ranges) {
+        const bounds = [range.gt, range.ge ?? range.min, range.lt, range.le ?? range.max];
+        if (bounds.some(value => value !== undefined && !Number.isFinite(value))
+          || !Number.isFinite(range.absolute_margin ?? 0) || !Number.isFinite(range.relative_margin ?? 0)) throw new RangeError("invalid Keyfigures range");
+        writer.u8(bounds.reduce<number>((mask, value, index) => mask | (value === undefined ? 0 : 1 << index), 0));
+        for (const value of bounds) writer.f64(value ?? 0);
+        writer.f64(range.absolute_margin ?? 0).f64(range.relative_margin ?? 0).text(range.field);
+      }
+      writer.group(1, sorts.length);
+      for (const sort of sorts) writer.u8(sort.descending ? 1 : 0).text(sort.field);
+      writer.text(query.text ?? "").text(query.cursor ?? "");
+    }
+    const queryFrame = writer.finish();
+    if (queryFrame.length > 16_384) throw new RangeError("Keyfigures query exceeds 16 KiB");
+    const values = [request.catalog, request.action, request.key, request.contractFingerprint, request.priceAgeMode ?? ""]
+      .map(value => new TextEncoder().encode(value));
+    values.push(expression, queryFrame);
+    const bytes = message(MARKET_SCHEMA_ID, 28, MARKET_TEMPLATE.CATALOG_KEYFIGURES, 16, values.reduce((n, value) => n + 4 + value.byteLength, 0));
     const view = new DataView(bytes.buffer);
     view.setBigUint64(HEADER_LENGTH, request.priceCutoffMs ?? 0xffffffffffffffffn, true);
-    let offset = HEADER_LENGTH + 8;
-    for (const value of strings) {
+    view.setBigUint64(HEADER_LENGTH + 8, request.after, true);
+    let offset = HEADER_LENGTH + 16;
+    for (const value of values) {
       view.setUint32(offset, value.byteLength, true);
       bytes.set(value, offset + 4);
       offset += 4 + value.byteLength;

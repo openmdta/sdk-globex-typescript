@@ -15,7 +15,9 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "field-versions.json",
+    "field-versions.md"
   ],
   "license": "MIT OR Apache-2.0",
   "name": "@openmdta/globex",

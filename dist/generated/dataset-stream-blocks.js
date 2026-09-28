@@ -1,10 +1,10 @@
 export const DATASET_STREAM_BLOCKS = {
     "globex": [],
     "lus": [
-        "AskDailyOhlc",
+        "AskOhlc",
         "BidAsk",
         "BidAskCandle",
-        "BidDailyOhlc"
+        "BidOhlc"
     ],
     "xetra": []
 };

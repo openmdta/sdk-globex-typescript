@@ -30,6 +30,8 @@ export interface TimeseriesQuery extends LatestQuery {
 }
 /** Each request obtains a token; the provider may reuse one until its expiry. */
 export declare const createRestClient: (options: RestOptions) => {
+    /** Converts on the gateway to the latest version this generated SDK understands. */
+    versionedRecords: (datasetAlias: string, selector: string, families?: readonly string[], allowLossy?: boolean) => Promise<readonly import("./versioned-reads.js").VersionedRecord[]>;
     latest: (selector: string, options?: Omit<LatestQuery, "selector">) => Promise<Response>;
     timeseries: (selector: string, from: bigint | string, through: bigint | string, options?: Omit<TimeseriesQuery, "selector" | "from" | "through">) => Promise<Response>;
 };

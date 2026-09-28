@@ -16,4 +16,5 @@ export * as CatalogModels from "./generated/catalog-models.js";
 export { DATASET_CATALOG_FIELDS } from "./generated/dataset-catalog-fields.js";
 export { ServiceError, type ServiceCallOptions } from "./service.js";
 export * from "./generated/services.js";
+export * from "./versioned-reads.js";
 //# sourceMappingURL=index.d.ts.map

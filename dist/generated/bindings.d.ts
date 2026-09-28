@@ -1,8 +1,9 @@
-import { AskDailyOhlc, BidAsk, BidAskCandle, BidDailyOhlc, type PublicExport, type SbeFormat } from "./export-blocks.js";
+import { AskOhlc, BidAsk, BidAskCandle, BidOhlc, type PublicExport, type SbeFormat } from "./export-blocks.js";
 export type CommandName = "SNAPSHOT" | "STREAM" | "TS_RAW" | "TS_CANDLE" | "TS_RAW_STREAM" | "TS_CANDLE_STREAM";
-export type BlockName = "AskDailyOhlc" | "BidAsk" | "BidAskCandle" | "BidDailyOhlc";
+export type BlockName = "AskOhlc" | "BidAsk" | "BidAskCandle" | "BidOhlc";
 export interface BlockBinding<T extends PublicExport = PublicExport> {
     readonly name: BlockName;
+    readonly semantic: string;
     readonly property: string;
     readonly format: SbeFormat;
     readonly canonicalFormat: SbeFormat | null;
@@ -14,16 +15,16 @@ export interface BlockBinding<T extends PublicExport = PublicExport> {
 }
 export declare const BLOCK_BINDINGS: Readonly<Record<string, BlockBinding>>;
 export interface BlockValueMap {
-    readonly AskDailyOhlc: AskDailyOhlc;
+    readonly AskOhlc: AskOhlc;
     readonly BidAsk: BidAsk;
     readonly BidAskCandle: BidAskCandle;
-    readonly BidDailyOhlc: BidDailyOhlc;
+    readonly BidOhlc: BidOhlc;
 }
 export interface BlockPropertyMap {
-    readonly AskDailyOhlc: "askDailyOhlc";
+    readonly AskOhlc: "askOhlc";
     readonly BidAsk: "bidAsk";
     readonly BidAskCandle: "bidAskCandle";
-    readonly BidDailyOhlc: "bidDailyOhlc";
+    readonly BidOhlc: "bidOhlc";
 }
 export type BlockValue<N extends BlockName> = BlockValueMap[N];
 export type BlockPropertyName<N extends BlockName> = BlockPropertyMap[N];
@@ -36,11 +37,11 @@ export type MarketDataField<N extends BlockName> = {
         readonly value: BlockValue<K> | null;
     };
 }[N];
-export type SnapshotBlockName = "AskDailyOhlc" | "BidAsk" | "BidDailyOhlc";
-export type StreamBlockName = "AskDailyOhlc" | "BidAsk" | "BidDailyOhlc";
-export type TsRawBlockName = "AskDailyOhlc" | "BidAsk" | "BidDailyOhlc";
+export type SnapshotBlockName = "AskOhlc" | "BidAsk" | "BidOhlc";
+export type StreamBlockName = "AskOhlc" | "BidAsk" | "BidOhlc";
+export type TsRawBlockName = "AskOhlc" | "BidAsk" | "BidOhlc";
 export type TsCandleBlockName = "BidAskCandle";
-export type TsRawStreamBlockName = "AskDailyOhlc" | "BidAsk" | "BidDailyOhlc";
+export type TsRawStreamBlockName = "AskOhlc" | "BidAsk" | "BidOhlc";
 export type TsCandleStreamBlockName = "BidAskCandle";
 export declare const BLOCK_NAMES: readonly BlockName[];
 //# sourceMappingURL=bindings.d.ts.map

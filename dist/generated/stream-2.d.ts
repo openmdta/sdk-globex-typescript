@@ -49,7 +49,7 @@ export interface BidAskCandleValue {
 export declare class BidAskCandle {
     static readonly SCHEMA_ID = 100;
     static readonly TEMPLATE_ID = 12;
-    static readonly VERSION = 3;
+    static readonly VERSION = 4;
     static readonly BLOCK_LENGTH = 97;
     static readonly format: SbeFormat;
     readonly eventTimeMicros: bigint;

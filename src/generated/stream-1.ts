@@ -112,7 +112,7 @@ export interface BidAskValue {
 export class BidAsk {
     static readonly SCHEMA_ID = 100;
     static readonly TEMPLATE_ID = 10;
-    static readonly VERSION = 3;
+    static readonly VERSION = 4;
     static readonly BLOCK_LENGTH = 35;
     static readonly format: SbeFormat = { schemaId: this.SCHEMA_ID, templateId: this.TEMPLATE_ID, version: this.VERSION, blockLength: this.BLOCK_LENGTH };
      readonly eventTimeMicros: bigint;
