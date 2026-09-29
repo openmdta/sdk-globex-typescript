@@ -2,7 +2,7 @@ import { decodeListingEvent } from "./generated/listing.js";
 import { decodeStreamMetadataSbe } from "./stream-metadata-wire.js";
 import { BLOCK_BINDINGS, } from "./generated/bindings.js";
 import { WireWriter } from "./wire-writer.js";
-export const WEBSOCKET_SUBPROTOCOL = "openmdta.sbe-session.v1";
+import { WireReader } from "./wire-reader.js";
 export const WINDOW_SUBPROTOCOL = "openmdta.sbe-session.v2";
 export const RESPONSE_WINDOW_BYTES = 8 * 1024 * 1024;
 export const RESPONSE_WINDOW_COUNT = 16;
@@ -20,7 +20,6 @@ const HEADER_LENGTH = 8;
 const AUTH_TEMPLATE_ID = 1;
 const OPEN_TEMPLATE_ID = 2;
 const CANCEL_TEMPLATE_ID = 3;
-const CREDIT_TEMPLATE_ID = 4;
 const RESPONSE_TEMPLATE_ID = 101;
 const CANCEL_RESPONSE_TEMPLATE_ID = 102;
 const MESSAGE_BATCH_TEMPLATE_ID = 108;
@@ -126,22 +125,6 @@ export class RequestError extends Error {
         this.name = "RequestError";
     }
 }
-export const blockMask = (blocks) => {
-    if (!blocks?.length)
-        return 0n;
-    let mask = 0n;
-    for (const block of blocks) {
-        const binding = BLOCK_BINDINGS[block];
-        if (!binding)
-            throw new ProtocolError(`unknown export block ${block}`);
-        const id = (binding.canonicalFormat ?? binding.format).templateId;
-        if (id >= 64)
-            throw new ProtocolError(`export block ${block} cannot fit in a legacy block mask`);
-        // Masks carry template IDs only; combining schemas can select a different block with the same ID.
-        mask |= 1n << BigInt(id);
-    }
-    return mask;
-};
 export const encodeFieldSelection = (fields) => {
     if (fields.length > 256)
         throw new ProtocolError("invalid field selection");
@@ -156,18 +139,16 @@ export const encodeFieldSelection = (fields) => {
     });
     if (new Set(values.map(value => new TextDecoder().decode(value))).size !== values.length)
         throw new ProtocolError("duplicate selected field");
-    const bytes = message(MARKET_SCHEMA_ID, 29, 27, 0, 6 + values.reduce((sum, value) => sum + 4 + value.length, 0));
+    const bytes = message(MARKET_SCHEMA_ID, 30, 27, 0, 6 + values.reduce((sum, value) => sum + 4 + value.length, 0));
     putGroupHeader(bytes, new DataView(bytes.buffer), HEADER_LENGTH, values);
     return bytes;
 };
 const appendFieldSelection = (base, fields) => {
-    if (new DataView(base.buffer).getBigUint64(HEADER_LENGTH, true) !== 0n)
-        throw new ProtocolError("legacy block mask conflicts with field selection");
     const frame = encodeFieldSelection(fields);
     const bytes = new Uint8Array(base.length + 4 + frame.length);
     bytes.set(base);
     const view = new DataView(bytes.buffer);
-    view.setUint16(6, 29, true);
+    view.setUint16(6, 30, true);
     view.setUint32(base.length, frame.length, true);
     bytes.set(frame, base.length + 4);
     return bytes;
@@ -186,15 +167,11 @@ export const encodeRequest = (request) => {
         return bytes;
     }
     const market = encodeMarketRequest(request);
-    const fields = "selectedFields" in request ? request.selectedFields : undefined;
-    return encodeOpen(request.id, fields === undefined ? market : appendFieldSelection(market, fields), request.trace);
-};
-export const encodeCredit = (targetId, credits = 1) => {
-    const bytes = message(SESSION_SCHEMA_ID, SESSION_SCHEMA_VERSION, CREDIT_TEMPLATE_ID, 12);
-    const view = new DataView(bytes.buffer);
-    view.setBigUint64(HEADER_LENGTH, targetId, true);
-    view.setUint32(HEADER_LENGTH + 8, credits, true);
-    return bytes;
+    const template = new DataView(market.buffer).getUint16(2, true);
+    const selected = [1, 2, 3, 4, 6, 7, 14, 15, 16, 17].includes(template)
+        ? appendFieldSelection(market, "selectedFields" in request ? request.selectedFields ?? [] : [])
+        : market;
+    return encodeOpen(request.id, selected, request.trace);
 };
 export const encodeWindow = (targetId) => {
     const bytes = message(SESSION_SCHEMA_ID, 1, 5, 20);
@@ -444,37 +421,45 @@ export const decodeBatch = (response, selector) => {
 export const decodeKeyfiguresResult = (response) => {
     const message = response.message;
     if (response.status !== "CONTINUE" || !message || message.format.schemaId !== MARKET_SCHEMA_ID
-        || message.format.templateId !== 103 || message.format.version !== 6 || message.format.blockLength !== 0) {
+        || message.format.templateId !== 103 || message.format.version !== 32 || message.format.blockLength !== 0) {
         throw new ProtocolError("unsupported Catalog keyfigures result");
     }
     const body = message.body;
     if (body.byteLength < 4 || new DataView(body.buffer, body.byteOffset, body.byteLength).getUint32(0, true) !== body.byteLength - 4) {
         throw new ProtocolError("malformed Catalog keyfigures result length");
     }
-    try {
-        return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(body.subarray(4)));
-    }
-    catch {
-        throw new ProtocolError("malformed Catalog keyfigures result JSON");
-    }
+    return body.subarray(4);
 };
 export const decodeServiceCallResult = (response) => {
     const message = response.message;
     if (response.status !== "CONTINUE" || !message || message.format.schemaId !== MARKET_SCHEMA_ID
-        || message.format.templateId !== 109 || message.format.version !== 16 || message.format.blockLength !== 0) {
+        || message.format.templateId !== 109 || message.format.version !== 31 || message.format.blockLength !== 2) {
         throw new ProtocolError("unsupported service result");
     }
     const body = message.body;
-    if (body.byteLength < 4 || body.byteLength > 4 * 1024 * 1024 + 4
-        || new DataView(body.buffer, body.byteOffset, body.byteLength).getUint32(0, true) !== body.byteLength - 4) {
+    if (body.byteLength < 30 || body.byteLength > 4 * 1024 * 1024 + 2048) {
         throw new ProtocolError("invalid service result length");
     }
-    try {
-        return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(body.subarray(4)));
-    }
-    catch {
-        throw new ProtocolError("invalid service result JSON");
-    }
+    const reader = new WireReader(body);
+    const ok = reader.u8();
+    const outcome = reader.u8();
+    const serviceId = reader.text();
+    const command = reader.text();
+    const contractFingerprint = reader.text();
+    const mutationId = reader.text();
+    const errorCode = reader.text();
+    const errorMessage = reader.text();
+    const valueSbe = reader.data();
+    reader.finish();
+    if (ok > 1 || outcome > 1 || !serviceId || serviceId.length > 256 || !command || command.length > 128
+        || !/^[a-fA-F0-9]{64}$/.test(contractFingerprint) || mutationId.length > 128
+        || errorCode.length > 128 || errorMessage.length > 1024 || valueSbe.byteLength > 4 * 1024 * 1024
+        || (valueSbe.byteLength !== 0 && valueSbe.byteLength < 8)
+        || (ok === 1 && (outcome !== 0 || errorCode !== "" || errorMessage !== ""))
+        || (ok === 0 && errorCode === ""))
+        throw new ProtocolError("invalid service result fields");
+    return { ok: ok === 1, outcome: outcome === 0 ? "not_applied" : "unknown", serviceId, command,
+        contractFingerprint, ...(mutationId ? { mutationId } : {}), errorCode, errorMessage, valueSbe };
 };
 export const decodeTimeseriesPageResult = (response) => {
     const message = response.message;
@@ -661,12 +646,11 @@ const encodeMarketRequest = (request) => {
     if (request.command === "FEED_LIVE" || request.command === "FEED_SNAPSHOT") {
         const dataset = new TextEncoder().encode(request.dataset);
         const quality = new TextEncoder().encode(request.quality);
-        const bytes = message(MARKET_SCHEMA_ID, 18, MARKET_TEMPLATE[request.command], 8, 8 + dataset.length + quality.length);
+        const bytes = message(MARKET_SCHEMA_ID, 30, MARKET_TEMPLATE[request.command], 0, 8 + dataset.length + quality.length);
         const view = new DataView(bytes.buffer);
-        view.setBigUint64(HEADER_LENGTH, request.blockMask, true);
-        view.setUint32(HEADER_LENGTH + 8, dataset.length, true);
-        bytes.set(dataset, HEADER_LENGTH + 12);
-        const qualityOffset = HEADER_LENGTH + 12 + dataset.length;
+        view.setUint32(HEADER_LENGTH, dataset.length, true);
+        bytes.set(dataset, HEADER_LENGTH + 4);
+        const qualityOffset = HEADER_LENGTH + 4 + dataset.length;
         view.setUint32(qualityOffset, quality.length, true);
         bytes.set(quality, qualityOffset + 4);
         return bytes;
@@ -674,14 +658,13 @@ const encodeMarketRequest = (request) => {
     if (request.command === "FEED_RECOVERY") {
         const dataset = new TextEncoder().encode(request.dataset);
         const quality = new TextEncoder().encode(request.quality);
-        const bytes = message(MARKET_SCHEMA_ID, 18, MARKET_TEMPLATE.FEED_RECOVERY, 24, 8 + dataset.length + quality.length);
+        const bytes = message(MARKET_SCHEMA_ID, 30, MARKET_TEMPLATE.FEED_RECOVERY, 16, 8 + dataset.length + quality.length);
         const view = new DataView(bytes.buffer);
-        view.setBigUint64(HEADER_LENGTH, request.blockMask, true);
-        view.setBigUint64(HEADER_LENGTH + 8, request.afterMessageId, true);
-        view.setBigUint64(HEADER_LENGTH + 16, request.throughMessageId, true);
-        view.setUint32(HEADER_LENGTH + 24, dataset.length, true);
-        bytes.set(dataset, HEADER_LENGTH + 28);
-        const qualityOffset = HEADER_LENGTH + 28 + dataset.length;
+        view.setBigUint64(HEADER_LENGTH, request.afterMessageId, true);
+        view.setBigUint64(HEADER_LENGTH + 8, request.throughMessageId, true);
+        view.setUint32(HEADER_LENGTH + 16, dataset.length, true);
+        bytes.set(dataset, HEADER_LENGTH + 20);
+        const qualityOffset = HEADER_LENGTH + 20 + dataset.length;
         view.setUint32(qualityOffset, quality.length, true);
         bytes.set(quality, qualityOffset + 4);
         return bytes;
@@ -693,17 +676,16 @@ const encodeMarketRequest = (request) => {
             || (request.boundary === undefined) === (request.cursor === undefined)) {
             throw new ProtocolError("invalid timeseries page parameters");
         }
-        const bytes = message(MARKET_SCHEMA_ID, 20, MARKET_TEMPLATE.TS_PAGE, 39, 16 + strings.reduce((sum, value) => sum + value.byteLength, 0));
+        const bytes = message(MARKET_SCHEMA_ID, 30, MARKET_TEMPLATE.TS_PAGE, 31, 16 + strings.reduce((sum, value) => sum + value.byteLength, 0));
         const view = new DataView(bytes.buffer);
-        view.setBigUint64(HEADER_LENGTH, request.blockMask, true);
-        view.setBigUint64(HEADER_LENGTH + 8, request.resolutionMicros, true);
-        view.setBigUint64(HEADER_LENGTH + 16, request.boundary ?? 0n, true);
-        view.setBigUint64(HEADER_LENGTH + 24, request.guard ?? 0n, true);
-        view.setUint32(HEADER_LENGTH + 32, request.limit, true);
-        view.setUint8(HEADER_LENGTH + 36, Number(request.boundary !== undefined) | Number(request.guard !== undefined) << 1);
-        view.setUint8(HEADER_LENGTH + 37, Number(request.order === "desc"));
-        view.setUint8(HEADER_LENGTH + 38, Number(request.adjustment === "split"));
-        let offset = HEADER_LENGTH + 39;
+        view.setBigUint64(HEADER_LENGTH, request.resolutionMicros, true);
+        view.setBigUint64(HEADER_LENGTH + 8, request.boundary ?? 0n, true);
+        view.setBigUint64(HEADER_LENGTH + 16, request.guard ?? 0n, true);
+        view.setUint32(HEADER_LENGTH + 24, request.limit, true);
+        view.setUint8(HEADER_LENGTH + 28, Number(request.boundary !== undefined) | Number(request.guard !== undefined) << 1);
+        view.setUint8(HEADER_LENGTH + 29, Number(request.order === "desc"));
+        view.setUint8(HEADER_LENGTH + 30, Number(request.adjustment === "split"));
+        let offset = HEADER_LENGTH + 31;
         for (const value of strings) {
             view.setUint32(offset, value.byteLength, true);
             bytes.set(value, offset + 4);
@@ -715,10 +697,9 @@ const encodeMarketRequest = (request) => {
         const expression = new TextEncoder().encode(request.expression);
         const adjustment = new TextEncoder().encode(request.adjustment);
         const dataset = new TextEncoder().encode(request.dataset ?? "");
-        const bytes = message(MARKET_SCHEMA_ID, DATASET_ROUTING_SCHEMA_VERSION, MARKET_TEMPLATE[request.command], 8, 12 + expression.byteLength + adjustment.byteLength + dataset.byteLength);
+        const bytes = message(MARKET_SCHEMA_ID, 30, MARKET_TEMPLATE[request.command], 0, 12 + expression.byteLength + adjustment.byteLength + dataset.byteLength);
         const view = new DataView(bytes.buffer);
-        view.setBigUint64(HEADER_LENGTH, request.blockMask, true);
-        let offset = HEADER_LENGTH + 8;
+        let offset = HEADER_LENGTH;
         view.setUint32(offset, expression.byteLength, true);
         bytes.set(expression, offset + 4);
         offset += 4 + expression.byteLength;
@@ -734,13 +715,12 @@ const encodeMarketRequest = (request) => {
         const quality = new TextEncoder().encode(request.quality ?? "");
         const adjustment = new TextEncoder().encode(request.adjustment);
         const dataset = new TextEncoder().encode(request.dataset ?? "");
-        const bytes = message(MARKET_SCHEMA_ID, DATASET_ROUTING_SCHEMA_VERSION, MARKET_TEMPLATE[request.command], 28, 16 + expression.byteLength + quality.byteLength + adjustment.byteLength + dataset.byteLength);
+        const bytes = message(MARKET_SCHEMA_ID, 30, MARKET_TEMPLATE[request.command], 20, 16 + expression.byteLength + quality.byteLength + adjustment.byteLength + dataset.byteLength);
         const view = new DataView(bytes.buffer);
-        view.setBigUint64(HEADER_LENGTH, request.blockMask, true);
-        view.setBigUint64(HEADER_LENGTH + 8, request.from, true);
-        view.setBigUint64(HEADER_LENGTH + 16, request.through, true);
-        view.setUint32(HEADER_LENGTH + 24, request.maxRows, true);
-        let offset = HEADER_LENGTH + 28;
+        view.setBigUint64(HEADER_LENGTH, request.from, true);
+        view.setBigUint64(HEADER_LENGTH + 8, request.through, true);
+        view.setUint32(HEADER_LENGTH + 16, request.maxRows, true);
+        let offset = HEADER_LENGTH + 20;
         view.setUint32(offset, expression.byteLength, true);
         bytes.set(expression, offset + 4);
         offset += 4 + expression.byteLength;
@@ -842,13 +822,13 @@ const encodeMarketRequest = (request) => {
         return bytes;
     }
     if (request.command === "SERVICE_CALL") {
-        const values = [request.serviceId, request.serviceCommand, request.contractFingerprint, request.mutationId ?? "", request.inputJson]
+        const values = [request.serviceId, request.serviceCommand, request.contractFingerprint, request.mutationId ?? ""]
             .map(value => new TextEncoder().encode(value));
         if (!values[0]?.length || values[0].length > 256 || !values[1]?.length || values[1].length > 128
             || !/^[a-f0-9]{64}$/.test(request.contractFingerprint) || (values[3]?.length ?? 0) > 128
-            || (values[4]?.length ?? 0) > 64 * 1024)
+            || request.inputSbe.byteLength < 8 || request.inputSbe.byteLength > 64 * 1024)
             throw new ProtocolError("invalid service request");
-        const bytes = message(MARKET_SCHEMA_ID, 16, MARKET_TEMPLATE.SERVICE_CALL, 8, values.reduce((sum, value) => sum + 4 + value.byteLength, 0));
+        const bytes = message(MARKET_SCHEMA_ID, 31, MARKET_TEMPLATE.SERVICE_CALL, 8, values.reduce((sum, value) => sum + 4 + value.byteLength, 0) + 4 + request.inputSbe.byteLength);
         const view = new DataView(bytes.buffer);
         view.setBigUint64(HEADER_LENGTH, request.deadlineUnixMillis, true);
         let offset = HEADER_LENGTH + 8;
@@ -857,6 +837,8 @@ const encodeMarketRequest = (request) => {
             bytes.set(value, offset + 4);
             offset += 4 + value.byteLength;
         }
+        view.setUint32(offset, request.inputSbe.byteLength, true);
+        bytes.set(request.inputSbe, offset + 4);
         return bytes;
     }
     if (request.command === "STREAM_METADATA") {
@@ -1011,16 +993,15 @@ const encodeMarketRequest = (request) => {
     const quality = new TextEncoder().encode(request.quality ?? "");
     const adjustment = new TextEncoder().encode(request.adjustment);
     const dataset = new TextEncoder().encode(request.dataset ?? "");
-    const bytes = message(MARKET_SCHEMA_ID, DATASET_ROUTING_SCHEMA_VERSION, MARKET_TEMPLATE[request.command], request.command === "TS_CANDLE" ? 32 : 36, 16 + expression.byteLength + quality.byteLength + adjustment.byteLength + dataset.byteLength);
+    const bytes = message(MARKET_SCHEMA_ID, 30, MARKET_TEMPLATE[request.command], request.command === "TS_CANDLE" ? 24 : 28, 16 + expression.byteLength + quality.byteLength + adjustment.byteLength + dataset.byteLength);
     const view = new DataView(bytes.buffer);
-    view.setBigUint64(HEADER_LENGTH, request.blockMask, true);
-    view.setBigUint64(HEADER_LENGTH + 8, request.from, true);
-    view.setBigUint64(HEADER_LENGTH + 16, request.through, true);
-    view.setBigUint64(HEADER_LENGTH + 24, request.cadenceMicros, true);
+    view.setBigUint64(HEADER_LENGTH, request.from, true);
+    view.setBigUint64(HEADER_LENGTH + 8, request.through, true);
+    view.setBigUint64(HEADER_LENGTH + 16, request.cadenceMicros, true);
     if (request.command === "TS_CANDLE_STREAM") {
-        view.setUint32(HEADER_LENGTH + 32, request.updateIntervalMillis, true);
+        view.setUint32(HEADER_LENGTH + 24, request.updateIntervalMillis, true);
     }
-    let offset = HEADER_LENGTH + (request.command === "TS_CANDLE" ? 32 : 36);
+    let offset = HEADER_LENGTH + (request.command === "TS_CANDLE" ? 24 : 28);
     view.setUint32(offset, expression.byteLength, true);
     bytes.set(expression, offset + 4);
     offset += 4 + expression.byteLength;

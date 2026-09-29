@@ -4,8 +4,10 @@ import type { RequestHandle, TraceContext } from "./connection.js";
 export { KEYFIGURES_CONTRACTS };
 export type KeyfiguresCatalog = keyof typeof KEYFIGURES_CONTRACTS;
 interface RuntimeContract {
+    readonly catalog: string;
     readonly fingerprint: string;
     readonly fields: readonly {
+        readonly columnId: number;
         readonly name: string;
         readonly type: string;
         readonly nullable: boolean;
@@ -168,5 +170,5 @@ export interface CatalogKeyfigures<C extends KeyfiguresCatalog> {
     schema(): SingleRequestHandle<KeyfiguresSchema<C>>;
 }
 /** Validate the actual response against the generated universe projection before exposing its types. */
-export declare function decodeKeyfigures<C extends KeyfiguresCatalog>(catalog: C, action: "search" | "instrument" | "schema", payload: unknown): KeyfiguresSearchResult<C> | KeyfiguresInstrumentResult<C> | KeyfiguresSchema<C>;
+export declare function decodeKeyfigures<C extends KeyfiguresCatalog>(catalog: C, action: "search" | "instrument" | "schema", payload: Uint8Array): KeyfiguresSearchResult<C> | KeyfiguresInstrumentResult<C> | KeyfiguresSchema<C>;
 //# sourceMappingURL=keyfigures.d.ts.map

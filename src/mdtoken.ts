@@ -1,5 +1,6 @@
 import {VERSION_CONTRACTS} from "./generated/version-contracts.js";
 import {versionRequests,validateVersionedRecords} from "./versioned-reads.js";
+import type {BlockName} from "./generated/bindings.js";
 /** Opaque signed token bytes, or their unpadded base64url HTTP representation. */
 export type DataToken = Uint8Array | string;
 export type TokenSource = DataToken | (() => DataToken | Promise<DataToken>);
@@ -36,24 +37,23 @@ export interface RestOptions {
 }
 export interface LatestQuery {
   readonly selector: string;
-  readonly quality?: "RT" | "DL" | "EOD";
-  /** Request a licensed, unadjusted canonical source field alongside customer export blocks. */
-  readonly source_field?: string;
-  readonly block_mask?: bigint | string;
+  readonly dataset?: string;
+  readonly blocks?: readonly BlockName[];
   /** Adjust prices and quantities for confirmed splits; raw is the default. */
   readonly adjustment?: "raw" | "split";
 }
 export interface TimeseriesQuery extends LatestQuery {
+  readonly quality?: "RT" | "DL" | "EOD";
   /** Candle width in microseconds; zero selects raw history. */
   readonly resolution?: bigint | string;
   readonly from: bigint | string;
   readonly through: bigint | string;
-  readonly max_rows?: number;
+  readonly maxRows?: number;
 }
 
 /** Each request obtains a token; the provider may reuse one until its expiry. */
 export const createRestClient = (options: RestOptions) => {
-  const request = async (path: string, query: LatestQuery | TimeseriesQuery | {selector:string;versions:string}): Promise<Response> => {
+  const request = async (path: string, query: object): Promise<Response> => {
     const url = new URL(path, options.url);
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined) url.searchParams.set(key, String(value));
@@ -74,8 +74,15 @@ export const createRestClient = (options: RestOptions) => {
       return validateVersionedRecords(await response.json(),VERSION_CONTRACTS,versions);
     },
     latest: (selector: string, options: Omit<LatestQuery, "selector"> = {}) =>
-      request("/api/v1/snapshot", {selector, ...options}),
-    timeseries: (selector: string, from: bigint | string, through: bigint | string, options: Omit<TimeseriesQuery, "selector" | "from" | "through"> = {}) =>
-      request("/api/v1/timeseries", {selector, from, through, ...options}),
+      request("/api/v1/market-data/latest", {selector, dataset:options.dataset, blocks:options.blocks?.join(","), adjustment:options.adjustment}),
+    timeseries: (selector: string, from: bigint | string, through: bigint | string, options: Omit<TimeseriesQuery, "selector" | "from" | "through"> = {}) => {
+      const cadence = options.resolution === undefined ? 0n : BigInt(options.resolution);
+      if (cadence < 0n) throw new Error("resolution must be nonnegative");
+      return request(`/api/v1/market-data/timeseries/${cadence === 0n ? "raw" : "candles"}`, {
+        selector, from, through, dataset:options.dataset, quality:options.quality,
+        blocks:options.blocks?.join(","), adjustment:options.adjustment,
+        maxRows:options.maxRows, cadenceMicros:cadence === 0n ? undefined : cadence,
+      });
+    },
   };
 };

@@ -16,6 +16,16 @@ export class ServiceError extends Error {
         this.details = details;
     }
 }
+export const normalizeServiceValue = (value) => {
+    if (typeof value === "bigint")
+        return value.toString();
+    if (Array.isArray(value))
+        return value.map(normalizeServiceValue);
+    if (value !== null && typeof value === "object") {
+        return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, normalizeServiceValue(item)]));
+    }
+    return value;
+};
 /** Intentionally small JSON Schema subset. Unsupported keywords fail generation. */
 export const assertServiceValue = (value, schema, definitions, path = "value") => {
     if (typeof schema !== "object" || schema === null)

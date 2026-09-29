@@ -22,12 +22,17 @@ export interface ServiceCommandBinding {
     readonly command: string;
     readonly fingerprint: string;
     readonly mutation: boolean;
+    readonly wireSchemaId: number;
+    readonly inputTemplate: number;
+    readonly outputTemplate: number;
+    readonly errorTemplates: Readonly<Record<string, number>>;
     readonly inputSchema: unknown;
     readonly outputSchema: unknown;
     readonly definitions: Record<string, unknown>;
     readonly errorSchemas: Record<string, unknown>;
 }
 export type ServiceInvoker = (binding: ServiceCommandBinding, input: Record<string, unknown>, options?: ServiceCallOptions) => Promise<unknown>;
+export declare const normalizeServiceValue: (value: unknown) => unknown;
 /** Intentionally small JSON Schema subset. Unsupported keywords fail generation. */
 export declare const assertServiceValue: (value: unknown, schema: unknown, definitions: Record<string, unknown>, path?: string) => void;
 export declare const hydrateServiceValue: (value: unknown, schema: unknown, definitions: Record<string, unknown>) => unknown;

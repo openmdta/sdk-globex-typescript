@@ -27,6 +27,10 @@ export interface ServiceCommandBinding {
   readonly command: string;
   readonly fingerprint: string;
   readonly mutation: boolean;
+  readonly wireSchemaId: number;
+  readonly inputTemplate: number;
+  readonly outputTemplate: number;
+  readonly errorTemplates: Readonly<Record<string, number>>;
   readonly inputSchema: unknown;
   readonly outputSchema: unknown;
   readonly definitions: Record<string, unknown>;
@@ -34,6 +38,15 @@ export interface ServiceCommandBinding {
 }
 
 export type ServiceInvoker = (binding: ServiceCommandBinding, input: Record<string, unknown>, options?: ServiceCallOptions) => Promise<unknown>;
+
+export const normalizeServiceValue = (value: unknown): unknown => {
+  if (typeof value === "bigint") return value.toString();
+  if (Array.isArray(value)) return value.map(normalizeServiceValue);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, normalizeServiceValue(item)]));
+  }
+  return value;
+};
 
 /** Intentionally small JSON Schema subset. Unsupported keywords fail generation. */
 export const assertServiceValue = (value: unknown, schema: unknown, definitions: Record<string, unknown>, path = "value"): void => {

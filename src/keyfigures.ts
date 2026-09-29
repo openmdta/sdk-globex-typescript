@@ -1,13 +1,15 @@
 import {decodeFacets, type FacetResults} from "./search.js";
 import { KEYFIGURES_CONTRACTS } from "./generated/keyfigures.js";
 import { ProtocolError } from "./protocol.js";
+import {decodeKeyfiguresWire} from "./keyfigures-wire.js";
 import type { RequestHandle, TraceContext } from "./connection.js";
 
 export { KEYFIGURES_CONTRACTS };
 export type KeyfiguresCatalog = keyof typeof KEYFIGURES_CONTRACTS;
 interface RuntimeContract {
+  readonly catalog: string;
   readonly fingerprint: string;
-  readonly fields: readonly {readonly name: string; readonly type: string; readonly nullable: boolean}[];
+  readonly fields: readonly {readonly columnId: number; readonly name: string; readonly type: string; readonly nullable: boolean}[];
   readonly blocks: readonly {readonly semantic: string; readonly projection: Readonly<Record<string, string>>; readonly members: Readonly<Record<string, {readonly type: string}>>}[];
 }
 type Contract<C extends KeyfiguresCatalog> = [C] extends [never] ? RuntimeContract : typeof KEYFIGURES_CONTRACTS[C];
@@ -145,8 +147,9 @@ function boolean(value: unknown): boolean {
 }
 
 /** Validate the actual response against the generated universe projection before exposing its types. */
-export function decodeKeyfigures<C extends KeyfiguresCatalog>(catalog: C, action: "search" | "instrument" | "schema", payload: unknown): KeyfiguresSearchResult<C> | KeyfiguresInstrumentResult<C> | KeyfiguresSchema<C> {
-  const value = object(payload), contract = KEYFIGURES_CONTRACTS[catalog] as Contract<C>;
+export function decodeKeyfigures<C extends KeyfiguresCatalog>(catalog: C, action: "search" | "instrument" | "schema", payload: Uint8Array): KeyfiguresSearchResult<C> | KeyfiguresInstrumentResult<C> | KeyfiguresSchema<C> {
+  const contract = KEYFIGURES_CONTRACTS[catalog] as Contract<C>;
+  const value = object(decodeKeyfiguresWire(action, payload, contract));
   if (value.contract_fingerprint !== contract.fingerprint) throw new ProtocolError("keyfigures contract mismatch; regenerate SDK");
   if (value.clock !== "live" && value.clock !== "replay") throw new ProtocolError("invalid keyfigures clock");
   if (action === "schema") {

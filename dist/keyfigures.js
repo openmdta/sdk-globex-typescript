@@ -1,6 +1,7 @@
 import { decodeFacets } from "./search.js";
 import { KEYFIGURES_CONTRACTS } from "./generated/keyfigures.js";
 import { ProtocolError } from "./protocol.js";
+import { decodeKeyfiguresWire } from "./keyfigures-wire.js";
 export { KEYFIGURES_CONTRACTS };
 function object(value) {
     if (!value || typeof value !== "object" || Array.isArray(value))
@@ -27,7 +28,8 @@ function boolean(value) {
 }
 /** Validate the actual response against the generated universe projection before exposing its types. */
 export function decodeKeyfigures(catalog, action, payload) {
-    const value = object(payload), contract = KEYFIGURES_CONTRACTS[catalog];
+    const contract = KEYFIGURES_CONTRACTS[catalog];
+    const value = object(decodeKeyfiguresWire(action, payload, contract));
     if (value.contract_fingerprint !== contract.fingerprint)
         throw new ProtocolError("keyfigures contract mismatch; regenerate SDK");
     if (value.clock !== "live" && value.clock !== "replay")

@@ -5,14 +5,15 @@ import { decodeCatalogLookup } from "./lookup.js";
 import { decodeCatalogSearch } from "./search.js";
 import { KEYFIGURES_CONTRACTS, decodeKeyfigures } from "./keyfigures.js";
 import { tokenBytes } from "./mdtoken.js";
-import { ServiceError, assertServiceValue, hydrateServiceValue } from "./service.js";
+import { ServiceError, assertServiceValue, hydrateServiceValue, normalizeServiceValue } from "./service.js";
+import { encodeObservationInput, decodeObservationValue } from "./observation-wire.js";
 import { createServiceNamespace } from "./generated/services.js";
 import { selector, selectorExpression } from "./selector.js";
 import { MemoryFeedSink, streamFeed as runStreamFeed } from "./feed.js";
 import { MemoryCatalogFeedSink } from "./catalog-feed.js";
 import { BLOCK_BINDINGS, } from "./generated/bindings.js";
 import {} from "./catalog.js";
-import { ProtocolError, RequestError, WEBSOCKET_SUBPROTOCOL, decodeBatch, decodeStreamMetadata, decodeListingResponse, decodeCatalogFields, decodeCatalogRecord, decodeKeyfiguresResult, decodeServiceCallResult, decodeTimeseriesPageResult, decodeCatalogSearchResult, decodeCatalogLookupResult, decodeFeedControl, decodeFeedSnapshotHeader, decodeCatalogFeedControl, decodeResponse, encodeCredit, encodeWindow, encodeRelease, splitResponseBatch, WINDOW_SUBPROTOCOL, RESPONSE_WINDOW_BYTES, RESPONSE_COST_OVERHEAD, encodeRequest, } from "./protocol.js";
+import { ProtocolError, RequestError, decodeBatch, decodeStreamMetadata, decodeListingResponse, decodeCatalogFields, decodeCatalogRecord, decodeKeyfiguresResult, decodeServiceCallResult, decodeTimeseriesPageResult, decodeCatalogSearchResult, decodeCatalogLookupResult, decodeFeedControl, decodeFeedSnapshotHeader, decodeCatalogFeedControl, decodeResponse, encodeWindow, encodeRelease, splitResponseBatch, WINDOW_SUBPROTOCOL, RESPONSE_WINDOW_BYTES, RESPONSE_COST_OVERHEAD, encodeRequest, } from "./protocol.js";
 export class ConnectionClosedError extends Error {
     constructor() {
         super("market-data connection was closed");
@@ -105,7 +106,6 @@ class ReconnectingConnection {
     #socket;
     #auth;
     #authenticated = false;
-    #windowed = false;
     #reservedWindowBytes = 0;
     #closing = false;
     #initialSettled = false;
@@ -156,10 +156,12 @@ class ReconnectingConnection {
             throw new TypeError("read commands do not accept mutation IDs");
         if (mutationId !== undefined && (!mutationId || new TextEncoder().encode(mutationId).length > 128))
             throw new TypeError("invalid mutation ID");
-        const jsonInput = JSON.parse(JSON.stringify(input, (_key, value) => typeof value === "bigint" ? value.toString() : value));
-        assertServiceValue(jsonInput, binding.inputSchema, binding.definitions, "input");
-        const inputJson = JSON.stringify(jsonInput);
-        if (new TextEncoder().encode(inputJson).length > 64 * 1024)
+        const normalizedInput = normalizeServiceValue(input);
+        assertServiceValue(normalizedInput, binding.inputSchema, binding.definitions, "input");
+        if (binding.wireSchemaId !== 21)
+            throw new ProtocolError("unsupported service owner SBE schema");
+        const inputSbe = encodeObservationInput(binding.inputTemplate, normalizedInput);
+        if (inputSbe.byteLength > 64 * 1024)
             throw new RangeError("service input exceeds 64 KiB");
         const id = this.#nextId++;
         const handle = new Handle(id, () => this.#cancel(id));
@@ -168,26 +170,25 @@ class ReconnectingConnection {
             command: "SERVICE_CALL", handle, retry: options.retry ?? "transport",
             service: { id: binding.serviceId, command: binding.command, ...(mutationId === undefined ? {} : { mutationId }) },
             encoded: encodeRequest({ command: "SERVICE_CALL", id, serviceId: binding.serviceId, serviceCommand: binding.command,
-                contractFingerprint: binding.fingerprint, ...(mutationId === undefined ? {} : { mutationId }), inputJson, deadlineUnixMillis }),
+                contractFingerprint: binding.fingerprint, ...(mutationId === undefined ? {} : { mutationId }), inputSbe, deadlineUnixMillis }),
             decode: response => {
-                const value = decodeServiceCallResult(response);
-                if (typeof value !== "object" || value === null || Array.isArray(value))
-                    throw new ProtocolError("invalid service result envelope");
-                const result = value;
-                if (result.ok !== true) {
-                    const error = result.error;
-                    if (typeof error !== "object" || error === null || Array.isArray(error))
-                        throw new ProtocolError("invalid service error");
-                    const fields = error;
-                    if (typeof fields.code !== "string" || typeof fields.message !== "string" || !["not_applied", "unknown"].includes(String(fields.outcome)))
-                        throw new ProtocolError("invalid service error fields");
-                    const errorSchema = Object.hasOwn(binding.errorSchemas, fields.code) ? binding.errorSchemas[fields.code] : undefined;
-                    if (errorSchema !== undefined)
-                        assertServiceValue(fields.details, errorSchema, binding.definitions, "error details");
-                    throw new ServiceError(fields.code, binding.serviceId, binding.command, active.interrupted ? "unknown" : fields.outcome, mutationId, errorSchema === undefined ? fields.details : hydrateServiceValue(fields.details, errorSchema, binding.definitions), fields.message);
+                const result = decodeServiceCallResult(response);
+                if (result.serviceId !== binding.serviceId || result.command !== binding.command
+                    || result.contractFingerprint !== binding.fingerprint || result.mutationId !== mutationId)
+                    throw new ProtocolError("service result identity mismatch");
+                if (!result.ok) {
+                    const errorSchema = Object.hasOwn(binding.errorSchemas, result.errorCode) ? binding.errorSchemas[result.errorCode] : undefined;
+                    const template = binding.errorTemplates[result.errorCode];
+                    if (result.valueSbe.byteLength && template === undefined)
+                        throw new ProtocolError("undeclared service error frame");
+                    const details = result.valueSbe.byteLength ? decodeObservationValue(template, result.valueSbe) : undefined;
+                    if (errorSchema !== undefined && details !== undefined)
+                        assertServiceValue(details, errorSchema, binding.definitions, "error details");
+                    throw new ServiceError(result.errorCode, binding.serviceId, binding.command, active.interrupted ? "unknown" : result.outcome, mutationId, errorSchema === undefined || details === undefined ? details : hydrateServiceValue(details, errorSchema, binding.definitions), result.errorMessage);
                 }
-                assertServiceValue(result.result, binding.outputSchema, binding.definitions, "result");
-                return hydrateServiceValue(result.result, binding.outputSchema, binding.definitions);
+                const value = decodeObservationValue(binding.outputTemplate, result.valueSbe);
+                assertServiceValue(value, binding.outputSchema, binding.definitions, "result");
+                return hydrateServiceValue(value, binding.outputSchema, binding.definitions);
             },
         };
         this.#track(active);
@@ -296,7 +297,7 @@ class ReconnectingConnection {
             options.signal?.addEventListener("abort", () => void handle.cancel(), { once: true });
         const active = {
             command: "FEED_LIVE",
-            encoded: encodeRequest({ command: "FEED_LIVE", id, blockMask: 0n, selectedFields: blocks, dataset, quality,
+            encoded: encodeRequest({ command: "FEED_LIVE", id, selectedFields: blocks, dataset, quality,
                 ...(options.trace ? { trace: options.trace } : {}) }),
             handle: handle,
             many: true,
@@ -322,7 +323,7 @@ class ReconnectingConnection {
         this.#track(active);
         if (this.#authenticated && this.#socket?.readyState === this.#WebSocket.OPEN) {
             this.#socket.send(active.encoded);
-            this.#socket.send(this.#windowed ? encodeWindow(id) : encodeCredit(id));
+            this.#socket.send(encodeWindow(id));
         }
         return handle;
     }
@@ -401,7 +402,7 @@ class ReconnectingConnection {
             options.signal?.addEventListener("abort", () => void handle.cancel(), { once: true });
         const active = {
             command: "FEED_RECOVERY",
-            encoded: encodeRequest({ command: "FEED_RECOVERY", id, blockMask: 0n, selectedFields: blocks,
+            encoded: encodeRequest({ command: "FEED_RECOVERY", id, selectedFields: blocks,
                 afterMessageId, throughMessageId, dataset, quality, ...(options.trace ? { trace: options.trace } : {}) }),
             handle: handle,
             many: true,
@@ -419,7 +420,7 @@ class ReconnectingConnection {
         this.#track(active);
         if (this.#authenticated && this.#socket?.readyState === this.#WebSocket.OPEN) {
             this.#socket.send(active.encoded);
-            this.#socket.send(this.#windowed ? encodeWindow(id) : encodeCredit(id));
+            this.#socket.send(encodeWindow(id));
         }
         return handle;
     }
@@ -440,7 +441,7 @@ class ReconnectingConnection {
             options.signal?.addEventListener("abort", () => void handle.cancel(), { once: true });
         const active = {
             command: "FEED_SNAPSHOT",
-            encoded: encodeRequest({ command: "FEED_SNAPSHOT", id, blockMask: 0n, selectedFields: blocks, dataset, quality,
+            encoded: encodeRequest({ command: "FEED_SNAPSHOT", id, selectedFields: blocks, dataset, quality,
                 ...(options.trace ? { trace: options.trace } : {}) }),
             handle: handle,
             many: true,
@@ -464,7 +465,7 @@ class ReconnectingConnection {
         this.#track(active);
         if (this.#authenticated && this.#socket?.readyState === this.#WebSocket.OPEN) {
             this.#socket.send(active.encoded);
-            this.#socket.send(this.#windowed ? encodeWindow(id) : encodeCredit(id));
+            this.#socket.send(encodeWindow(id));
         }
         const iterator = handle[Symbol.asyncIterator]();
         const first = await iterator.next();
@@ -607,7 +608,7 @@ class ReconnectingConnection {
             command: "TS_PAGE", id, selector: selectorExpression(selector),
             ...(options.dataset === undefined ? {} : { dataset: options.dataset }),
             ...(options.quality === undefined ? {} : { quality: options.quality.trim().toUpperCase() }),
-            blockMask: 0n, selectedFields: options.blocks ?? [], resolutionMicros: cadenceMicros, order, limit,
+            selectedFields: options.blocks ?? [], resolutionMicros: cadenceMicros, order, limit,
             ...(typeof boundary === "bigint" ? { boundary } : { cursor: boundary }),
             ...(guard === undefined ? {} : { guard }),
             adjustment: options.adjustment ?? "raw",
@@ -853,7 +854,6 @@ class ReconnectingConnection {
             request = {
                 command,
                 id,
-                blockMask: 0n,
                 selectedFields: parameters.blocks ?? [],
                 expression,
                 ...(parameters.dataset === undefined ? {} : { dataset: parameters.dataset }),
@@ -866,7 +866,6 @@ class ReconnectingConnection {
             request = {
                 command,
                 id,
-                blockMask: 0n,
                 selectedFields: history.blocks ?? [],
                 from: history.from,
                 through: history.through,
@@ -882,7 +881,6 @@ class ReconnectingConnection {
             const history = parameters;
             const candle = {
                 id,
-                blockMask: 0n,
                 selectedFields: history.blocks ?? [],
                 from: history.from,
                 through: history.through,
@@ -958,7 +956,7 @@ class ReconnectingConnection {
         this.#track(active);
         if (this.#authenticated && this.#socket?.readyState === this.#WebSocket.OPEN) {
             this.#socket.send(active.encoded);
-            this.#socket.send(this.#windowed ? encodeWindow(id) : encodeCredit(id));
+            this.#socket.send(encodeWindow(id));
         }
         return handle;
     }
@@ -1106,7 +1104,7 @@ class ReconnectingConnection {
         }
     }
     async #openAndServe() {
-        const socket = new this.#WebSocket(this.#url, [WINDOW_SUBPROTOCOL, WEBSOCKET_SUBPROTOCOL]);
+        const socket = new this.#WebSocket(this.#url, WINDOW_SUBPROTOCOL);
         socket.binaryType = "arraybuffer";
         this.#socket = socket;
         this.#authenticated = false;
@@ -1122,7 +1120,7 @@ class ReconnectingConnection {
                 once: true,
             });
         });
-        if (socket.protocol !== WEBSOCKET_SUBPROTOCOL && socket.protocol !== WINDOW_SUBPROTOCOL) {
+        if (socket.protocol !== WINDOW_SUBPROTOCOL) {
             socket.close(1002, "subprotocol required");
             throw new ProtocolError("server did not negotiate a supported SBE session subprotocol");
         }
@@ -1137,11 +1135,10 @@ class ReconnectingConnection {
                 Promise.resolve(typeof this.#token === "function" ? this.#token() : this.#token),
                 closed.then(() => { throw new Error("WebSocket closed while obtaining a token"); }),
             ]);
-            // Preserve legacy UTF-8 credentials; MDToken base64url has a fixed SBE header.
-            const token = typeof supplied === "string" && !supplied.startsWith("AAABAAgAAA") ? supplied : tokenBytes(supplied);
-            const identity = typeof token === "string" && token.startsWith("main:")
+            const token = typeof supplied === "string" && supplied.startsWith("main:") ? supplied : tokenBytes(supplied);
+            const identity = typeof token === "string"
                 ? `main:${token.split(":", 3)[1]}`
-                : typeof token === "string" ? `opaque:${token}` : (() => {
+                : (() => {
                     if (token.length < 12)
                         throw new AuthenticationError("invalid MDToken identity");
                     const length = new DataView(token.buffer, token.byteOffset, token.byteLength).getUint32(8, true);
@@ -1162,7 +1159,6 @@ class ReconnectingConnection {
             authenticated,
             closed.then(() => Promise.reject(new Error("WebSocket closed during authentication"))),
         ]);
-        this.#windowed = socket.protocol === WINDOW_SUBPROTOCOL;
         this.#authenticated = true;
         this.#lastHeartbeat = Date.now();
         const replay = this.#initialSettled;
@@ -1175,7 +1171,7 @@ class ReconnectingConnection {
                 active.handle.replay();
             socket.send(active.encoded);
             if (active.command === "FEED_LIVE" || active.command === "FEED_RECOVERY" || active.command === "FEED_SNAPSHOT" || active.command === "CATALOG_FEED") {
-                socket.send(this.#windowed ? encodeWindow(active.handle.id) : encodeCredit(active.handle.id));
+                socket.send(encodeWindow(active.handle.id));
             }
             active.sent = true;
         }
@@ -1270,7 +1266,7 @@ class ReconnectingConnection {
         else {
             try {
                 const flow = active.command === "FEED_LIVE" || active.command === "FEED_RECOVERY" || active.command === "FEED_SNAPSHOT" || active.command === "CATALOG_FEED";
-                if (response.message?.format.schemaId === 5 && response.message.format.templateId === 103 && (!this.#windowed || !flow)) {
+                if (response.message?.format.schemaId === 5 && response.message.format.templateId === 103 && !flow) {
                     throw new ProtocolError("unnegotiated response batch");
                 }
                 const frames = splitResponseBatch(response);
@@ -1280,10 +1276,9 @@ class ReconnectingConnection {
                 });
                 const wireBytes = (response.message?.body.byteLength ?? 0) + RESPONSE_COST_OVERHEAD;
                 const socket = this.#socket;
-                const windowed = this.#windowed;
                 const credit = () => {
                     if (this.#authenticated && socket === this.#socket && socket?.readyState === this.#WebSocket.OPEN) {
-                        socket.send(windowed ? encodeRelease(response.requestId, wireBytes) : encodeCredit(response.requestId));
+                        socket.send(encodeRelease(response.requestId, wireBytes));
                     }
                 };
                 if (!active.handle.push(values, wireBytes, flow ? credit : undefined)) {

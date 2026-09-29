@@ -1,5 +1,5 @@
 export { AuthenticationError, ConnectionClosedError, connect, } from "./connection.js";
-export { ProtocolError, RequestError, WEBSOCKET_SUBPROTOCOL, } from "./protocol.js";
+export { ProtocolError, RequestError, } from "./protocol.js";
 export { BLOCK_BINDINGS, BLOCK_NAMES, } from "./generated/bindings.js";
 export * from "./generated/export-blocks.js";
 export * from "./catalog.js";

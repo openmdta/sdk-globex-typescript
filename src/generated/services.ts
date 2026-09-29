@@ -39,13 +39,19 @@ const observationDefinitions = {"AlertType":{"enum":["ALERT_ON_OVER","ALERT_ON_U
 }
 export const createServiceNamespace = (call: ServiceInvoker): ServiceNamespace => ({
     observation: {getWatcher: (watcherId, options) => call({
-        serviceId: "d17f9210-4adb-43b9-85d9-fe9a305ad611", command: "getWatcher", fingerprint: "f54e77a9f215126a769f6a948c3429a6137253bc46611faa94f9bb892fa70924", mutation: false,
+        serviceId: "d17f9210-4adb-43b9-85d9-fe9a305ad611", command: "getWatcher", fingerprint: "cbaad58fab6fe7019bab0c719a5067916363ac82ebe1d86fbe87098888bad084", mutation: false,
+        wireSchemaId: 21, inputTemplate: 2, outputTemplate: 4,
+        errorTemplates: {"not_found": 7},
         inputSchema: observationDefinitions.GetWatcherRequest, outputSchema: observationDefinitions.Watcher, definitions: observationDefinitions, errorSchemas: {"not_found": observationDefinitions.WatcherNotFound}
     }, {watcherId}, options) as Promise<observationTypes.Watcher>,getWatchers: (accountId, options) => call({
-        serviceId: "d17f9210-4adb-43b9-85d9-fe9a305ad611", command: "getWatchers", fingerprint: "beb5d1ec561ba6d877ad784ae0f2219a5857cb707f53277c8b689832277d1a9f", mutation: false,
+        serviceId: "d17f9210-4adb-43b9-85d9-fe9a305ad611", command: "getWatchers", fingerprint: "52cbf38249d292ae8bda61b1cb14d737918f2e06bbdbc81f35b1ac651200f606", mutation: false,
+        wireSchemaId: 21, inputTemplate: 1, outputTemplate: 5,
+        errorTemplates: {},
         inputSchema: observationDefinitions.GetWatchersRequest, outputSchema: observationDefinitions.WatcherList, definitions: observationDefinitions, errorSchemas: {}
     }, {accountId}, options) as Promise<observationTypes.WatcherList>,setWatcher: (watcherId,update, options) => call({
-        serviceId: "d17f9210-4adb-43b9-85d9-fe9a305ad611", command: "setWatcher", fingerprint: "c547f78cb12e10b1749682027ccf3cdc886362075eee788d09627e99c5e5d7f1", mutation: true,
+        serviceId: "d17f9210-4adb-43b9-85d9-fe9a305ad611", command: "setWatcher", fingerprint: "006134f5a0f0381419a6784a0b1a9e754f8056d283c7936c3a04af62769d6b8c", mutation: true,
+        wireSchemaId: 21, inputTemplate: 3, outputTemplate: 4,
+        errorTemplates: {"conflict": 6, "not_found": 7},
         inputSchema: observationDefinitions.SetWatcherRequest, outputSchema: observationDefinitions.Watcher, definitions: observationDefinitions, errorSchemas: {"conflict": observationDefinitions.RevisionConflict, "not_found": observationDefinitions.WatcherNotFound}
     }, {watcherId, update}, options) as Promise<observationTypes.Watcher>,},
 });

@@ -35,7 +35,6 @@ export {
 export {
   ProtocolError,
   RequestError,
-  WEBSOCKET_SUBPROTOCOL,
   type MarketDataBatch,
   type MarketDataGap,
   type MarketDataMessage,

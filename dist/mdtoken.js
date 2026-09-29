@@ -47,8 +47,17 @@ export const createRestClient = (options) => {
                 throw new Error(`Versioned read failed: ${response.status}`);
             return validateVersionedRecords(await response.json(), VERSION_CONTRACTS, versions);
         },
-        latest: (selector, options = {}) => request("/api/v1/snapshot", { selector, ...options }),
-        timeseries: (selector, from, through, options = {}) => request("/api/v1/timeseries", { selector, from, through, ...options }),
+        latest: (selector, options = {}) => request("/api/v1/market-data/latest", { selector, dataset: options.dataset, blocks: options.blocks?.join(","), adjustment: options.adjustment }),
+        timeseries: (selector, from, through, options = {}) => {
+            const cadence = options.resolution === undefined ? 0n : BigInt(options.resolution);
+            if (cadence < 0n)
+                throw new Error("resolution must be nonnegative");
+            return request(`/api/v1/market-data/timeseries/${cadence === 0n ? "raw" : "candles"}`, {
+                selector, from, through, dataset: options.dataset, quality: options.quality,
+                blocks: options.blocks?.join(","), adjustment: options.adjustment,
+                maxRows: options.maxRows, cadenceMicros: cadence === 0n ? undefined : cadence,
+            });
+        },
     };
 };
 //# sourceMappingURL=mdtoken.js.map

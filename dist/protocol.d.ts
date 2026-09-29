@@ -6,7 +6,6 @@ import type { CatalogFieldDescriptor, CatalogDescriptorSelection } from "./catal
 import type { CatalogLookupParameters } from "./lookup.js";
 import type { CatalogSearchParameters } from "./search.js";
 import type { MarketSelector } from "./selector.js";
-export declare const WEBSOCKET_SUBPROTOCOL = "openmdta.sbe-session.v1";
 export declare const WINDOW_SUBPROTOCOL = "openmdta.sbe-session.v2";
 export declare const RESPONSE_WINDOW_BYTES: number;
 export declare const RESPONSE_WINDOW_COUNT = 16;
@@ -21,7 +20,6 @@ export type Request = {
 } | {
     readonly command: "FEED_LIVE";
     readonly id: bigint;
-    readonly blockMask: bigint;
     readonly selectedFields?: readonly BlockName[];
     readonly dataset: string;
     readonly quality: string;
@@ -29,7 +27,6 @@ export type Request = {
 } | {
     readonly command: "FEED_RECOVERY";
     readonly id: bigint;
-    readonly blockMask: bigint;
     readonly selectedFields?: readonly BlockName[];
     readonly afterMessageId: bigint;
     readonly throughMessageId: bigint;
@@ -39,7 +36,6 @@ export type Request = {
 } | {
     readonly command: "FEED_SNAPSHOT";
     readonly id: bigint;
-    readonly blockMask: bigint;
     readonly selectedFields?: readonly BlockName[];
     readonly dataset: string;
     readonly quality: string;
@@ -50,7 +46,6 @@ export type Request = {
     readonly selector: string;
     readonly dataset?: string;
     readonly quality?: string;
-    readonly blockMask: bigint;
     readonly selectedFields?: readonly BlockName[];
     readonly resolutionMicros: bigint;
     readonly order: "asc" | "desc";
@@ -129,7 +124,7 @@ export type Request = {
     readonly serviceCommand: string;
     readonly contractFingerprint: string;
     readonly mutationId?: string;
-    readonly inputJson: string;
+    readonly inputSbe: Uint8Array;
     readonly deadlineUnixMillis: bigint;
     readonly trace?: TraceContext;
 } | {
@@ -143,7 +138,6 @@ export type Request = {
 } | {
     readonly command: "SNAPSHOT" | "STREAM";
     readonly id: bigint;
-    readonly blockMask: bigint;
     readonly selectedFields?: readonly BlockName[];
     readonly expression: string;
     readonly dataset?: string;
@@ -152,7 +146,6 @@ export type Request = {
 } | {
     readonly command: "TS_RAW" | "TS_RAW_STREAM";
     readonly id: bigint;
-    readonly blockMask: bigint;
     readonly selectedFields?: readonly BlockName[];
     readonly from: bigint;
     readonly through: bigint;
@@ -165,7 +158,6 @@ export type Request = {
 } | {
     readonly command: "TS_CANDLE";
     readonly id: bigint;
-    readonly blockMask: bigint;
     readonly selectedFields?: readonly BlockName[];
     readonly from: bigint;
     readonly through: bigint;
@@ -178,7 +170,6 @@ export type Request = {
 } | {
     readonly command: "TS_CANDLE_STREAM";
     readonly id: bigint;
-    readonly blockMask: bigint;
     readonly selectedFields?: readonly BlockName[];
     readonly from: bigint;
     readonly through: bigint;
@@ -300,18 +291,27 @@ export declare class RequestError extends Error {
     readonly requestId: bigint;
     constructor(requestId: bigint, message: string);
 }
-export declare const blockMask: (blocks: readonly BlockName[] | undefined) => bigint;
 export declare const encodeFieldSelection: (fields: readonly BlockName[]) => Uint8Array<ArrayBuffer>;
 export declare const encodeRequest: (request: Request) => Uint8Array<ArrayBuffer>;
-export declare const encodeCredit: (targetId: bigint, credits?: number) => Uint8Array<ArrayBuffer>;
 export declare const encodeWindow: (targetId: bigint) => Uint8Array<ArrayBuffer>;
 export declare const encodeRelease: (targetId: bigint, consumedBytes: number) => Uint8Array<ArrayBuffer>;
 /** Decode one bounded transport batch; all body slices share the original frame. */
 export declare const splitResponseBatch: (response: StandardResponse) => readonly StandardResponse[];
 export declare const decodeResponse: (source: ArrayBuffer | ArrayBufferView) => Response;
 export declare const decodeBatch: (response: StandardResponse, selector: MarketSelector) => MarketDataBatch;
-export declare const decodeKeyfiguresResult: (response: StandardResponse) => unknown;
-export declare const decodeServiceCallResult: (response: StandardResponse) => unknown;
+export declare const decodeKeyfiguresResult: (response: StandardResponse) => Uint8Array;
+export interface ServiceCallWireResult {
+    readonly ok: boolean;
+    readonly outcome: "not_applied" | "unknown";
+    readonly serviceId: string;
+    readonly command: string;
+    readonly contractFingerprint: string;
+    readonly mutationId?: string;
+    readonly errorCode: string;
+    readonly errorMessage: string;
+    readonly valueSbe: Uint8Array;
+}
+export declare const decodeServiceCallResult: (response: StandardResponse) => ServiceCallWireResult;
 export interface TimeseriesPageWireResult {
     readonly from: bigint;
     readonly through: bigint;
