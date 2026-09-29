@@ -3,7 +3,7 @@
   "environment": {
     "name": "globex",
     "gateway": "gateway",
-    "revision": "5a95fd4b8b38fb0e2f025f9151b18dbc1d177080ed2b0efbafdcbcf87e27a90e",
+    "revision": "816bf7b03e59bead68452137eedf1156dc44470ea7f158b3f687143afe94655c",
     "datasets": {
       "globex": {
         "id": "globex/globex",
@@ -102,7 +102,7 @@
     },
     "services": {
       "observation": {
-        "id": "d17f9210-4adb-43b9-85d9-fe9a305ad611",
+        "id": "726d7463-c662-4770-b218-a0c42ae1a7ea",
         "contractSha256": "5e3f4f232c4dd3f662433c0fdd1193d92b4a18e7967a68ac707a3e1020fc43bd"
       }
     }
