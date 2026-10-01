@@ -11,6 +11,7 @@ interface RuntimeContract {
         readonly name: string;
         readonly type: string;
         readonly nullable: boolean;
+        readonly multiple?: boolean;
     }[];
     readonly blocks: readonly {
         readonly semantic: string;
@@ -21,6 +22,7 @@ interface RuntimeContract {
     }[];
 }
 type Contract<C extends KeyfiguresCatalog> = [C] extends [never] ? RuntimeContract : typeof KEYFIGURES_CONTRACTS[C];
+export type KeyfiguresContract<C extends KeyfiguresCatalog> = Contract<C>;
 type Field<C extends KeyfiguresCatalog> = Contract<C>["fields"][number];
 type FieldNames<C extends KeyfiguresCatalog, P> = Extract<Field<C>, P>["name"];
 type Scalar<F> = F extends {
@@ -28,11 +30,14 @@ type Scalar<F> = F extends {
 } ? number : F extends {
     type: "boolean";
 } ? boolean : string;
-type NullableScalar<F> = Scalar<F> | (F extends {
+/** A contract field with `multiple: true` holds a sorted, de-duplicated list of at most 64 strings. */
+type FieldValue<F> = (F extends {
+    multiple: true;
+} ? readonly string[] : Scalar<F>) | (F extends {
     nullable: true;
 } ? null : never);
 export type KeyfiguresFields<C extends KeyfiguresCatalog> = {
-    readonly [F in Field<C> as F["name"]]: NullableScalar<F>;
+    readonly [F in Field<C> as F["name"]]: FieldValue<F>;
 };
 export type KeyfiguresBlocks<C extends KeyfiguresCatalog> = {
     readonly [B in Contract<C>["blocks"][number] as B["semantic"]]: {
@@ -86,11 +91,11 @@ export interface KeyfiguresRequirements {
     })[];
 }
 export interface KeyfiguresPriceProvenance {
-    readonly cutoff_us: number;
+    readonly cutoff_us: bigint;
     readonly price_cutoff_ms: number;
     readonly price_age_mode: "elapsed" | "trading-time" | "last-completed-session";
-    readonly quote_event_us: number;
-    readonly message_id: number;
+    readonly quote_event_us: bigint;
+    readonly message_id: bigint;
     readonly input: string;
     readonly catalog: string;
     readonly key: string;
@@ -123,8 +128,8 @@ export interface KeyfiguresResult<C extends KeyfiguresCatalog> {
 }
 export interface KeyfiguresSearchResult<C extends KeyfiguresCatalog> extends KeyfiguresResult<C>, FacetResults {
     readonly next_cursor: string | null;
-    readonly snapshot_cutoff_us: number | null;
-    readonly live_cutoff_us: number | null;
+    readonly snapshot_cutoff_us: bigint | null;
+    readonly live_cutoff_us: bigint | null;
     readonly facet_basis: "snapshot_exact";
     /** Each cursor advances through fixed snapshot windows. Every window is freshly reranked; pages are not one global live order. */
     readonly ordering: "snapshot_windows_live_reranked_best_effort";
@@ -169,6 +174,6 @@ export interface CatalogKeyfigures<C extends KeyfiguresCatalog> {
     instrument(key: string, policy?: KeyfiguresPolicy): SingleRequestHandle<KeyfiguresInstrumentResult<C>>;
     schema(): SingleRequestHandle<KeyfiguresSchema<C>>;
 }
-/** Validate the actual response against the generated universe projection before exposing its types. */
-export declare function decodeKeyfigures<C extends KeyfiguresCatalog>(catalog: C, action: "search" | "instrument" | "schema", payload: Uint8Array): KeyfiguresSearchResult<C> | KeyfiguresInstrumentResult<C> | KeyfiguresSchema<C>;
+/** Validate a reassembled wire projection against the generated universe projection before exposing its types. */
+export declare function decodeKeyfigures<C extends KeyfiguresCatalog>(contract: Contract<C>, action: "search" | "instrument" | "schema", wire: unknown): KeyfiguresSearchResult<C> | KeyfiguresInstrumentResult<C> | KeyfiguresSchema<C>;
 //# sourceMappingURL=keyfigures.d.ts.map

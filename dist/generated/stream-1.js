@@ -64,9 +64,9 @@ export class QuoteLevel {
     }
 }
 export class BidAsk {
-    static SCHEMA_ID = 100;
-    static TEMPLATE_ID = 10;
-    static VERSION = 4;
+    static SCHEMA_ID = 41957;
+    static TEMPLATE_ID = 7387;
+    static VERSION = 0;
     static BLOCK_LENGTH = 35;
     static format = { schemaId: this.SCHEMA_ID, templateId: this.TEMPLATE_ID, version: this.VERSION, blockLength: this.BLOCK_LENGTH };
     eventTimeMicros;

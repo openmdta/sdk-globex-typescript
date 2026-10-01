@@ -37,7 +37,7 @@ export const XetraListing = {
     decode(payload) {
         const reader = new Reader(payload);
         const block = reader.u16(), version = reader.u16();
-        if (version > 1 || block < 0)
+        if (version > 0 || block < 0)
             throw new RangeError("incompatible XetraListing prefix");
         const value = reader.record(block, (base) => ({ productId: reader.text(), productStatus: reader.text(), instrumentStatus: reader.text(), inSubscription: reader.text(), disableOnBookTrading: reader.text(), midpointTrading: reader.text(), midpointExecutionVenueId: reader.text(), ccpEligibleCode: reader.text(), clearingLocation: reader.text(), settlementPeriod: reader.text(), settlementCurrency: reader.text(), multiCcpEligible: reader.text(), depositType: reader.text(), maximumOrderQuantity: reader.text(), maximumOrderValue: reader.text(), minimumIcebergTotalVolume: reader.text(), minimumIcebergDisplayVolume: reader.text(), }));
         reader.finish();
@@ -49,7 +49,7 @@ export const XetraMarketDetails = {
     decode(payload) {
         const reader = new Reader(payload);
         const block = reader.u16(), version = reader.u16();
-        if (version > 1 || block < 0)
+        if (version > 0 || block < 0)
             throw new RangeError("incompatible XetraMarketDetails prefix");
         const value = reader.record(block, (base) => ({ participants: reader.group(0, (base) => ({ role: reader.text(), memberId: reader.text(), name: reader.text(), })), liquidityProviderUserGroup: reader.text(), specialistUserGroup: reader.text(), }));
         reader.finish();

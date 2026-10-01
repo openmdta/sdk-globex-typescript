@@ -1,7 +1,6 @@
 import { decodeFacets } from "./search.js";
 import { KEYFIGURES_CONTRACTS } from "./generated/keyfigures.js";
 import { ProtocolError } from "./protocol.js";
-import { decodeKeyfiguresWire } from "./keyfigures-wire.js";
 export { KEYFIGURES_CONTRACTS };
 function object(value) {
     if (!value || typeof value !== "object" || Array.isArray(value))
@@ -26,10 +25,10 @@ function boolean(value) {
         throw new ProtocolError("keyfigures boolean required");
     return value;
 }
-/** Validate the actual response against the generated universe projection before exposing its types. */
-export function decodeKeyfigures(catalog, action, payload) {
-    const contract = KEYFIGURES_CONTRACTS[catalog];
-    const value = object(decodeKeyfiguresWire(action, payload, contract));
+/** Validate a reassembled wire projection against the generated universe projection before exposing its types. */
+export function decodeKeyfigures(contract, action, wire) {
+    const catalog = contract.catalog;
+    const value = object(wire);
     if (value.contract_fingerprint !== contract.fingerprint)
         throw new ProtocolError("keyfigures contract mismatch; regenerate SDK");
     if (value.clock !== "live" && value.clock !== "replay")
@@ -55,7 +54,7 @@ export function decodeKeyfigures(catalog, action, payload) {
             throw new ProtocolError("invalid facet configuration");
         return { contract, fields, clock: value.clock, limits: { facets: limits.facets, maxFacetValues: count(limits.maxFacetValues), priceCutoffMs: count(limits.priceCutoffMs), maxRequestPriceCutoffMs: count(limits.maxRequestPriceCutoffMs), allowNoPriceCutoff: boolean(limits.allowNoPriceCutoff), query: { maxPage: count(query.maxPage), maxCandidates: count(query.maxCandidates), maxOffset: count(query.maxOffset) } } };
     }
-    if (action === "instrument" && value.catalog !== catalog)
+    if (value.catalog !== catalog)
         throw new ProtocolError("wrong keyfigures catalog");
     if (!["elapsed", "trading-time", "last-completed-session"].includes(String(value.price_age_mode)))
         throw new ProtocolError("invalid keyfigures price age mode");
@@ -69,6 +68,11 @@ export function decodeKeyfigures(catalog, action, payload) {
             const value = fields[field.name];
             if (value === null && field.nullable)
                 continue;
+            if (field.multiple) {
+                if (!Array.isArray(value) || value.some(item => typeof item !== "string"))
+                    throw new ProtocolError(`invalid keyfigures field ${field.name}`);
+                continue;
+            }
             const expected = field.type === "integer" || field.type === "number" ? "number" : field.type;
             if (typeof value !== expected || (field.type === "number" && !Number.isFinite(value)) || (field.type === "integer" && !Number.isSafeInteger(value)))
                 throw new ProtocolError(`invalid keyfigures field ${field.name}`);
@@ -106,27 +110,26 @@ export function decodeKeyfigures(catalog, action, payload) {
             }))
                 throw new ProtocolError("invalid keyfigures license clause");
         }
-        const sources = observation.source == null ? [] : [observation.source];
         if (!Array.isArray(observation.dependencies))
             throw new ProtocolError("invalid keyfigures dependency provenance");
-        sources.push(...observation.dependencies);
-        for (const item of sources) {
+        const provenance = (item) => {
             const source = object(item);
-            if (["input", "catalog", "key"].some(name => typeof source[name] !== "string" || !source[name]) || !["RT", "DL", "EOD"].includes(String(source.quality)) || !["live", "replay"].includes(String(source.clock)) || !["elapsed", "trading-time", "last-completed-session"].includes(String(source.price_age_mode)) || !Number.isSafeInteger(source.cutoff_us) || !Number.isSafeInteger(source.price_cutoff_ms) || !Number.isSafeInteger(source.quote_event_us) || !Number.isSafeInteger(source.message_id) || !Array.isArray(source.fallback) || source.fallback.some(value => {
+            if (["input", "catalog", "key"].some(name => typeof source[name] !== "string" || !source[name]) || !["RT", "DL", "EOD"].includes(String(source.quality)) || !["live", "replay"].includes(String(source.clock)) || !["elapsed", "trading-time", "last-completed-session"].includes(String(source.price_age_mode)) || !Array.isArray(source.fallback) || source.fallback.some(value => {
                 const rejection = object(value);
                 return typeof rejection.input !== "string" || typeof rejection.reason !== "string";
             }))
                 throw new ProtocolError("invalid keyfigures price provenance");
-        }
+            return { ...source, cutoff_us: uint64(source.cutoff_us), price_cutoff_ms: count(source.price_cutoff_ms), quote_event_us: uint64(source.quote_event_us), message_id: uint64(source.message_id) };
+        };
         if (observation.reason !== null && typeof observation.reason !== "string")
             throw new ProtocolError("invalid keyfigures availability");
-        return { fields, blocks, observation: { source: observation.source ?? null, dependencies: observation.dependencies, event_us: observation.event_us === null ? null : uint64(observation.event_us), message_id: observation.message_id === null ? null : uint64(observation.message_id), reason: observation.reason, requirements } };
+        return { fields, blocks, observation: { source: observation.source == null ? null : provenance(observation.source), dependencies: observation.dependencies.map(provenance), event_us: observation.event_us === null ? null : uint64(observation.event_us), message_id: observation.message_id === null ? null : uint64(observation.message_id), reason: observation.reason, requirements } };
     });
     if (action === "instrument")
         return { ...metadata, result: decoded[0] };
     if ((value.next_cursor !== null && typeof value.next_cursor !== "string") || value.facet_basis !== "snapshot_exact" || value.ordering !== "snapshot_windows_live_reranked_best_effort")
         throw new ProtocolError("invalid keyfigures search metadata");
     return { ...metadata, ...decodeFacets(value), next_cursor: value.next_cursor, facet_basis: value.facet_basis, ordering: value.ordering,
-        snapshot_cutoff_us: value.snapshot_cutoff_us === null ? null : count(value.snapshot_cutoff_us), live_cutoff_us: value.live_cutoff_us === null ? null : count(value.live_cutoff_us), rows: decoded, snapshot_matches: count(value.snapshot_matches), candidates: count(value.candidates), candidate_budget_exhausted: boolean(value.candidate_budget_exhausted), underfilled: boolean(value.underfilled) };
+        snapshot_cutoff_us: value.snapshot_cutoff_us === null ? null : uint64(value.snapshot_cutoff_us), live_cutoff_us: value.live_cutoff_us === null ? null : uint64(value.live_cutoff_us), rows: decoded, snapshot_matches: count(value.snapshot_matches), candidates: count(value.candidates), candidate_budget_exhausted: boolean(value.candidate_budget_exhausted), underfilled: boolean(value.underfilled) };
 }
 //# sourceMappingURL=keyfigures.js.map

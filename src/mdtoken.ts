@@ -4,10 +4,8 @@ import type {BlockName} from "./generated/bindings.js";
 /** Opaque signed token bytes, or their unpadded base64url HTTP representation. */
 export type DataToken = Uint8Array | string;
 export type TokenSource = DataToken | (() => DataToken | Promise<DataToken>);
-export interface Grant {
-  readonly package: string;
-  readonly quality: "RT" | "DL" | "EOD" | "*";
-}
+/** `*`, `NAMESPACE:LICENSE` (untimed) or `NAMESPACE:LICENSE:RT|DL|EOD`. */
+export type Grant = string;
 
 export const tokenBytes = (token: DataToken): Uint8Array => {
   if (token instanceof Uint8Array) {

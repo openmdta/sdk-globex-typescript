@@ -47,9 +47,9 @@ export interface BidAskCandleValue {
     readonly closingQuoteCondition: number | null;
 }
 export declare class BidAskCandle {
-    static readonly SCHEMA_ID = 100;
-    static readonly TEMPLATE_ID = 12;
-    static readonly VERSION = 4;
+    static readonly SCHEMA_ID = 41957;
+    static readonly TEMPLATE_ID = 3324;
+    static readonly VERSION = 0;
     static readonly BLOCK_LENGTH = 97;
     static readonly format: SbeFormat;
     readonly eventTimeMicros: bigint;

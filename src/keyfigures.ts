@@ -1,7 +1,6 @@
 import {decodeFacets, type FacetResults} from "./search.js";
 import { KEYFIGURES_CONTRACTS } from "./generated/keyfigures.js";
 import { ProtocolError } from "./protocol.js";
-import {decodeKeyfiguresWire} from "./keyfigures-wire.js";
 import type { RequestHandle, TraceContext } from "./connection.js";
 
 export { KEYFIGURES_CONTRACTS };
@@ -9,16 +8,18 @@ export type KeyfiguresCatalog = keyof typeof KEYFIGURES_CONTRACTS;
 interface RuntimeContract {
   readonly catalog: string;
   readonly fingerprint: string;
-  readonly fields: readonly {readonly columnId: number; readonly name: string; readonly type: string; readonly nullable: boolean}[];
+  readonly fields: readonly {readonly columnId: number; readonly name: string; readonly type: string; readonly nullable: boolean; readonly multiple?: boolean}[];
   readonly blocks: readonly {readonly semantic: string; readonly projection: Readonly<Record<string, string>>; readonly members: Readonly<Record<string, {readonly type: string}>>}[];
 }
 type Contract<C extends KeyfiguresCatalog> = [C] extends [never] ? RuntimeContract : typeof KEYFIGURES_CONTRACTS[C];
+export type KeyfiguresContract<C extends KeyfiguresCatalog> = Contract<C>;
 type Field<C extends KeyfiguresCatalog> = Contract<C>["fields"][number];
 type FieldNames<C extends KeyfiguresCatalog, P> = Extract<Field<C>, P>["name"];
 type Scalar<F> = F extends {type: "number" | "integer"} ? number : F extends {type: "boolean"} ? boolean : string;
-type NullableScalar<F> = Scalar<F> | (F extends {nullable: true} ? null : never);
+/** A contract field with `multiple: true` holds a sorted, de-duplicated list of at most 64 strings. */
+type FieldValue<F> = (F extends {multiple: true} ? readonly string[] : Scalar<F>) | (F extends {nullable: true} ? null : never);
 export type KeyfiguresFields<C extends KeyfiguresCatalog> = {
-  readonly [F in Field<C> as F["name"]]: NullableScalar<F>;
+  readonly [F in Field<C> as F["name"]]: FieldValue<F>;
 };
 export type KeyfiguresBlocks<C extends KeyfiguresCatalog> = {
   readonly [B in Contract<C>["blocks"][number] as B["semantic"]]: {
@@ -56,11 +57,11 @@ export interface KeyfiguresRequirements {
   readonly clauses: readonly ("Public" | {readonly AnyOf: readonly {readonly namespace: string; readonly license: string}[]})[];
 }
 export interface KeyfiguresPriceProvenance {
-  readonly cutoff_us: number;
+  readonly cutoff_us: bigint;
   readonly price_cutoff_ms: number;
   readonly price_age_mode: "elapsed" | "trading-time" | "last-completed-session";
-  readonly quote_event_us: number;
-  readonly message_id: number;
+  readonly quote_event_us: bigint;
+  readonly message_id: bigint;
   readonly input: string;
   readonly catalog: string;
   readonly key: string;
@@ -90,8 +91,8 @@ export interface KeyfiguresResult<C extends KeyfiguresCatalog> {
 }
 export interface KeyfiguresSearchResult<C extends KeyfiguresCatalog> extends KeyfiguresResult<C>, FacetResults {
   readonly next_cursor: string | null;
-  readonly snapshot_cutoff_us: number | null;
-  readonly live_cutoff_us: number | null;
+  readonly snapshot_cutoff_us: bigint | null;
+  readonly live_cutoff_us: bigint | null;
   readonly facet_basis: "snapshot_exact";
   /** Each cursor advances through fixed snapshot windows. Every window is freshly reranked; pages are not one global live order. */
   readonly ordering: "snapshot_windows_live_reranked_best_effort";
@@ -146,10 +147,10 @@ function boolean(value: unknown): boolean {
   return value;
 }
 
-/** Validate the actual response against the generated universe projection before exposing its types. */
-export function decodeKeyfigures<C extends KeyfiguresCatalog>(catalog: C, action: "search" | "instrument" | "schema", payload: Uint8Array): KeyfiguresSearchResult<C> | KeyfiguresInstrumentResult<C> | KeyfiguresSchema<C> {
-  const contract = KEYFIGURES_CONTRACTS[catalog] as Contract<C>;
-  const value = object(decodeKeyfiguresWire(action, payload, contract));
+/** Validate a reassembled wire projection against the generated universe projection before exposing its types. */
+export function decodeKeyfigures<C extends KeyfiguresCatalog>(contract: Contract<C>, action: "search" | "instrument" | "schema", wire: unknown): KeyfiguresSearchResult<C> | KeyfiguresInstrumentResult<C> | KeyfiguresSchema<C> {
+  const catalog = contract.catalog as C;
+  const value = object(wire);
   if (value.contract_fingerprint !== contract.fingerprint) throw new ProtocolError("keyfigures contract mismatch; regenerate SDK");
   if (value.clock !== "live" && value.clock !== "replay") throw new ProtocolError("invalid keyfigures clock");
   if (action === "schema") {
@@ -167,7 +168,7 @@ export function decodeKeyfigures<C extends KeyfiguresCatalog>(catalog: C, action
     })) throw new ProtocolError("invalid facet configuration");
     return {contract, fields, clock: value.clock, limits: {facets: limits.facets as KeyfiguresSchema<C>["limits"]["facets"], maxFacetValues: count(limits.maxFacetValues), priceCutoffMs: count(limits.priceCutoffMs), maxRequestPriceCutoffMs: count(limits.maxRequestPriceCutoffMs), allowNoPriceCutoff: boolean(limits.allowNoPriceCutoff), query: {maxPage: count(query.maxPage), maxCandidates: count(query.maxCandidates), maxOffset: count(query.maxOffset)}}};
   }
-  if (action === "instrument" && value.catalog !== catalog) throw new ProtocolError("wrong keyfigures catalog");
+  if (value.catalog !== catalog) throw new ProtocolError("wrong keyfigures catalog");
   if (!["elapsed", "trading-time", "last-completed-session"].includes(String(value.price_age_mode))) throw new ProtocolError("invalid keyfigures price age mode");
   const metadata: KeyfiguresResult<C> = {catalog, epoch: uint64(value.epoch_id), clock: value.clock, price_cutoff_ms: count(value.price_cutoff_ms), price_age_mode: value.price_age_mode as KeyfiguresResult<C>["price_age_mode"], contract_fingerprint: contract.fingerprint};
   const rows = action === "instrument" ? [value.result] : value.rows;
@@ -177,6 +178,10 @@ export function decodeKeyfigures<C extends KeyfiguresCatalog>(catalog: C, action
     for (const field of contract.fields) {
       const value = fields[field.name];
       if (value === null && field.nullable) continue;
+      if ((field as {multiple?: boolean}).multiple) {
+        if (!Array.isArray(value) || value.some(item => typeof item !== "string")) throw new ProtocolError(`invalid keyfigures field ${field.name}`);
+        continue;
+      }
       const expected = field.type === "integer" || field.type === "number" ? "number" : field.type;
       if (typeof value !== expected || (field.type === "number" && !Number.isFinite(value)) || (field.type === "integer" && !Number.isSafeInteger(value))) throw new ProtocolError(`invalid keyfigures field ${field.name}`);
     }
@@ -206,20 +211,19 @@ export function decodeKeyfigures<C extends KeyfiguresCatalog>(catalog: C, action
         const license = object(value); return typeof license.namespace !== "string" || !license.namespace || typeof license.license !== "string" || !license.license;
       })) throw new ProtocolError("invalid keyfigures license clause");
     }
-    const sources = observation.source == null ? [] : [observation.source];
     if (!Array.isArray(observation.dependencies)) throw new ProtocolError("invalid keyfigures dependency provenance");
-    sources.push(...observation.dependencies);
-    for (const item of sources) {
+    const provenance = (item: unknown): KeyfiguresPriceProvenance => {
       const source = object(item);
-      if (["input", "catalog", "key"].some(name => typeof source[name] !== "string" || !source[name]) || !["RT", "DL", "EOD"].includes(String(source.quality)) || !["live", "replay"].includes(String(source.clock)) || !["elapsed", "trading-time", "last-completed-session"].includes(String(source.price_age_mode)) || !Number.isSafeInteger(source.cutoff_us) || !Number.isSafeInteger(source.price_cutoff_ms) || !Number.isSafeInteger(source.quote_event_us) || !Number.isSafeInteger(source.message_id) || !Array.isArray(source.fallback) || source.fallback.some(value => {
+      if (["input", "catalog", "key"].some(name => typeof source[name] !== "string" || !source[name]) || !["RT", "DL", "EOD"].includes(String(source.quality)) || !["live", "replay"].includes(String(source.clock)) || !["elapsed", "trading-time", "last-completed-session"].includes(String(source.price_age_mode)) || !Array.isArray(source.fallback) || source.fallback.some(value => {
         const rejection = object(value); return typeof rejection.input !== "string" || typeof rejection.reason !== "string";
       })) throw new ProtocolError("invalid keyfigures price provenance");
-    }
+      return {...source, cutoff_us: uint64(source.cutoff_us), price_cutoff_ms: count(source.price_cutoff_ms), quote_event_us: uint64(source.quote_event_us), message_id: uint64(source.message_id)} as unknown as KeyfiguresPriceProvenance;
+    };
     if (observation.reason !== null && typeof observation.reason !== "string") throw new ProtocolError("invalid keyfigures availability");
-    return {fields, blocks, observation: {source: observation.source ?? null, dependencies: observation.dependencies, event_us: observation.event_us === null ? null : uint64(observation.event_us), message_id: observation.message_id === null ? null : uint64(observation.message_id), reason: observation.reason, requirements}} as unknown as KeyfiguresRow<C>;
+    return {fields, blocks, observation: {source: observation.source == null ? null : provenance(observation.source), dependencies: observation.dependencies.map(provenance), event_us: observation.event_us === null ? null : uint64(observation.event_us), message_id: observation.message_id === null ? null : uint64(observation.message_id), reason: observation.reason, requirements}} as unknown as KeyfiguresRow<C>;
   });
   if (action === "instrument") return {...metadata, result: decoded[0]!};
   if ((value.next_cursor !== null && typeof value.next_cursor !== "string") || value.facet_basis !== "snapshot_exact" || value.ordering !== "snapshot_windows_live_reranked_best_effort") throw new ProtocolError("invalid keyfigures search metadata");
   return {...metadata, ...decodeFacets(value), next_cursor: value.next_cursor, facet_basis: value.facet_basis, ordering: value.ordering,
-    snapshot_cutoff_us: value.snapshot_cutoff_us === null ? null : count(value.snapshot_cutoff_us), live_cutoff_us: value.live_cutoff_us === null ? null : count(value.live_cutoff_us), rows: decoded, snapshot_matches: count(value.snapshot_matches), candidates: count(value.candidates), candidate_budget_exhausted: boolean(value.candidate_budget_exhausted), underfilled: boolean(value.underfilled)};
+    snapshot_cutoff_us: value.snapshot_cutoff_us === null ? null : uint64(value.snapshot_cutoff_us), live_cutoff_us: value.live_cutoff_us === null ? null : uint64(value.live_cutoff_us), rows: decoded, snapshot_matches: count(value.snapshot_matches), candidates: count(value.candidates), candidate_budget_exhausted: boolean(value.candidate_budget_exhausted), underfilled: boolean(value.underfilled)};
 }

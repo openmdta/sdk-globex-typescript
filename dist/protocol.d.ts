@@ -298,7 +298,17 @@ export declare const encodeRelease: (targetId: bigint, consumedBytes: number) =>
 /** Decode one bounded transport batch; all body slices share the original frame. */
 export declare const splitResponseBatch: (response: StandardResponse) => readonly StandardResponse[];
 export declare const decodeResponse: (source: ArrayBuffer | ArrayBufferView) => Response;
-export declare const decodeBatch: (response: StandardResponse, selector: MarketSelector) => MarketDataBatch;
+/** Field IDs a request has announced: each names its semantic field and payload layout. */
+export type AnnouncedFields = Map<number, {
+    readonly semantic: string;
+    readonly layout: string;
+}>;
+/** Record a DatasetFields response in the request's table; false for any other response. */
+export declare const absorbDatasetFields: (response: StandardResponse, fields: AnnouncedFields) => boolean;
+export declare const decodeBatch: (response: StandardResponse, selector: MarketSelector, announced: ReadonlyMap<number, {
+    readonly semantic: string;
+    readonly layout: string;
+}>) => MarketDataBatch;
 export declare const decodeKeyfiguresResult: (response: StandardResponse) => Uint8Array;
 export interface ServiceCallWireResult {
     readonly ok: boolean;

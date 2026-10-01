@@ -35,9 +35,9 @@ export interface AskOhlcValue {
     readonly flags: number;
 }
 export declare class AskOhlc {
-    static readonly SCHEMA_ID = 100;
-    static readonly TEMPLATE_ID = 18;
-    static readonly VERSION = 4;
+    static readonly SCHEMA_ID = 41957;
+    static readonly TEMPLATE_ID = 18427;
+    static readonly VERSION = 0;
     static readonly BLOCK_LENGTH = 60;
     static readonly format: SbeFormat;
     readonly eventTimeMicros: bigint;

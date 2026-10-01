@@ -4,6 +4,7 @@ import { DATASET_STREAM_BLOCKS } from "./generated/dataset-stream-blocks.js";
 import { decodeCatalogLookup } from "./lookup.js";
 import { decodeCatalogSearch } from "./search.js";
 import { KEYFIGURES_CONTRACTS, decodeKeyfigures } from "./keyfigures.js";
+import { KeyfiguresWireDecoder } from "./keyfigures-wire.js";
 import { tokenBytes } from "./mdtoken.js";
 import { ServiceError, assertServiceValue, hydrateServiceValue, normalizeServiceValue } from "./service.js";
 import { encodeObservationInput, decodeObservationValue } from "./observation-wire.js";
@@ -13,7 +14,7 @@ import { MemoryFeedSink, streamFeed as runStreamFeed } from "./feed.js";
 import { MemoryCatalogFeedSink } from "./catalog-feed.js";
 import { BLOCK_BINDINGS, } from "./generated/bindings.js";
 import {} from "./catalog.js";
-import { ProtocolError, RequestError, decodeBatch, decodeStreamMetadata, decodeListingResponse, decodeCatalogFields, decodeCatalogRecord, decodeKeyfiguresResult, decodeServiceCallResult, decodeTimeseriesPageResult, decodeCatalogSearchResult, decodeCatalogLookupResult, decodeFeedControl, decodeFeedSnapshotHeader, decodeCatalogFeedControl, decodeResponse, encodeWindow, encodeRelease, splitResponseBatch, WINDOW_SUBPROTOCOL, RESPONSE_WINDOW_BYTES, RESPONSE_COST_OVERHEAD, encodeRequest, } from "./protocol.js";
+import { ProtocolError, RequestError, absorbDatasetFields, decodeBatch, decodeStreamMetadata, decodeListingResponse, decodeCatalogFields, decodeCatalogRecord, decodeKeyfiguresResult, decodeServiceCallResult, decodeTimeseriesPageResult, decodeCatalogSearchResult, decodeCatalogLookupResult, decodeFeedControl, decodeFeedSnapshotHeader, decodeCatalogFeedControl, decodeResponse, encodeWindow, encodeRelease, splitResponseBatch, WINDOW_SUBPROTOCOL, RESPONSE_WINDOW_BYTES, RESPONSE_COST_OVERHEAD, encodeRequest, } from "./protocol.js";
 export class ConnectionClosedError extends Error {
     constructor() {
         super("market-data connection was closed");
@@ -301,7 +302,7 @@ class ReconnectingConnection {
                 ...(options.trace ? { trace: options.trace } : {}) }),
             handle: handle,
             many: true,
-            decode: response => {
+            decode: (response, fields) => {
                 if (response.message?.format.templateId === 111) {
                     const control = decodeFeedControl(response);
                     if (control.dataset !== dataset)
@@ -310,7 +311,7 @@ class ReconnectingConnection {
                             ? { kind: "gap", gap: { afterMessageId: control.afterMessageId, throughMessageId: control.throughMessageId } }
                             : { kind: "watermark", throughMessageId: control.throughMessageId }];
                 }
-                const batch = decodeBatch(response, selector.raw(dataset, "FEED"));
+                const batch = decodeBatch(response, selector.raw(dataset, "FEED"), fields);
                 if (batch.datasetRecord.dataset !== dataset)
                     throw new ProtocolError("feed batch targets a different Dataset");
                 return batch.messages.map(message => ({
@@ -406,8 +407,8 @@ class ReconnectingConnection {
                 afterMessageId, throughMessageId, dataset, quality, ...(options.trace ? { trace: options.trace } : {}) }),
             handle: handle,
             many: true,
-            decode: response => {
-                const batch = decodeBatch(response, selector.raw(dataset, "FEED"));
+            decode: (response, fields) => {
+                const batch = decodeBatch(response, selector.raw(dataset, "FEED"), fields);
                 if (batch.datasetRecord.dataset !== dataset)
                     throw new ProtocolError("feed recovery targets a different Dataset");
                 return batch.messages.map(message => ({
@@ -445,14 +446,14 @@ class ReconnectingConnection {
                 ...(options.trace ? { trace: options.trace } : {}) }),
             handle: handle,
             many: true,
-            decode: response => {
+            decode: (response, fields) => {
                 if (response.message?.format.templateId === 112) {
                     const header = decodeFeedSnapshotHeader(response);
                     if (header.dataset !== dataset)
                         throw new ProtocolError("snapshot targets a different Dataset");
                     return [header];
                 }
-                const batch = decodeBatch(response, selector.raw(dataset, "FEED"));
+                const batch = decodeBatch(response, selector.raw(dataset, "FEED"), fields);
                 if (batch.datasetRecord.dataset !== dataset)
                     throw new ProtocolError("snapshot batch targets a different Dataset");
                 return batch.messages.map(message => ({
@@ -627,9 +628,9 @@ class ReconnectingConnection {
             encoded: encodeRequest(request),
             handle: handle,
             many: true,
-            decode: response => {
+            decode: (response, fields) => {
                 if (response.message?.format.templateId === 108) {
-                    const batch = decodeBatch(response, selector);
+                    const batch = decodeBatch(response, selector, fields);
                     rows.push(...batch.messages);
                     gaps.push(...batch.gaps);
                     return [];
@@ -717,11 +718,18 @@ class ReconnectingConnection {
                 throw new RangeError("keyfigures request exceeds 16 KiB");
             const id = this.#nextId++;
             const handle = new Handle(id, () => this.#cancel(id));
+            const contract = KEYFIGURES_CONTRACTS[catalog];
+            // Search rows arrive in bounded chunks before the summary; a replayed request restarts them.
+            let wire = new KeyfiguresWireDecoder(action, contract);
+            handle.onReplay(() => { wire = new KeyfiguresWireDecoder(action, contract); });
             const active = {
-                command: "CATALOG_KEYFIGURES", handle,
-                encoded: encodeRequest({ command: "CATALOG_KEYFIGURES", id, catalog, action, key, after: 0n, ...(searchQuery === undefined ? {} : { searchQuery }), contractFingerprint: KEYFIGURES_CONTRACTS[catalog].fingerprint,
+                command: "CATALOG_KEYFIGURES", handle, many: true,
+                encoded: encodeRequest({ command: "CATALOG_KEYFIGURES", id, catalog, action, key, after: 0n, ...(searchQuery === undefined ? {} : { searchQuery }), contractFingerprint: contract.fingerprint,
                     ...(policy.price_cutoff_ms === undefined ? {} : { priceCutoffMs: BigInt(policy.price_cutoff_ms) }), ...(policy.price_age_mode === undefined ? {} : { priceAgeMode: policy.price_age_mode }), ...(policy.trace ? { trace: policy.trace } : {}) }),
-                decode: response => decodeKeyfigures(catalog, action, decodeKeyfiguresResult(response)),
+                decode: response => {
+                    const value = wire.push(decodeKeyfiguresResult(response));
+                    return value === undefined ? [] : [decodeKeyfigures(contract, action, value)];
+                },
             };
             this.#track(active);
             if (this.#authenticated && this.#socket?.readyState === this.#WebSocket.OPEN)
@@ -905,8 +913,8 @@ class ReconnectingConnection {
             encoded: encodeRequest(request),
             handle: handle,
             many: !batched,
-            decode: (response) => {
-                const batch = decodeBatch(response, parameters.selector);
+            decode: (response, fields) => {
+                const batch = decodeBatch(response, parameters.selector, fields);
                 if (batched)
                     return batch;
                 return command === "SNAPSHOT" || command === "STREAM" ? messagesWithSource(batch) : batch.messages;
@@ -1135,17 +1143,13 @@ class ReconnectingConnection {
                 Promise.resolve(typeof this.#token === "function" ? this.#token() : this.#token),
                 closed.then(() => { throw new Error("WebSocket closed while obtaining a token"); }),
             ]);
-            const token = typeof supplied === "string" && supplied.startsWith("main:") ? supplied : tokenBytes(supplied);
-            const identity = typeof token === "string"
-                ? `main:${token.split(":", 3)[1]}`
-                : (() => {
-                    if (token.length < 12)
-                        throw new AuthenticationError("invalid MDToken identity");
-                    const length = new DataView(token.buffer, token.byteOffset, token.byteLength).getUint32(8, true);
-                    if (!length || length > 128 || 12 + length > token.length)
-                        throw new AuthenticationError("invalid MDToken identity");
-                    return `data:${new TextDecoder("utf-8", { fatal: true }).decode(token.subarray(12, 12 + length))}`;
-                })();
+            const token = tokenBytes(supplied);
+            if (token.length < 12)
+                throw new AuthenticationError("invalid MDToken identity");
+            const length = new DataView(token.buffer, token.byteOffset, token.byteLength).getUint32(8, true);
+            if (!length || length > 128 || 12 + length > token.length)
+                throw new AuthenticationError("invalid MDToken identity");
+            const identity = `data:${new TextDecoder("utf-8", { fatal: true }).decode(token.subarray(12, 12 + length))}`;
             if (this.#identity !== undefined && this.#identity !== identity)
                 throw new AuthenticationError("client identity changed during reconnect");
             this.#identity = identity;
@@ -1270,8 +1274,11 @@ class ReconnectingConnection {
                     throw new ProtocolError("unnegotiated response batch");
                 }
                 const frames = splitResponseBatch(response);
+                const fields = active.fields ??= new Map();
                 const values = frames.flatMap(frame => {
-                    const value = active.decode(frame);
+                    if (absorbDatasetFields(frame, fields))
+                        return [];
+                    const value = active.decode(frame, fields);
                     return active.many ? value : [value];
                 });
                 const wireBytes = (response.message?.body.byteLength ?? 0) + RESPONSE_COST_OVERHEAD;

@@ -11,7 +11,8 @@ const SESSION_SCHEMA_ID = 5;
 const SESSION_SCHEMA_VERSION = 0;
 const MARKET_SCHEMA_ID = 102;
 const MARKET_SCHEMA_VERSION = 5;
-const MESSAGE_BATCH_SCHEMA_VERSION = 12;
+const MESSAGE_BATCH_SCHEMA_VERSION = 33;
+const DATASET_FIELDS_TEMPLATE_ID = 114;
 const ADJUSTMENT_SCHEMA_VERSION = 11;
 const METADATA_SCHEMA_VERSION = 13;
 const METADATA_RESPONSE_SCHEMA_VERSION = 24;
@@ -279,7 +280,36 @@ export const decodeResponse = (source) => {
         error: errorText,
     };
 };
-export const decodeBatch = (response, selector) => {
+/** Record a DatasetFields response in the request's table; false for any other response. */
+export const absorbDatasetFields = (response, fields) => {
+    const message = response.message;
+    if (message?.format.schemaId !== MARKET_SCHEMA_ID || message.format.templateId !== DATASET_FIELDS_TEMPLATE_ID)
+        return false;
+    if (message.format.version !== MESSAGE_BATCH_SCHEMA_VERSION || message.format.blockLength !== 0) {
+        throw new ProtocolError(`unsupported dataset field table version ${message.format.version}`);
+    }
+    const { body } = message;
+    const view = new DataView(body.buffer, body.byteOffset, body.byteLength);
+    const group = takeGroupHeader(body, view, 0, 2);
+    let offset = group.next;
+    const text = new TextDecoder("utf-8", { fatal: true });
+    const entries = [];
+    for (let index = 0; index < group.count; index++) {
+        if (offset + 2 > body.byteLength)
+            throw new ProtocolError("dataset field table is truncated");
+        const fieldId = view.getUint16(offset, true);
+        const semantic = takeVarData(body, view, offset + 2);
+        const layout = takeVarData(body, view, semantic.next);
+        entries.push([fieldId, { semantic: text.decode(semantic.value), layout: text.decode(layout.value) }]);
+        offset = layout.next;
+    }
+    if (takeVarData(body, view, offset).next !== body.byteLength)
+        throw new ProtocolError("dataset field table contains trailing bytes");
+    for (const [fieldId, field] of entries)
+        fields.set(fieldId, field);
+    return true;
+};
+export const decodeBatch = (response, selector, announced) => {
     if (response.status !== "CONTINUE" || response.message === null) {
         throw new ProtocolError("only continuing data responses can be decoded as batches");
     }
@@ -307,29 +337,33 @@ export const decodeBatch = (response, selector) => {
         };
     });
     offset += messageGroup.count * 14;
-    const fieldGroup = takeGroupHeader(body, view, offset, 25);
+    const fieldGroup = takeGroupHeader(body, view, offset, 23);
     offset = fieldGroup.next;
-    if (offset + fieldGroup.count * 25 > body.byteLength)
+    if (offset + fieldGroup.count * 23 > body.byteLength)
         throw new ProtocolError("market-data fields are truncated");
     const fieldRows = Array.from({ length: fieldGroup.count }, (_, index) => {
-        const row = offset + index * 25;
-        const clear = view.getUint8(row + 16);
+        const row = offset + index * 23;
+        const clear = view.getUint8(row + 14);
         if (clear !== 0 && clear !== 1)
             throw new ProtocolError(`invalid field clear flag ${clear}`);
+        const fieldId = view.getUint16(row, true);
+        const field = announced.get(fieldId);
+        if (!field)
+            throw new ProtocolError(`market-data field ${fieldId} was not announced`);
         return {
+            semantic: field.semantic,
+            layout: field.layout,
             format: {
-                schemaId: view.getUint16(row, true),
-                templateId: view.getUint16(row + 2, true),
-                version: view.getUint16(row + 4, true),
-                blockLength: view.getUint16(row + 6, true),
+                version: view.getUint16(row + 2, true),
+                blockLength: view.getUint16(row + 4, true),
             },
-            eventTimeMicros: view.getBigUint64(row + 8, true),
+            eventTimeMicros: view.getBigUint64(row + 6, true),
             clear: clear === 1,
-            payloadOffset: view.getUint32(row + 17, true),
-            payloadLength: view.getUint32(row + 21, true),
+            payloadOffset: view.getUint32(row + 15, true),
+            payloadLength: view.getUint32(row + 19, true),
         };
     });
-    offset += fieldGroup.count * 25;
+    offset += fieldGroup.count * 23;
     const gapGroup = takeGroupHeader(body, view, offset, 16);
     offset = gapGroup.next;
     if (offset + gapGroup.count * 16 > body.byteLength)
@@ -363,12 +397,11 @@ export const decodeBatch = (response, selector) => {
         const fields = {};
         const entries = [];
         for (const field of fieldRows.slice(row.firstField, row.firstField + row.fieldCount)) {
-            const binding = Object.values(BLOCK_BINDINGS).find(candidate => (candidate.format.schemaId === field.format.schemaId && candidate.format.templateId === field.format.templateId)
-                || (candidate.canonicalFormat?.schemaId === field.format.schemaId && candidate.canonicalFormat.templateId === field.format.templateId));
+            // Decoders are selected by name; numeric SBE IDs carry no meaning across schemas.
+            const binding = Object.values(BLOCK_BINDINGS).find(candidate => candidate.semantic === field.semantic && candidate.layout === field.layout);
             if (!binding)
-                throw new ProtocolError(`unknown export format ${field.format.schemaId}/${field.format.templateId}`);
-            const canonical = binding.canonicalFormat?.schemaId === field.format.schemaId
-                && binding.canonicalFormat.templateId === field.format.templateId;
+                throw new ProtocolError(`no decoder for ${field.semantic} in layout ${field.layout}`);
+            const canonical = binding.canonicalFormat !== null;
             const expected = canonical ? binding.canonicalFormat : binding.format;
             if (field.format.version !== expected.version || field.format.blockLength !== expected.blockLength) {
                 throw new ProtocolError(`unsupported ${binding.name} version ${field.format.version} blockLength ${field.format.blockLength}`);

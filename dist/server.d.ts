@@ -1,22 +1,10 @@
 import type { Grant } from "./mdtoken.js";
 import { type ConnectOptions } from "./connection.js";
 export type { Grant } from "./mdtoken.js";
-/** Keep the main client secret on a trusted backend. */
-export declare const connectMainClient: (options: Omit<ConnectOptions, "token"> & ({
-    readonly clientId: string;
-    readonly secret: string;
-} | {
-    readonly credential: () => {
-        readonly clientId: string;
-        readonly secret: string;
-    } | Promise<{
-        readonly clientId: string;
-        readonly secret: string;
-    }>;
-})) => Promise<import("./connection.js").Connection>;
 export interface SignMDTokenOptions {
     readonly clientId: string;
-    readonly secret: string;
+    /** The DataClient's Ed25519 private key: its 32-byte seed as unpadded base64url (a JWK's `d`). */
+    readonly privateKey: string;
     readonly audience: string;
     readonly grants: readonly Grant[];
     readonly lifetimeSeconds: number;
@@ -29,4 +17,11 @@ export interface SignMDTokenOptions {
     };
 }
 export declare const signMDToken: (options: SignMDTokenOptions) => Uint8Array;
+/** Connect a trusted backend with its own DataClient key; every (re)connect signs a fresh token. */
+export declare const connectServerClient: (options: Omit<ConnectOptions, "token"> & {
+    readonly clientId: string;
+    readonly privateKey: string;
+    readonly audience: string;
+    readonly grants?: readonly Grant[];
+}) => Promise<import("./connection.js").Connection>;
 //# sourceMappingURL=server.d.ts.map

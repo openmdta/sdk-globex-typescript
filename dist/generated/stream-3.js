@@ -56,9 +56,9 @@ export class Decimal {
     }
 }
 export class BidOhlc {
-    static SCHEMA_ID = 100;
-    static TEMPLATE_ID = 17;
-    static VERSION = 4;
+    static SCHEMA_ID = 41957;
+    static TEMPLATE_ID = 9015;
+    static VERSION = 0;
     static BLOCK_LENGTH = 60;
     static format = { schemaId: this.SCHEMA_ID, templateId: this.TEMPLATE_ID, version: this.VERSION, blockLength: this.BLOCK_LENGTH };
     eventTimeMicros;

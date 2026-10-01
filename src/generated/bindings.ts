@@ -5,6 +5,7 @@ export type BlockName = "AskOhlc" | "BidAsk" | "BidAskCandle" | "BidOhlc";
 export interface BlockBinding<T extends PublicExport = PublicExport> {
     readonly name: BlockName;
     readonly semantic: string;
+    readonly layout: string;
     readonly property: string;
     readonly format: SbeFormat;
     readonly canonicalFormat: SbeFormat | null;
@@ -15,13 +16,13 @@ export interface BlockBinding<T extends PublicExport = PublicExport> {
     };
 }
 export const BLOCK_BINDINGS: Readonly<Record<string, BlockBinding>> = {
-    AskOhlc: { name: "AskOhlc", semantic: "openmdta::AskOhlc", property: "askOhlc", format: AskOhlc.format, canonicalFormat: { schemaId: 100, templateId: 18, version: 4, blockLength: 52 }, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: AskOhlc },
+    AskOhlc: { name: "AskOhlc", semantic: "openmdta::AskOhlc", layout: "AskOhlc", property: "askOhlc", format: AskOhlc.format, canonicalFormat: { schemaId: 41957, templateId: 18427, version: 0, blockLength: 52 }, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: AskOhlc },
 
-    BidAsk: { name: "BidAsk", semantic: "openmdta::BidAsk", property: "bidAsk", format: BidAsk.format, canonicalFormat: { schemaId: 100, templateId: 10, version: 4, blockLength: 27 }, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: BidAsk },
+    BidAsk: { name: "BidAsk", semantic: "openmdta::BidAsk", layout: "BidAsk", property: "bidAsk", format: BidAsk.format, canonicalFormat: { schemaId: 41957, templateId: 7387, version: 0, blockLength: 27 }, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: BidAsk },
 
-    BidAskCandle: { name: "BidAskCandle", semantic: "openmdta::BidAskCandle", property: "bidAskCandle", format: BidAskCandle.format, canonicalFormat: { schemaId: 100, templateId: 12, version: 4, blockLength: 89 }, internalWireId: null, commands: ["TS_CANDLE", "TS_CANDLE_STREAM"], codec: BidAskCandle },
+    BidAskCandle: { name: "BidAskCandle", semantic: "openmdta::BidAskCandle", layout: "BidAskCandle", property: "bidAskCandle", format: BidAskCandle.format, canonicalFormat: { schemaId: 41957, templateId: 3324, version: 0, blockLength: 89 }, internalWireId: null, commands: ["TS_CANDLE", "TS_CANDLE_STREAM"], codec: BidAskCandle },
 
-    BidOhlc: { name: "BidOhlc", semantic: "openmdta::BidOhlc", property: "bidOhlc", format: BidOhlc.format, canonicalFormat: { schemaId: 100, templateId: 17, version: 4, blockLength: 52 }, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: BidOhlc },
+    BidOhlc: { name: "BidOhlc", semantic: "openmdta::BidOhlc", layout: "BidOhlc", property: "bidOhlc", format: BidOhlc.format, canonicalFormat: { schemaId: 41957, templateId: 9015, version: 0, blockLength: 52 }, internalWireId: null, commands: ["SNAPSHOT", "STREAM", "TS_RAW", "TS_RAW_STREAM"], codec: BidOhlc },
 };
 export interface BlockValueMap {
     readonly AskOhlc: AskOhlc;

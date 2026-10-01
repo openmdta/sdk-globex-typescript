@@ -4,6 +4,7 @@ export type BlockName = "AskOhlc" | "BidAsk" | "BidAskCandle" | "BidOhlc";
 export interface BlockBinding<T extends PublicExport = PublicExport> {
     readonly name: BlockName;
     readonly semantic: string;
+    readonly layout: string;
     readonly property: string;
     readonly format: SbeFormat;
     readonly canonicalFormat: SbeFormat | null;

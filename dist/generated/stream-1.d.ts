@@ -40,9 +40,9 @@ export interface BidAskValue {
     readonly quoteCondition: number | null;
 }
 export declare class BidAsk {
-    static readonly SCHEMA_ID = 100;
-    static readonly TEMPLATE_ID = 10;
-    static readonly VERSION = 4;
+    static readonly SCHEMA_ID = 41957;
+    static readonly TEMPLATE_ID = 7387;
+    static readonly VERSION = 0;
     static readonly BLOCK_LENGTH = 35;
     static readonly format: SbeFormat;
     readonly eventTimeMicros: bigint;

@@ -1,20 +1,7 @@
 /** Server-only signing entry point. Never import it into a browser bundle. */
-import { createHmac } from "node:crypto";
+import { createPrivateKey, sign } from "node:crypto";
 import { deflateSync } from "node:zlib";
 import { connect } from "./connection.js";
-/** Keep the main client secret on a trusted backend. */
-export const connectMainClient = (options) => {
-    const source = "credential" in options ? options.credential : () => ({ clientId: options.clientId, secret: options.secret });
-    const token = async () => {
-        const credential = await source();
-        if (!credential.clientId || credential.clientId.includes(":") || !/^[A-Za-z0-9_-]{43}$/.test(credential.secret)) {
-            throw new TypeError("invalid main data-client credential");
-        }
-        return `main:${credential.clientId}:${credential.secret}`;
-    };
-    return connect({ url: options.url, token,
-        ...(options.webSocket ? { webSocket: options.webSocket } : {}) });
-};
 const variable = (bytes) => {
     const size = Buffer.alloc(4);
     size.writeUInt32LE(bytes.length);
@@ -26,9 +13,15 @@ export const signMDToken = (options) => {
         || options.lifetimeSeconds < 1 || options.lifetimeSeconds > 300 || !Number.isSafeInteger(issued + options.lifetimeSeconds)) {
         throw new Error("MDToken lifetime must be 1–300 seconds with an integer issuedAt timestamp");
     }
-    const key = Buffer.from(options.secret, "base64url");
-    if (key.length !== 32 || key.toString("base64url") !== options.secret)
-        throw new Error("secret must encode 32 bytes as unpadded base64url");
+    const seed = Buffer.from(options.privateKey, "base64url");
+    if (seed.length !== 32 || seed.toString("base64url") !== options.privateKey) {
+        throw new Error("privateKey must encode a 32-byte Ed25519 seed as unpadded base64url");
+    }
+    const key = createPrivateKey({
+        key: Buffer.concat([Buffer.from("302e020100300506032b657004220420", "hex"), seed]),
+        format: "der",
+        type: "pkcs8",
+    });
     const origins = options.allowedOrigins ?? [];
     if (origins.length > 32 || origins.some(origin => {
         try {
@@ -53,18 +46,15 @@ export const signMDToken = (options) => {
     const rows = [];
     const component = /^[A-Za-z0-9](?:[A-Za-z0-9_.-]{0,61}[A-Za-z0-9])?$/;
     for (const grant of options.grants) {
-        const pieces = grant.package.split(":");
-        if (grant.package !== "*" && (pieces.length !== 2 || !pieces[1] || /[*\p{Cc}]/u.test(grant.package)
-            || !component.test(pieces[0]))) {
-            throw new Error("package must be NAMESPACE:PACKAGE or *");
+        const pieces = grant.split(":");
+        const quality = pieces.length === 3 ? { RT: 1, DL: 2, EOD: 3 }[pieces[2]] : 0;
+        if (grant !== "*" && (pieces.length < 2 || pieces.length > 3 || !pieces[1] || quality === undefined
+            || /[*\p{Cc}]/u.test(grant) || !component.test(pieces[0]))) {
+            throw new Error("grant must be *, NAMESPACE:LICENSE or NAMESPACE:LICENSE:RT|DL|EOD");
         }
-        const quality = { "*": 0, RT: 1, DL: 2, EOD: 3 }[grant.quality];
-        if (quality === undefined)
-            throw new Error("invalid quality");
-        rows.push(Buffer.from([quality]), variable(Buffer.from(grant.package)));
+        rows.push(Buffer.from([quality]), variable(Buffer.from(pieces.slice(0, 2).join(":"))));
     }
     const limit = options.rateLimit;
-    const originRows = origins.length || limit ? [Buffer.from([0, 0, origins.length, 0]), ...origins.map(origin => variable(Buffer.from(origin)))] : [];
     if (limit && (!limit.id || Buffer.byteLength(limit.id) > 128 || /\p{Cc}/u.test(limit.id)
         || !Number.isFinite(limit.bucketSize) || !Number.isFinite(limit.refillPerSecond)
         || limit.bucketSize < 0 || limit.refillPerSecond < 0
@@ -73,24 +63,37 @@ export const signMDToken = (options) => {
         || Math.abs(limit.refillPerSecond * 1_000_000 - Math.round(limit.refillPerSecond * 1_000_000)) > 0.0001)) {
         throw new Error("invalid rateLimit policy");
     }
-    let limitBody;
+    let limitBody = Buffer.alloc(0);
     if (limit) {
         const value = Buffer.alloc(16);
         value.writeBigUInt64LE(BigInt(Math.round(limit.bucketSize * 1_000_000)));
         value.writeBigUInt64LE(BigInt(Math.round(limit.refillPerSecond * 1_000_000)), 8);
         limitBody = Buffer.concat([variable(Buffer.from(limit.id)), value]);
     }
-    const claims = Buffer.concat([Buffer.from([16, 0, 2, 0, 8, 0, limit ? 2 : (origins.length ? 1 : 0), 0]), fixed, ...rows, ...originRows, variable(audience), ...(limitBody ? [variable(limitBody)] : [])]);
+    const originRows = [Buffer.from([0, 0, origins.length, 0]), ...origins.map(origin => variable(Buffer.from(origin)))];
+    const claims = Buffer.concat([Buffer.from([16, 0, 2, 0, 8, 0, 3, 0]), fixed, ...rows, ...originRows, variable(audience), variable(limitBody)]);
     if (claims.length > 65536)
         throw new Error("MDToken claims exceed 64 KiB");
     const prefix = Buffer.concat([
-        Buffer.from([0, 0, 1, 0, 8, 0, 0, 0]), variable(client), variable(deflateSync(claims, { level: 6 })),
-        Buffer.from([32, 0, 0, 0]),
+        Buffer.from([0, 0, 1, 0, 8, 0, 1, 0]), variable(client), variable(deflateSync(claims, { level: 6 })),
+        Buffer.from([64, 0, 0, 0]),
     ]);
-    const mac = createHmac("sha256", key).update("OpenMDTA-MDToken-v1\0").update(prefix).digest();
-    const token = Buffer.concat([prefix, mac]);
+    const signature = sign(null, Buffer.concat([Buffer.from("OpenMDTA-MDToken-v2\0"), prefix]), key);
+    const token = Buffer.concat([prefix, signature]);
     if (token.length > 6144)
         throw new Error("MDToken exceeds transport limit");
     return token;
 };
+/** Connect a trusted backend with its own DataClient key; every (re)connect signs a fresh token. */
+export const connectServerClient = (options) => connect({
+    url: options.url,
+    token: () => signMDToken({
+        clientId: options.clientId,
+        privateKey: options.privateKey,
+        audience: options.audience,
+        grants: options.grants ?? ["*"],
+        lifetimeSeconds: 15,
+    }),
+    ...(options.webSocket ? { webSocket: options.webSocket } : {}),
+});
 //# sourceMappingURL=server.js.map
