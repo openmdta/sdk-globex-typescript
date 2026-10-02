@@ -3,7 +3,7 @@
   "environment": {
     "name": "globex",
     "gateway": "gateway",
-    "revision": "c520e63a6e2e5c3c8933686d5582770397bbc2d893e56bdbf4148ab451c2a442",
+    "revision": "edd44d65b9d2f90d395ba2fa331563f9775f4bd046bbc4c329bea39233273a89",
     "datasets": {
       "globex": {
         "id": "globex/globex",
