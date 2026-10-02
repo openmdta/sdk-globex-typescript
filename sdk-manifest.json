@@ -3,18 +3,19 @@
   "datasetCapabilities": [
     "globex=catalog,search",
     "lus=catalog,latest,timeseries",
+    "sim=catalog,latest,timeseries",
     "xetra=catalog"
   ],
-  "datasetsSha256": "8a6f9b3760667ad93aaeb7e5ea41139a31e8e36269704a37c253cae4208ce6a4",
-  "environmentConfigurationDigest": "9814301d185f2043bef75545b027dfb9869313efb66dc87f52082b8e6d06f8f4",
+  "datasetsSha256": "b3b4cc4f00464050b753821e5cc8abb7f1b9f76f28d9d7986208372f962d556d",
+  "environmentConfigurationDigest": "397e56acc3ba5a0505dc9e463495ff24a23072b9f2372dc3dd953567a6dfcd15",
   "languages": {
-    "typescript": "58fbaa8deffab061dd2a00fe4ca50bd6e1c689e93fc389f0540e5def7d3e652b"
+    "typescript": "3155fd47e55f5122420396b2907242c8c1fdd8cef1e3a899852b1852abacfd33"
   },
   "projectId": "globex",
-  "requestId": "sdk-9ea044a747f0ef9eff0c75e3",
-  "rulesetSha256": "a240a47eaaa18be24ab26e3efac686dbf1cff0aa3c27604c4285f4e791264f1b",
+  "requestId": "sdk-47bdc14d3aa87f03e2d1d35d",
+  "rulesetSha256": "4b203a100746232d0789ac3fcc9289aa1ab20bb5e630baa6fcc2ed2705993873",
   "sdkConfigSha256": "00f2f0cbc87e4c8f9f485d46d5248de3e3f889d2ba8ecc68b5e620a7f101ef85",
-  "sdkInputsSha256": "a240a47eaaa18be24ab26e3efac686dbf1cff0aa3c27604c4285f4e791264f1b",
+  "sdkInputsSha256": "4b203a100746232d0789ac3fcc9289aa1ab20bb5e630baa6fcc2ed2705993873",
   "servicesSha256": "3eb15da536f5e3c12b74043e37c1818956b15345092dd18ae969210838479da6",
   "version": 2
 }

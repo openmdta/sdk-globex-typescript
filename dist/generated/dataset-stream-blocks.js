@@ -6,6 +6,15 @@ export const DATASET_STREAM_BLOCKS = {
         "BidAskCandle",
         "BidOhlc"
     ],
+    "sim": [
+        "AskOhlc",
+        "BidAsk",
+        "BidAskCandle",
+        "BidOhlc",
+        "Trade",
+        "TradeOhlcvv",
+        "TradeOhlcvvCandle"
+    ],
     "xetra": []
 };
 //# sourceMappingURL=dataset-stream-blocks.js.map
