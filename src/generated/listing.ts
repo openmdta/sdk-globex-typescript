@@ -10,7 +10,6 @@ export interface ListingEvent {
   readonly incarnation: string;
   readonly snapshot: boolean;
   readonly connected: boolean;
-  readonly aggregationQuality?: {readonly tradingDay: number; readonly partial: boolean; readonly lastAppliedId: bigint};
   readonly blocks: readonly {
     readonly id: number;
     readonly messageId: bigint;
@@ -88,13 +87,6 @@ export function decodeListingEvent(bytes: Uint8Array): ListingEvent {
     blocks.push({id, messageId, eventUs, clear: clear === 1, requirements: {clauses}, payload});
   }
   const dataset = text(), quality = text(), key = text(), incarnation = text();
-  let aggregationQuality: ListingEvent["aggregationQuality"];
-  if (offset < bytes.byteLength) {
-    const payload = data();
-    if (payload.byteLength !== 13 || payload[4]! > 1) throw new Error("invalid aggregation quality");
-    const qualityView = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
-    aggregationQuality = {tradingDay: qualityView.getUint32(0, true), partial: payload[4] === 1, lastAppliedId: qualityView.getBigUint64(5, true)};
-  }
   if (offset !== bytes.byteLength || !dataset || !key || key.length > 1024 || !["RT", "DL", "EOD"].includes(quality)) throw new Error("invalid listing event source");
-  return {source: {dataset, quality: quality as ListingSelector["quality"], key, blocks: sourceBlocks}, incarnation, snapshot: snapshot === 1, connected: connected === 1, blocks, ...(aggregationQuality === undefined ? {} : {aggregationQuality})};
+  return {source: {dataset, quality: quality as ListingSelector["quality"], key, blocks: sourceBlocks}, incarnation, snapshot: snapshot === 1, connected: connected === 1, blocks};
 }
