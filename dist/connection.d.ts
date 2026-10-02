@@ -19,6 +19,26 @@ export interface ConnectOptions {
     readonly token: TokenSource;
     readonly webSocket?: typeof WebSocket;
 }
+/**
+ * `connecting` until the first authentication, `ready` while a session is authenticated and its
+ * heartbeat is current, `reconnecting` between a lost session and the next authentication, and
+ * `closed` once the connection was closed by the caller or gave up after an authentication failure.
+ */
+export type ConnectionState = "connecting" | "ready" | "reconnecting" | "closed";
+export interface ConnectionStatus {
+    readonly state: ConnectionState;
+    /** Consecutive failed connection attempts since the last authenticated session; 0 while ready. */
+    readonly attempt: number;
+    /** Epoch milliseconds at which the next attempt starts while reconnecting, otherwise null. */
+    readonly retryAt: number | null;
+    /** What ended the last session or closed the connection for good; null while ready or after close(). */
+    readonly error: Error | null;
+}
+/** Follows the external-store contract: snapshots are frozen and replaced only when the state changes. */
+export interface ConnectionStatusSource {
+    getSnapshot(): ConnectionStatus;
+    subscribe(listener: () => void): () => void;
+}
 export interface TraceContext {
     readonly traceId: Uint8Array;
     readonly parentSpanId: Uint8Array;
@@ -215,6 +235,8 @@ export interface StreamMetadataParameters {
 export interface Connection {
     readonly dataset: DatasetNamespace;
     readonly service: ServiceNamespace;
+    /** Connection lifecycle for health indicators; reconnection itself is automatic. */
+    readonly status: ConnectionStatusSource;
     select(selector: MarketSelector): SelectedClient;
     select(selectors: readonly [MarketSelector, ...MarketSelector[]]): MultiSelectedClient;
     streamMetadata(dataset: string, quality: "RT" | "DL" | "EOD", options?: Pick<StreamMetadataParameters, "trace">): RequestHandle<StreamMetadata>;
@@ -249,6 +271,7 @@ export declare const connect: (options: ConnectOptions) => Promise<Connection>;
 export declare const connectInternal: (options: ConnectOptions) => Promise<ReconnectingConnection>;
 declare class ReconnectingConnection implements Connection {
     #private;
+    readonly status: ConnectionStatusSource;
     constructor(options: ConnectOptions);
     ready(): Promise<void>;
     get service(): ServiceNamespace;

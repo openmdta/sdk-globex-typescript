@@ -11,6 +11,8 @@ import {ListingTickSchedule as CatalogModel8} from "./catalog-openmdta.js";
 import {ListingTradingDates as CatalogModel9} from "./catalog-openmdta.js";
 import {ListingTradingRules as CatalogModel10} from "./catalog-openmdta.js";
 import {ListingVenue as CatalogModel11} from "./catalog-openmdta.js";
+import {XetraListing as CatalogModel12} from "./catalog-xetra.js";
+import {XetraMarketDetails as CatalogModel13} from "./catalog-xetra.js";
 export const DATASET_CATALOG_FIELDS = {
   "globex": [
     catalogField("DisplayName", CatalogModel0, "globexDisplayName"),
@@ -29,5 +31,7 @@ export const DATASET_CATALOG_FIELDS = {
     catalogField("listing_trading_dates", CatalogModel9, "listingTradingDates"),
     catalogField("listing_trading_rules", CatalogModel10, "listingTradingRules"),
     catalogField("listing_venue", CatalogModel11, "listingVenue"),
+    catalogField("xetra_listing", CatalogModel12, "xetraXetraListing"),
+    catalogField("xetra_market_details", CatalogModel13, "xetraXetraMarketDetails"),
   ],
 } as const;

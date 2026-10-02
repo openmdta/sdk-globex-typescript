@@ -37,6 +37,12 @@ export declare const DATASET_CATALOG_FIELDS: {
     }, import("../catalog.js").CatalogFieldDescriptor<"listing_venue", import("./catalog-openmdta.js").ListingVenueValue> & {
         readonly multiple: false;
         readonly property: "listingVenue";
+    }, import("../catalog.js").CatalogFieldDescriptor<"xetra_listing", import("./catalog-xetra.js").XetraListingValue> & {
+        readonly multiple: false;
+        readonly property: "xetraXetraListing";
+    }, import("../catalog.js").CatalogFieldDescriptor<"xetra_market_details", import("./catalog-xetra.js").XetraMarketDetailsValue> & {
+        readonly multiple: false;
+        readonly property: "xetraXetraMarketDetails";
     }];
 };
 //# sourceMappingURL=dataset-catalog-fields.d.ts.map

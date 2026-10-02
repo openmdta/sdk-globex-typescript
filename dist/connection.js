@@ -112,6 +112,22 @@ class ReconnectingConnection {
     #initialSettled = false;
     #lastHeartbeat = 0;
     #identity;
+    #status = Object.freeze({ state: "connecting", attempt: 0, retryAt: null, error: null });
+    #statusListeners = new Set();
+    status = Object.freeze({
+        getSnapshot: () => this.#status,
+        subscribe: (listener) => {
+            this.#statusListeners.add(listener);
+            return () => {
+                this.#statusListeners.delete(listener);
+            };
+        },
+    });
+    #setStatus(status) {
+        this.#status = Object.freeze(status);
+        for (const listener of [...this.#statusListeners])
+            listener();
+    }
     #track(active) {
         if (this.#active.size >= MAX_ACTIVE_REQUESTS)
             throw new RangeError("connection active-request capacity reached");
@@ -755,6 +771,7 @@ class ReconnectingConnection {
             return;
         this.#closing = true;
         this.#authenticated = false;
+        this.#setStatus({ state: "closed", attempt: 0, retryAt: null, error: null });
         this.#auth?.reject(new ConnectionClosedError());
         this.#auth = undefined;
         if (!this.#initialSettled) {
@@ -1085,39 +1102,48 @@ class ReconnectingConnection {
     async #run() {
         let attempt = 0;
         while (!this.#closing) {
+            let failure;
             try {
-                await this.#openAndServe();
+                failure = await this.#openAndServe();
                 attempt = 0;
             }
             catch (cause) {
-                const error = cause instanceof Error ? cause : new Error(String(cause));
-                if (!this.#initialSettled || error instanceof AuthenticationError) {
+                failure = cause instanceof Error ? cause : new Error(String(cause));
+                if (!this.#initialSettled || failure instanceof AuthenticationError) {
                     this.#closing = true;
                     this.#socket?.close();
                     if (!this.#initialSettled) {
                         this.#initialSettled = true;
-                        this.#rejectInitial(error);
+                        this.#rejectInitial(failure);
                     }
                     for (const active of this.#active.values())
-                        active.handle.fail(error);
+                        active.handle.fail(failure);
                     this.#active.clear();
+                    this.#setStatus({ state: "closed", attempt, retryAt: null, error: failure });
                     return;
                 }
             }
             if (this.#closing)
                 return;
+            // Doubling ceiling with jitter in its upper half, so every retry waits at least as long as the previous one.
             const ceiling = Math.min(30_000, 250 * 2 ** Math.min(attempt, 16));
+            const delay = ceiling / 2 + Math.random() * (ceiling / 2);
             attempt += 1;
-            await new Promise((resolve) => setTimeout(resolve, Math.random() * ceiling));
+            this.#setStatus({ state: "reconnecting", attempt, retryAt: Date.now() + delay, error: failure });
+            await new Promise((resolve) => setTimeout(resolve, delay));
         }
     }
+    /** Serves one socket until it closes; resolves with the reason the session ended. */
     async #openAndServe() {
         const socket = new this.#WebSocket(this.#url, WINDOW_SUBPROTOCOL);
         socket.binaryType = "arraybuffer";
         this.#socket = socket;
         this.#authenticated = false;
         const closed = new Promise((resolve) => {
-            socket.addEventListener("close", () => resolve(), { once: true });
+            socket.addEventListener("close", (event) => {
+                const { code, reason } = event;
+                resolve(new Error(`WebSocket closed (${code ?? "unknown"})${reason ? `: ${reason}` : ""}`));
+            }, { once: true });
         });
         await new Promise((resolve, reject) => {
             socket.addEventListener("open", () => resolve(), { once: true });
@@ -1165,6 +1191,7 @@ class ReconnectingConnection {
         ]);
         this.#authenticated = true;
         this.#lastHeartbeat = Date.now();
+        this.#setStatus({ state: "ready", attempt: 0, retryAt: null, error: null });
         const replay = this.#initialSettled;
         if (!this.#initialSettled) {
             this.#initialSettled = true;
@@ -1186,7 +1213,7 @@ class ReconnectingConnection {
                 socket.close(1002, "authentication heartbeat timed out");
             }
         }, 5_000);
-        await closed;
+        const ended = await closed;
         for (const [id, active] of this.#active) {
             if (active.command === "FEED_RECOVERY" || active.command === "FEED_SNAPSHOT" || active.command === "CATALOG_FEED") {
                 active.handle.fail(new RequestError(id, "feed request connection lost"));
@@ -1206,6 +1233,7 @@ class ReconnectingConnection {
             this.#socket = undefined;
         this.#authenticated = false;
         this.#auth = undefined;
+        return ended;
     }
     async #receive(socket, data) {
         if (socket !== this.#socket)

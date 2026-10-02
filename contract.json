@@ -3,7 +3,7 @@
   "environment": {
     "name": "globex",
     "gateway": "gateway",
-    "revision": "48736521ff302eee8ada958a5f0de7eccf5171aade05af1cd417577a1c225ae7",
+    "revision": "a164c6fd7aaba59cf653be38139159cbd42c9087f4ca947476bf474705fd3309",
     "datasets": {
       "globex": {
         "id": "globex/globex",
@@ -96,6 +96,14 @@
           "listingVenue": {
             "label": "listing_venue",
             "semantic": "openmdta::ListingVenue"
+          },
+          "xetraXetraListing": {
+            "label": "xetra_listing",
+            "semantic": "xetra::XetraListing"
+          },
+          "xetraXetraMarketDetails": {
+            "label": "xetra_market_details",
+            "semantic": "xetra::XetraMarketDetails"
           }
         }
       }
