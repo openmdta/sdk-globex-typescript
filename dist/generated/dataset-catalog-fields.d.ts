@@ -7,10 +7,6 @@ export declare const DATASET_CATALOG_FIELDS: {
         readonly multiple: false;
         readonly property: "instrumentNames";
     }];
-    readonly sim: readonly [import("../catalog.js").CatalogFieldDescriptor<"instrument_names", import("./catalog-openmdta.js").InstrumentNamesValue> & {
-        readonly multiple: false;
-        readonly property: "instrumentNames";
-    }];
     readonly xetra: readonly [import("../catalog.js").CatalogFieldDescriptor<"classification", import("./catalog-openmdta.js").ClassificationValue> & {
         readonly multiple: true;
         readonly property: "classification";
