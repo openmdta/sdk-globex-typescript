@@ -251,13 +251,6 @@ export declare const VERSION_CONTRACTS: readonly [{
     };
     readonly sha256: "9947ebbb194fb1515d7f4c6a3455f4dbd9a2b1659b621fdbd3c2a117a023a6ed";
 }, {
-    readonly field: "sim::SimDomainObject";
-    readonly id: {
-        readonly family: "sim::SimDomainObject";
-        readonly version: 1;
-    };
-    readonly sha256: "27019423ee750a56f66c39daa9bbe7e685ac10c08f20ec94e79902ddbce5afaa";
-}, {
     readonly field: "xetra::XetraListing";
     readonly id: {
         readonly family: "xetra::XetraListing";
