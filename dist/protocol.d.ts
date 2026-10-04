@@ -6,10 +6,10 @@ import type { CatalogFieldDescriptor, CatalogDescriptorSelection } from "./catal
 import type { CatalogLookupParameters } from "./lookup.js";
 import type { CatalogSearchParameters } from "./search.js";
 import type { MarketSelector } from "./selector.js";
-export declare const WINDOW_SUBPROTOCOL = "openmdta.sbe-session.v2";
+import { RESPONSE_COST_OVERHEAD, WINDOW_SUBPROTOCOL } from "./generated/session.js";
+export { RESPONSE_COST_OVERHEAD, WINDOW_SUBPROTOCOL };
 export declare const RESPONSE_WINDOW_BYTES: number;
 export declare const RESPONSE_WINDOW_COUNT = 16;
-export declare const RESPONSE_COST_OVERHEAD = 128;
 export type Request = {
     readonly command: "CATALOG_FEED";
     readonly id: bigint;
@@ -335,5 +335,4 @@ export declare const decodeCatalogRecord: (response: StandardResponse) => Catalo
 export declare const decodeCatalogFields: <D extends readonly CatalogFieldDescriptor[]>(record: CatalogWireRecord, descriptors: D, requireEveryField?: boolean) => Partial<CatalogDescriptorSelection<D>>;
 export declare function decodeStreamMetadata(response: StandardResponse): StreamMetadata;
 export declare function decodeListingResponse(response: StandardResponse): ListingEvent;
-export {};
 //# sourceMappingURL=protocol.d.ts.map

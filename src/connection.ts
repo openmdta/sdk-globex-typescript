@@ -2,6 +2,15 @@ import type {ListingSelector, ListingEvent} from "./generated/listing.js";
 import {DATASETS, DATASET_CAPABILITIES} from "./generated/datasets.js";
 import {DATASET_CATALOG_FIELDS} from "./generated/dataset-catalog-fields.js";
 import {DATASET_STREAM_BLOCKS} from "./generated/dataset-stream-blocks.js";
+import {
+  CLIENT_RESPONSE_BYTE_CAPACITY,
+  CLIENT_RESPONSE_QUEUE_CAPACITY,
+  CONNECTION_BYTE_CAPACITY,
+  GATEWAY_TEMPLATES,
+  MAX_ACTIVE_REQUESTS,
+  SESSION_SCHEMA_ID,
+  SESSION_TEMPLATES,
+} from "./generated/session.js";
 import {decodeCatalogLookup, type CatalogDimensions, type CatalogLookupParameters, type CatalogLookupResult} from "./lookup.js";
 import {decodeCatalogSearch, type CatalogSearchParameters, type CatalogSearchResult} from "./search.js";
 import type { StreamMetadata } from "./generated/activity.js";
@@ -396,9 +405,6 @@ export class RequestLaggedError extends Error {
   }
 }
 
-const MAX_ACTIVE_REQUESTS = 131_072;
-const MAX_BUFFERED_RESPONSES_PER_REQUEST = 32;
-const MAX_BUFFERED_RESPONSE_BYTES_PER_REQUEST = 32 * 1024 * 1024;
 
 const messagesWithSource = <N extends BlockName>(
   batch: MarketDataBatch<N>,
@@ -494,7 +500,7 @@ class ReconnectingConnection implements Connection {
   #track(active: ActiveRequest): void {
     if (this.#active.size >= MAX_ACTIVE_REQUESTS) throw new RangeError("connection active-request capacity reached");
     if (active.command === "FEED_LIVE" || active.command === "FEED_RECOVERY" || active.command === "FEED_SNAPSHOT" || active.command === "CATALOG_FEED") {
-      if (this.#reservedWindowBytes + RESPONSE_WINDOW_BYTES > 64 * 1024 * 1024) throw new RangeError("connection feed buffer capacity reached");
+      if (this.#reservedWindowBytes + RESPONSE_WINDOW_BYTES > CONNECTION_BYTE_CAPACITY) throw new RangeError("connection feed buffer capacity reached");
       this.#reservedWindowBytes += RESPONSE_WINDOW_BYTES;
       active.handle.releaseWindow = () => {
         this.#reservedWindowBytes -= RESPONSE_WINDOW_BYTES;
@@ -677,7 +683,7 @@ class ReconnectingConnection implements Connection {
       handle: handle as Handle<unknown>,
       many: true,
       decode: (response, fields) => {
-        if (response.message?.format.templateId === 111) {
+        if (response.message?.format.templateId === GATEWAY_TEMPLATES.FeedControl.templateId) {
           const control = decodeFeedControl(response);
           if (control.dataset !== dataset) throw new ProtocolError("feed control targets a different Dataset");
           return [control.kind === "gap"
@@ -812,7 +818,7 @@ class ReconnectingConnection implements Connection {
       handle: handle as Handle<unknown>,
       many: true,
       decode: (response, fields) => {
-        if (response.message?.format.templateId === 112) {
+        if (response.message?.format.templateId === GATEWAY_TEMPLATES.FeedSnapshotHeader.templateId) {
           const header = decodeFeedSnapshotHeader(response);
           if (header.dataset !== dataset) throw new ProtocolError("snapshot targets a different Dataset");
           return [header];
@@ -1032,7 +1038,7 @@ class ReconnectingConnection implements Connection {
       handle: handle as Handle<unknown>,
       many: true,
       decode: (response, fields) => {
-        if (response.message?.format.templateId === 108) {
+        if (response.message?.format.templateId === GATEWAY_TEMPLATES.MarketDataMessageBatch.templateId) {
           const batch = decodeBatch(response, selector, fields) as MarketDataBatch<B>;
           rows.push(...batch.messages);
           gaps.push(...batch.gaps);
@@ -1339,7 +1345,7 @@ class ReconnectingConnection implements Connection {
       }),
       handle: handle as Handle<unknown>,
       decode: response => {
-        if (response.message?.format.templateId === 113) return decodeCatalogFeedControl(response);
+        if (response.message?.format.templateId === GATEWAY_TEMPLATES.CatalogFeedControl.templateId) return decodeCatalogFeedControl(response);
         const wire = decodeCatalogRecord(response);
         if (wire.catalog !== catalog) throw new ProtocolError("Catalog feed returned another Dataset");
         return {
@@ -1660,7 +1666,8 @@ class ReconnectingConnection implements Connection {
     } else {
       try {
         const flow = active.command === "FEED_LIVE" || active.command === "FEED_RECOVERY" || active.command === "FEED_SNAPSHOT" || active.command === "CATALOG_FEED";
-        if (response.message?.format.schemaId === 5 && response.message.format.templateId === 103 && !flow) {
+        if (response.message?.format.schemaId === SESSION_SCHEMA_ID
+          && response.message.format.templateId === SESSION_TEMPLATES.ResponseBatch.templateId && !flow) {
           throw new ProtocolError("unnegotiated response batch");
         }
         const frames = splitResponseBatch(response);
@@ -1816,8 +1823,8 @@ class Handle<T> implements SingleRequestHandle<T> {
       waiting.resolve({ value: values[index++]!, done: false });
     }
     if (index === values.length) return true;
-    if (this.#values.length - this.#head >= MAX_BUFFERED_RESPONSES_PER_REQUEST
-      || this.#bufferedBytes + bytes > MAX_BUFFERED_RESPONSE_BYTES_PER_REQUEST) return false;
+    if (this.#values.length - this.#head >= CLIENT_RESPONSE_QUEUE_CAPACITY
+      || this.#bufferedBytes + bytes > CLIENT_RESPONSE_BYTE_CAPACITY) return false;
     this.#values.push({ values, index, bytes, ...(ack ? {ack} : {}) });
     this.#bufferedBytes += bytes;
     return true;

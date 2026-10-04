@@ -3,54 +3,44 @@ import { decodeStreamMetadataSbe } from "./stream-metadata-wire.js";
 import { BLOCK_BINDINGS, } from "./generated/bindings.js";
 import { WireWriter } from "./wire-writer.js";
 import { WireReader } from "./wire-reader.js";
-export const WINDOW_SUBPROTOCOL = "openmdta.sbe-session.v2";
+import { BATCH_MESSAGES, DEFAULT_RESPONSE_WINDOW, GATEWAY_SCHEMA_ID, GATEWAY_TEMPLATES, RESPONSE_COST_OVERHEAD, SESSION_SCHEMA_ID, SESSION_SCHEMA_VERSION, SESSION_TEMPLATES, WINDOW_SUBPROTOCOL, } from "./generated/session.js";
+export { RESPONSE_COST_OVERHEAD, WINDOW_SUBPROTOCOL };
 export const RESPONSE_WINDOW_BYTES = 8 * 1024 * 1024;
-export const RESPONSE_WINDOW_COUNT = 16;
-export const RESPONSE_COST_OVERHEAD = 128;
-const SESSION_SCHEMA_ID = 5;
-const SESSION_SCHEMA_VERSION = 0;
-const MARKET_SCHEMA_ID = 102;
+export const RESPONSE_WINDOW_COUNT = DEFAULT_RESPONSE_WINDOW;
 const MARKET_SCHEMA_VERSION = 5;
 const MESSAGE_BATCH_SCHEMA_VERSION = 33;
-const DATASET_FIELDS_TEMPLATE_ID = 114;
 const ADJUSTMENT_SCHEMA_VERSION = 11;
 const METADATA_SCHEMA_VERSION = 13;
 const METADATA_RESPONSE_SCHEMA_VERSION = 24;
 const DATASET_ROUTING_SCHEMA_VERSION = 14;
 const HEADER_LENGTH = 8;
-const AUTH_TEMPLATE_ID = 1;
-const OPEN_TEMPLATE_ID = 2;
-const CANCEL_TEMPLATE_ID = 3;
-const RESPONSE_TEMPLATE_ID = 101;
-const CANCEL_RESPONSE_TEMPLATE_ID = 102;
-const MESSAGE_BATCH_TEMPLATE_ID = 108;
-const CATALOG_RECORD_TEMPLATE_ID = 102;
-const MARKET_TEMPLATE = {
-    SNAPSHOT: 1,
-    STREAM: 2,
-    TS_RAW: 3,
-    TS_CANDLE: 4,
-    CATALOG: 5,
-    TS_RAW_STREAM: 6,
-    TS_CANDLE_STREAM: 7,
-    CATALOG_KEYFIGURES: 8,
-    STREAM_METADATA: 9,
-    CATALOG_SEARCH: 10,
-    CATALOG_LOOKUP: 11,
-    LISTING_LATEST: 12,
-    SERVICE_CALL: 13,
-    TS_PAGE: 14,
-    FEED_LIVE: 15,
-    FEED_RECOVERY: 16,
-    FEED_SNAPSHOT: 17,
-    CATALOG_FEED: 18,
+/** Gateway request message of each command, with its template ID and block length. */
+const MARKET_REQUEST = {
+    SNAPSHOT: GATEWAY_TEMPLATES.SnapshotRequest,
+    STREAM: GATEWAY_TEMPLATES.StreamRequest,
+    TS_RAW: GATEWAY_TEMPLATES.TsRawRequest,
+    TS_CANDLE: GATEWAY_TEMPLATES.TsCandleRequest,
+    CATALOG: GATEWAY_TEMPLATES.CatalogRequest,
+    TS_RAW_STREAM: GATEWAY_TEMPLATES.TsRawStreamRequest,
+    TS_CANDLE_STREAM: GATEWAY_TEMPLATES.TsCandleStreamRequest,
+    CATALOG_KEYFIGURES: GATEWAY_TEMPLATES.CatalogKeyfiguresRequest,
+    STREAM_METADATA: GATEWAY_TEMPLATES.StreamMetadataQuery,
+    CATALOG_SEARCH: GATEWAY_TEMPLATES.CatalogSearchQuery,
+    CATALOG_LOOKUP: GATEWAY_TEMPLATES.CatalogLookupQuery,
+    LISTING_LATEST: GATEWAY_TEMPLATES.ListingLatestRequest,
+    SERVICE_CALL: GATEWAY_TEMPLATES.ServiceCallRequest,
+    TS_PAGE: GATEWAY_TEMPLATES.TimeseriesPageRequest,
+    FEED_LIVE: GATEWAY_TEMPLATES.FeedLiveRequest,
+    FEED_RECOVERY: GATEWAY_TEMPLATES.FeedRecoveryRequest,
+    FEED_SNAPSHOT: GATEWAY_TEMPLATES.FeedSnapshotRequest,
+    CATALOG_FEED: GATEWAY_TEMPLATES.CatalogFeedRequest,
 };
 export const decodeFeedControl = (response) => {
     if (response.status !== "CONTINUE" || response.message === null)
         throw new ProtocolError("feed control requires a continuing response");
     const { format, body } = response.message;
-    if (format.schemaId !== MARKET_SCHEMA_ID || format.templateId !== 111 || format.version !== 18
-        || format.blockLength !== 17 || body.byteLength < 21)
+    if (format.schemaId !== GATEWAY_SCHEMA_ID || format.templateId !== GATEWAY_TEMPLATES.FeedControl.templateId || format.version !== 18
+        || format.blockLength !== GATEWAY_TEMPLATES.FeedControl.blockLength || body.byteLength < 21)
         throw new ProtocolError("unsupported feed control");
     const view = new DataView(body.buffer, body.byteOffset, body.byteLength);
     const kind = view.getUint8(0);
@@ -70,11 +60,11 @@ export const decodeFeedSnapshotHeader = (response) => {
     if (response.status !== "CONTINUE" || response.message === null)
         throw new ProtocolError("snapshot header requires a continuing response");
     const { format, body } = response.message;
-    if (format.schemaId !== MARKET_SCHEMA_ID || format.templateId !== 112 || format.version !== 18
-        || format.blockLength !== 8 || body.byteLength < 18)
+    if (format.schemaId !== GATEWAY_SCHEMA_ID || format.templateId !== GATEWAY_TEMPLATES.FeedSnapshotHeader.templateId || format.version !== 18
+        || format.blockLength !== GATEWAY_TEMPLATES.FeedSnapshotHeader.blockLength || body.byteLength < 18)
         throw new ProtocolError("unsupported feed snapshot header");
     const view = new DataView(body.buffer, body.byteOffset, body.byteLength);
-    const group = takeGroupHeader(body, view, 8, 16);
+    const group = takeGroupHeader(body, view, format.blockLength, GATEWAY_TEMPLATES.FeedSnapshotHeader.groups.gaps);
     if (group.next + group.count * 16 > body.byteLength)
         throw new ProtocolError("feed snapshot gaps are truncated");
     const gaps = Array.from({ length: group.count }, (_, index) => ({
@@ -96,7 +86,8 @@ export const decodeCatalogFeedControl = (response) => {
     if (response.status !== "CONTINUE" || !response.message)
         throw new ProtocolError("Catalog feed control is not a continuing response");
     const { format, body } = response.message;
-    if (format.schemaId !== MARKET_SCHEMA_ID || format.templateId !== 113 || format.version !== 19 || format.blockLength !== 1 || body.byteLength < 5) {
+    if (format.schemaId !== GATEWAY_SCHEMA_ID || format.templateId !== GATEWAY_TEMPLATES.CatalogFeedControl.templateId || format.version !== 19
+        || format.blockLength !== GATEWAY_TEMPLATES.CatalogFeedControl.blockLength || body.byteLength < 5) {
         throw new ProtocolError("unsupported Catalog feed control");
     }
     const view = new DataView(body.buffer, body.byteOffset, body.byteLength);
@@ -140,7 +131,7 @@ export const encodeFieldSelection = (fields) => {
     });
     if (new Set(values.map(value => new TextDecoder().decode(value))).size !== values.length)
         throw new ProtocolError("duplicate selected field");
-    const bytes = message(MARKET_SCHEMA_ID, 30, 27, 0, 6 + values.reduce((sum, value) => sum + 4 + value.length, 0));
+    const bytes = message(GATEWAY_SCHEMA_ID, 30, GATEWAY_TEMPLATES.FieldSelection.templateId, GATEWAY_TEMPLATES.FieldSelection.blockLength, 6 + values.reduce((sum, value) => sum + 4 + value.length, 0));
     putGroupHeader(bytes, new DataView(bytes.buffer), HEADER_LENGTH, values);
     return bytes;
 };
@@ -156,12 +147,12 @@ const appendFieldSelection = (base, fields) => {
 };
 export const encodeRequest = (request) => {
     if (request.command === "AUTH") {
-        return encodeWithText(SESSION_SCHEMA_ID, SESSION_SCHEMA_VERSION, AUTH_TEMPLATE_ID, 8, request.token, (view) => {
+        return encodeWithText(SESSION_SCHEMA_ID, SESSION_SCHEMA_VERSION, SESSION_TEMPLATES.AuthRequest.templateId, SESSION_TEMPLATES.AuthRequest.blockLength, request.token, (view) => {
             view.setBigUint64(HEADER_LENGTH, request.id, true);
         });
     }
     if (request.command === "CANCEL") {
-        const bytes = message(SESSION_SCHEMA_ID, SESSION_SCHEMA_VERSION, CANCEL_TEMPLATE_ID, 16);
+        const bytes = message(SESSION_SCHEMA_ID, SESSION_SCHEMA_VERSION, SESSION_TEMPLATES.CancelRequest.templateId, SESSION_TEMPLATES.CancelRequest.blockLength);
         const view = new DataView(bytes.buffer);
         view.setBigUint64(HEADER_LENGTH, request.id, true);
         view.setBigUint64(HEADER_LENGTH + 8, request.targetId, true);
@@ -169,13 +160,18 @@ export const encodeRequest = (request) => {
     }
     const market = encodeMarketRequest(request);
     const template = new DataView(market.buffer).getUint16(2, true);
-    const selected = [1, 2, 3, 4, 6, 7, 14, 15, 16, 17].includes(template)
+    const selected = [
+        MARKET_REQUEST.SNAPSHOT, MARKET_REQUEST.STREAM, MARKET_REQUEST.TS_RAW, MARKET_REQUEST.TS_CANDLE,
+        MARKET_REQUEST.TS_RAW_STREAM, MARKET_REQUEST.TS_CANDLE_STREAM, MARKET_REQUEST.TS_PAGE, MARKET_REQUEST.FEED_LIVE,
+        MARKET_REQUEST.FEED_RECOVERY, MARKET_REQUEST.FEED_SNAPSHOT,
+    ].some(request => request.templateId === template)
         ? appendFieldSelection(market, "selectedFields" in request ? request.selectedFields ?? [] : [])
         : market;
     return encodeOpen(request.id, selected, request.trace);
 };
 export const encodeWindow = (targetId) => {
-    const bytes = message(SESSION_SCHEMA_ID, 1, 5, 20);
+    const window = SESSION_TEMPLATES.ResponseWindow;
+    const bytes = message(SESSION_SCHEMA_ID, window.sinceVersion, window.templateId, window.blockLength);
     const view = new DataView(bytes.buffer);
     view.setBigUint64(HEADER_LENGTH, targetId, true);
     view.setUint32(HEADER_LENGTH + 8, RESPONSE_WINDOW_COUNT, true);
@@ -184,7 +180,8 @@ export const encodeWindow = (targetId) => {
     return bytes;
 };
 export const encodeRelease = (targetId, consumedBytes) => {
-    const bytes = message(SESSION_SCHEMA_ID, 1, 6, 16);
+    const release = SESSION_TEMPLATES.ReleaseResponses;
+    const bytes = message(SESSION_SCHEMA_ID, release.sinceVersion, release.templateId, release.blockLength);
     const view = new DataView(bytes.buffer);
     view.setBigUint64(HEADER_LENGTH, targetId, true);
     view.setUint32(HEADER_LENGTH + 8, 1, true);
@@ -194,14 +191,16 @@ export const encodeRelease = (targetId, consumedBytes) => {
 /** Decode one bounded transport batch; all body slices share the original frame. */
 export const splitResponseBatch = (response) => {
     const message = response.message;
-    if (message?.format.schemaId !== SESSION_SCHEMA_ID || message.format.templateId !== 103)
+    const batch = SESSION_TEMPLATES.ResponseBatch;
+    if (message?.format.schemaId !== SESSION_SCHEMA_ID || message.format.templateId !== batch.templateId)
         return [response];
     const { body, format } = message;
-    if (format.version !== 1 || format.blockLength !== 0 || body.byteLength < 6 || body[0] !== 8 || body[1] !== 0)
-        throw new ProtocolError("invalid response batch");
     const view = new DataView(body.buffer, body.byteOffset, body.byteLength);
+    if (format.version !== batch.sinceVersion || format.blockLength !== batch.blockLength || body.byteLength < 6
+        || view.getUint16(0, true) !== batch.groups.messages)
+        throw new ProtocolError("invalid response batch");
     const count = view.getUint32(2, true);
-    if (count === 0 || count > 64)
+    if (count === 0 || count > BATCH_MESSAGES)
         throw new ProtocolError("invalid response batch count");
     const messages = [];
     let offset = 6;
@@ -213,7 +212,7 @@ export const splitResponseBatch = (response) => {
         const size = view.getUint32(offset + 8, true);
         offset += 12;
         if (size > body.byteLength - offset || size < format.blockLength
-            || (format.schemaId === SESSION_SCHEMA_ID && format.templateId === 103))
+            || (format.schemaId === SESSION_SCHEMA_ID && format.templateId === batch.templateId))
             throw new ProtocolError("invalid nested response body");
         messages.push({ ...response, message: { format, body: body.subarray(offset, offset + size) } });
         offset += size;
@@ -226,8 +225,8 @@ export const decodeResponse = (source) => {
     const bytes = asBytes(source);
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     const { templateId, blockLength } = verifyHeader(bytes, view, SESSION_SCHEMA_ID, SESSION_SCHEMA_VERSION);
-    if (templateId === CANCEL_RESPONSE_TEMPLATE_ID) {
-        if (blockLength !== 17 || bytes.byteLength !== HEADER_LENGTH + blockLength) {
+    if (templateId === SESSION_TEMPLATES.CancelResponse.templateId) {
+        if (blockLength !== SESSION_TEMPLATES.CancelResponse.blockLength || bytes.byteLength !== HEADER_LENGTH + blockLength) {
             throw new ProtocolError("cancel response has an invalid length");
         }
         const cancelled = view.getUint8(HEADER_LENGTH + 16);
@@ -240,7 +239,7 @@ export const decodeResponse = (source) => {
             cancelled: cancelled === 1,
         };
     }
-    if (templateId !== RESPONSE_TEMPLATE_ID || blockLength !== 17) {
+    if (templateId !== SESSION_TEMPLATES.Response.templateId || blockLength !== SESSION_TEMPLATES.Response.blockLength) {
         throw new ProtocolError(`unknown response template ${templateId}`);
     }
     let offset = HEADER_LENGTH + blockLength;
@@ -283,14 +282,14 @@ export const decodeResponse = (source) => {
 /** Record a DatasetFields response in the request's table; false for any other response. */
 export const absorbDatasetFields = (response, fields) => {
     const message = response.message;
-    if (message?.format.schemaId !== MARKET_SCHEMA_ID || message.format.templateId !== DATASET_FIELDS_TEMPLATE_ID)
+    if (message?.format.schemaId !== GATEWAY_SCHEMA_ID || message.format.templateId !== GATEWAY_TEMPLATES.DatasetFields.templateId)
         return false;
-    if (message.format.version !== MESSAGE_BATCH_SCHEMA_VERSION || message.format.blockLength !== 0) {
+    if (message.format.version !== MESSAGE_BATCH_SCHEMA_VERSION || message.format.blockLength !== GATEWAY_TEMPLATES.DatasetFields.blockLength) {
         throw new ProtocolError(`unsupported dataset field table version ${message.format.version}`);
     }
     const { body } = message;
     const view = new DataView(body.buffer, body.byteOffset, body.byteLength);
-    const group = takeGroupHeader(body, view, 0, 2);
+    const group = takeGroupHeader(body, view, 0, GATEWAY_TEMPLATES.DatasetFields.groups.fields);
     let offset = group.next;
     const text = new TextDecoder("utf-8", { fatal: true });
     const entries = [];
@@ -314,10 +313,10 @@ export const decodeBatch = (response, selector, announced) => {
         throw new ProtocolError("only continuing data responses can be decoded as batches");
     }
     const { format: outer, body } = response.message;
-    if (outer.schemaId !== MARKET_SCHEMA_ID
-        || outer.templateId !== MESSAGE_BATCH_TEMPLATE_ID
+    if (outer.schemaId !== GATEWAY_SCHEMA_ID
+        || outer.templateId !== GATEWAY_TEMPLATES.MarketDataMessageBatch.templateId
         || outer.version !== MESSAGE_BATCH_SCHEMA_VERSION
-        || outer.blockLength !== 1
+        || outer.blockLength !== GATEWAY_TEMPLATES.MarketDataMessageBatch.blockLength
         || body.byteLength < outer.blockLength) {
         throw new ProtocolError(`unsupported market-data batch ${outer.schemaId}/${outer.templateId} version ${outer.version}`);
     }
@@ -453,8 +452,9 @@ export const decodeBatch = (response, selector, announced) => {
 };
 export const decodeKeyfiguresResult = (response) => {
     const message = response.message;
-    if (response.status !== "CONTINUE" || !message || message.format.schemaId !== MARKET_SCHEMA_ID
-        || message.format.templateId !== 103 || message.format.version !== 32 || message.format.blockLength !== 0) {
+    if (response.status !== "CONTINUE" || !message || message.format.schemaId !== GATEWAY_SCHEMA_ID
+        || message.format.templateId !== GATEWAY_TEMPLATES.CatalogKeyfiguresResult.templateId || message.format.version !== 32
+        || message.format.blockLength !== GATEWAY_TEMPLATES.CatalogKeyfiguresResult.blockLength) {
         throw new ProtocolError("unsupported Catalog keyfigures result");
     }
     const body = message.body;
@@ -465,8 +465,9 @@ export const decodeKeyfiguresResult = (response) => {
 };
 export const decodeServiceCallResult = (response) => {
     const message = response.message;
-    if (response.status !== "CONTINUE" || !message || message.format.schemaId !== MARKET_SCHEMA_ID
-        || message.format.templateId !== 109 || message.format.version !== 31 || message.format.blockLength !== 2) {
+    if (response.status !== "CONTINUE" || !message || message.format.schemaId !== GATEWAY_SCHEMA_ID
+        || message.format.templateId !== GATEWAY_TEMPLATES.ServiceCallResult.templateId || message.format.version !== 31
+        || message.format.blockLength !== GATEWAY_TEMPLATES.ServiceCallResult.blockLength) {
         throw new ProtocolError("unsupported service result");
     }
     const body = message.body;
@@ -496,8 +497,9 @@ export const decodeServiceCallResult = (response) => {
 };
 export const decodeTimeseriesPageResult = (response) => {
     const message = response.message;
-    if (response.status !== "CONTINUE" || !message || message.format.schemaId !== MARKET_SCHEMA_ID
-        || message.format.templateId !== 110 || message.format.version !== 17 || message.format.blockLength !== 17) {
+    if (response.status !== "CONTINUE" || !message || message.format.schemaId !== GATEWAY_SCHEMA_ID
+        || message.format.templateId !== GATEWAY_TEMPLATES.TimeseriesPageResult.templateId || message.format.version !== 17
+        || message.format.blockLength !== GATEWAY_TEMPLATES.TimeseriesPageResult.blockLength) {
         throw new ProtocolError("unsupported timeseries page result");
     }
     const body = message.body;
@@ -514,8 +516,9 @@ export const decodeTimeseriesPageResult = (response) => {
 };
 export const decodeCatalogSearchResult = (response) => {
     const message = response.message;
-    if (response.status !== "CONTINUE" || !message || message.format.schemaId !== MARKET_SCHEMA_ID
-        || message.format.templateId !== 105 || message.format.version !== 26 || message.format.blockLength !== 0) {
+    if (response.status !== "CONTINUE" || !message || message.format.schemaId !== GATEWAY_SCHEMA_ID
+        || message.format.templateId !== GATEWAY_TEMPLATES.CatalogSearchResponse.templateId || message.format.version !== 26
+        || message.format.blockLength !== GATEWAY_TEMPLATES.CatalogSearchResponse.blockLength) {
         throw new ProtocolError("unsupported Catalog search result");
     }
     const body = message.body;
@@ -526,8 +529,9 @@ export const decodeCatalogSearchResult = (response) => {
 };
 export const decodeCatalogLookupResult = (response) => {
     const message = response.message;
-    if (response.status !== "CONTINUE" || !message || message.format.schemaId !== MARKET_SCHEMA_ID
-        || message.format.templateId !== 106 || message.format.version !== 25 || message.format.blockLength !== 0) {
+    if (response.status !== "CONTINUE" || !message || message.format.schemaId !== GATEWAY_SCHEMA_ID
+        || message.format.templateId !== GATEWAY_TEMPLATES.CatalogLookupResponse.templateId || message.format.version !== 25
+        || message.format.blockLength !== GATEWAY_TEMPLATES.CatalogLookupResponse.blockLength) {
         throw new ProtocolError("unsupported Catalog lookup result");
     }
     const body = message.body;
@@ -541,10 +545,10 @@ export const decodeCatalogRecord = (response) => {
         throw new ProtocolError("only continuing responses can be decoded as Catalog records");
     }
     const { format, body } = response.message;
-    if (format.schemaId !== MARKET_SCHEMA_ID
-        || format.templateId !== CATALOG_RECORD_TEMPLATE_ID
+    if (format.schemaId !== GATEWAY_SCHEMA_ID
+        || format.templateId !== GATEWAY_TEMPLATES.CatalogRecord.templateId
         || format.version > MARKET_SCHEMA_VERSION
-        || format.blockLength !== 30
+        || format.blockLength !== GATEWAY_TEMPLATES.CatalogRecord.blockLength
         || body.byteLength < format.blockLength + 6) {
         throw new ProtocolError(`unsupported Catalog record ${format.schemaId}/${format.templateId} version ${format.version}`);
     }
@@ -666,7 +670,7 @@ const encodeMarketRequest = (request) => {
         const cursor = new TextEncoder().encode(request.cursor ?? "");
         const tailLength = 6 + fields.reduce((sum, value) => sum + 4 + value.byteLength, 0)
             + 8 + catalog.byteLength + cursor.byteLength;
-        const bytes = message(MARKET_SCHEMA_ID, 19, MARKET_TEMPLATE.CATALOG_FEED, 0, tailLength);
+        const bytes = message(GATEWAY_SCHEMA_ID, 19, MARKET_REQUEST.CATALOG_FEED.templateId, MARKET_REQUEST.CATALOG_FEED.blockLength, tailLength);
         const view = new DataView(bytes.buffer);
         let offset = putGroupHeader(bytes, view, HEADER_LENGTH, fields);
         view.setUint32(offset, catalog.byteLength, true);
@@ -679,7 +683,7 @@ const encodeMarketRequest = (request) => {
     if (request.command === "FEED_LIVE" || request.command === "FEED_SNAPSHOT") {
         const dataset = new TextEncoder().encode(request.dataset);
         const quality = new TextEncoder().encode(request.quality);
-        const bytes = message(MARKET_SCHEMA_ID, 30, MARKET_TEMPLATE[request.command], 0, 8 + dataset.length + quality.length);
+        const bytes = message(GATEWAY_SCHEMA_ID, 30, MARKET_REQUEST[request.command].templateId, MARKET_REQUEST[request.command].blockLength, 8 + dataset.length + quality.length);
         const view = new DataView(bytes.buffer);
         view.setUint32(HEADER_LENGTH, dataset.length, true);
         bytes.set(dataset, HEADER_LENGTH + 4);
@@ -691,7 +695,7 @@ const encodeMarketRequest = (request) => {
     if (request.command === "FEED_RECOVERY") {
         const dataset = new TextEncoder().encode(request.dataset);
         const quality = new TextEncoder().encode(request.quality);
-        const bytes = message(MARKET_SCHEMA_ID, 30, MARKET_TEMPLATE.FEED_RECOVERY, 16, 8 + dataset.length + quality.length);
+        const bytes = message(GATEWAY_SCHEMA_ID, 30, MARKET_REQUEST.FEED_RECOVERY.templateId, MARKET_REQUEST.FEED_RECOVERY.blockLength, 8 + dataset.length + quality.length);
         const view = new DataView(bytes.buffer);
         view.setBigUint64(HEADER_LENGTH, request.afterMessageId, true);
         view.setBigUint64(HEADER_LENGTH + 8, request.throughMessageId, true);
@@ -709,7 +713,7 @@ const encodeMarketRequest = (request) => {
             || (request.boundary === undefined) === (request.cursor === undefined)) {
             throw new ProtocolError("invalid timeseries page parameters");
         }
-        const bytes = message(MARKET_SCHEMA_ID, 30, MARKET_TEMPLATE.TS_PAGE, 31, 16 + strings.reduce((sum, value) => sum + value.byteLength, 0));
+        const bytes = message(GATEWAY_SCHEMA_ID, 30, MARKET_REQUEST.TS_PAGE.templateId, MARKET_REQUEST.TS_PAGE.blockLength, 16 + strings.reduce((sum, value) => sum + value.byteLength, 0));
         const view = new DataView(bytes.buffer);
         view.setBigUint64(HEADER_LENGTH, request.resolutionMicros, true);
         view.setBigUint64(HEADER_LENGTH + 8, request.boundary ?? 0n, true);
@@ -730,7 +734,7 @@ const encodeMarketRequest = (request) => {
         const expression = new TextEncoder().encode(request.expression);
         const adjustment = new TextEncoder().encode(request.adjustment);
         const dataset = new TextEncoder().encode(request.dataset ?? "");
-        const bytes = message(MARKET_SCHEMA_ID, 30, MARKET_TEMPLATE[request.command], 0, 12 + expression.byteLength + adjustment.byteLength + dataset.byteLength);
+        const bytes = message(GATEWAY_SCHEMA_ID, 30, MARKET_REQUEST[request.command].templateId, MARKET_REQUEST[request.command].blockLength, 12 + expression.byteLength + adjustment.byteLength + dataset.byteLength);
         const view = new DataView(bytes.buffer);
         let offset = HEADER_LENGTH;
         view.setUint32(offset, expression.byteLength, true);
@@ -748,7 +752,7 @@ const encodeMarketRequest = (request) => {
         const quality = new TextEncoder().encode(request.quality ?? "");
         const adjustment = new TextEncoder().encode(request.adjustment);
         const dataset = new TextEncoder().encode(request.dataset ?? "");
-        const bytes = message(MARKET_SCHEMA_ID, 30, MARKET_TEMPLATE[request.command], 20, 16 + expression.byteLength + quality.byteLength + adjustment.byteLength + dataset.byteLength);
+        const bytes = message(GATEWAY_SCHEMA_ID, 30, MARKET_REQUEST[request.command].templateId, MARKET_REQUEST[request.command].blockLength, 16 + expression.byteLength + quality.byteLength + adjustment.byteLength + dataset.byteLength);
         const view = new DataView(bytes.buffer);
         view.setBigUint64(HEADER_LENGTH, request.from, true);
         view.setBigUint64(HEADER_LENGTH + 8, request.through, true);
@@ -821,7 +825,7 @@ const encodeMarketRequest = (request) => {
         const values = [request.catalog, request.action, request.key, request.contractFingerprint, request.priceAgeMode ?? ""]
             .map(value => new TextEncoder().encode(value));
         values.push(expression, queryFrame);
-        const bytes = message(MARKET_SCHEMA_ID, 28, MARKET_TEMPLATE.CATALOG_KEYFIGURES, 16, values.reduce((n, value) => n + 4 + value.byteLength, 0));
+        const bytes = message(GATEWAY_SCHEMA_ID, 28, MARKET_REQUEST.CATALOG_KEYFIGURES.templateId, MARKET_REQUEST.CATALOG_KEYFIGURES.blockLength, values.reduce((n, value) => n + 4 + value.byteLength, 0));
         const view = new DataView(bytes.buffer);
         view.setBigUint64(HEADER_LENGTH, request.priceCutoffMs ?? 0xffffffffffffffffn, true);
         view.setBigUint64(HEADER_LENGTH + 8, request.after, true);
@@ -838,7 +842,7 @@ const encodeMarketRequest = (request) => {
         if (!request.blocks.length || request.blocks.length > 64 || !request.blocks.every(id => Number.isInteger(id) && id >= 0 && id <= 65535)
             || values[0].byteLength > 256 || values[2].byteLength > 1024)
             throw new ProtocolError("invalid listing selector");
-        const bytes = message(MARKET_SCHEMA_ID, 21, MARKET_TEMPLATE.LISTING_LATEST, 0, 6 + request.blocks.length * 2 + 12 + values.reduce((sum, value) => sum + value.byteLength, 0));
+        const bytes = message(GATEWAY_SCHEMA_ID, 21, MARKET_REQUEST.LISTING_LATEST.templateId, MARKET_REQUEST.LISTING_LATEST.blockLength, 6 + request.blocks.length * 2 + 12 + values.reduce((sum, value) => sum + value.byteLength, 0));
         const view = new DataView(bytes.buffer);
         view.setUint16(HEADER_LENGTH, 2, true);
         view.setUint32(HEADER_LENGTH + 2, request.blocks.length, true);
@@ -861,7 +865,7 @@ const encodeMarketRequest = (request) => {
             || !/^[a-f0-9]{64}$/.test(request.contractFingerprint) || (values[3]?.length ?? 0) > 128
             || request.inputSbe.byteLength < 8 || request.inputSbe.byteLength > 64 * 1024)
             throw new ProtocolError("invalid service request");
-        const bytes = message(MARKET_SCHEMA_ID, 31, MARKET_TEMPLATE.SERVICE_CALL, 8, values.reduce((sum, value) => sum + 4 + value.byteLength, 0) + 4 + request.inputSbe.byteLength);
+        const bytes = message(GATEWAY_SCHEMA_ID, 31, MARKET_REQUEST.SERVICE_CALL.templateId, MARKET_REQUEST.SERVICE_CALL.blockLength, values.reduce((sum, value) => sum + 4 + value.byteLength, 0) + 4 + request.inputSbe.byteLength);
         const view = new DataView(bytes.buffer);
         view.setBigUint64(HEADER_LENGTH, request.deadlineUnixMillis, true);
         let offset = HEADER_LENGTH + 8;
@@ -876,7 +880,7 @@ const encodeMarketRequest = (request) => {
     }
     if (request.command === "STREAM_METADATA") {
         const values = [request.dataset, request.quality].map(value => new TextEncoder().encode(value));
-        const bytes = message(MARKET_SCHEMA_ID, METADATA_SCHEMA_VERSION, MARKET_TEMPLATE.STREAM_METADATA, 0, values.reduce((sum, value) => sum + 4 + value.byteLength, 0));
+        const bytes = message(GATEWAY_SCHEMA_ID, METADATA_SCHEMA_VERSION, MARKET_REQUEST.STREAM_METADATA.templateId, MARKET_REQUEST.STREAM_METADATA.blockLength, values.reduce((sum, value) => sum + 4 + value.byteLength, 0));
         const view = new DataView(bytes.buffer);
         let offset = HEADER_LENGTH;
         for (const value of values) {
@@ -900,7 +904,7 @@ const encodeMarketRequest = (request) => {
             throw new RangeError("invalid Catalog lookup parameters");
         const tailLength = 6 + dimensions.reduce((sum, dimension) => sum + 6 + dimension.values.reduce((length, value) => length + 4 + value.length, 0) + 4 + dimension.name.length, 0)
             + 12 + catalog.length + expression.length + cursor.length;
-        const bytes = message(MARKET_SCHEMA_ID, 23, MARKET_TEMPLATE.CATALOG_LOOKUP, 10, tailLength);
+        const bytes = message(GATEWAY_SCHEMA_ID, 23, MARKET_REQUEST.CATALOG_LOOKUP.templateId, MARKET_REQUEST.CATALOG_LOOKUP.blockLength, tailLength);
         if (bytes.length > 16_896)
             throw new RangeError("Catalog lookup request exceeds limit");
         const view = new DataView(bytes.buffer);
@@ -994,7 +998,7 @@ const encodeMarketRequest = (request) => {
         const frame = query.finish();
         if (frame.byteLength > 16_384)
             throw new RangeError("Catalog search request exceeds 16 KiB");
-        const bytes = message(MARKET_SCHEMA_ID, 27, MARKET_TEMPLATE.CATALOG_SEARCH, 0, 8 + frame.byteLength + expression.byteLength);
+        const bytes = message(GATEWAY_SCHEMA_ID, 27, MARKET_REQUEST.CATALOG_SEARCH.templateId, MARKET_REQUEST.CATALOG_SEARCH.blockLength, 8 + frame.byteLength + expression.byteLength);
         const view = new DataView(bytes.buffer);
         view.setUint32(HEADER_LENGTH, frame.byteLength, true);
         bytes.set(frame, HEADER_LENGTH + 4);
@@ -1010,7 +1014,7 @@ const encodeMarketRequest = (request) => {
         const tailLength = 6 + identifiers.reduce((sum, value) => sum + 4 + value.byteLength, 0)
             + 6 + fields.reduce((sum, value) => sum + 4 + value.byteLength, 0)
             + 4 + catalog.byteLength;
-        const bytes = message(MARKET_SCHEMA_ID, MARKET_SCHEMA_VERSION, MARKET_TEMPLATE.CATALOG, 0, tailLength);
+        const bytes = message(GATEWAY_SCHEMA_ID, MARKET_SCHEMA_VERSION, MARKET_REQUEST.CATALOG.templateId, MARKET_REQUEST.CATALOG.blockLength, tailLength);
         const view = new DataView(bytes.buffer);
         let offset = HEADER_LENGTH;
         offset = putGroupHeader(bytes, view, offset, identifiers);
@@ -1026,7 +1030,7 @@ const encodeMarketRequest = (request) => {
     const quality = new TextEncoder().encode(request.quality ?? "");
     const adjustment = new TextEncoder().encode(request.adjustment);
     const dataset = new TextEncoder().encode(request.dataset ?? "");
-    const bytes = message(MARKET_SCHEMA_ID, 30, MARKET_TEMPLATE[request.command], request.command === "TS_CANDLE" ? 24 : 28, 16 + expression.byteLength + quality.byteLength + adjustment.byteLength + dataset.byteLength);
+    const bytes = message(GATEWAY_SCHEMA_ID, 30, MARKET_REQUEST[request.command].templateId, MARKET_REQUEST[request.command].blockLength, 16 + expression.byteLength + quality.byteLength + adjustment.byteLength + dataset.byteLength);
     const view = new DataView(bytes.buffer);
     view.setBigUint64(HEADER_LENGTH, request.from, true);
     view.setBigUint64(HEADER_LENGTH + 8, request.through, true);
@@ -1055,7 +1059,7 @@ const encodeOpen = (requestId, application, trace) => {
     const app = new DataView(application.buffer, application.byteOffset, application.byteLength);
     const blockLength = app.getUint16(0, true);
     const body = application.subarray(HEADER_LENGTH);
-    const bytes = message(SESSION_SCHEMA_ID, SESSION_SCHEMA_VERSION, OPEN_TEMPLATE_ID, 40, 4 + body.byteLength);
+    const bytes = message(SESSION_SCHEMA_ID, SESSION_SCHEMA_VERSION, SESSION_TEMPLATES.OpenRequest.templateId, SESSION_TEMPLATES.OpenRequest.blockLength, 4 + body.byteLength);
     const view = new DataView(bytes.buffer);
     view.setBigUint64(HEADER_LENGTH, requestId, true);
     if (trace) {
@@ -1164,7 +1168,8 @@ export function decodeStreamMetadata(response) {
     if (!response.message)
         throw new ProtocolError("missing Stream metadata response");
     const { format, body } = response.message;
-    if (format.schemaId !== MARKET_SCHEMA_ID || format.templateId !== 104 || format.version !== METADATA_RESPONSE_SCHEMA_VERSION || format.blockLength !== 1 || body.byteLength < 1) {
+    if (format.schemaId !== GATEWAY_SCHEMA_ID || format.templateId !== GATEWAY_TEMPLATES.StreamMetadataResponse.templateId
+        || format.version !== METADATA_RESPONSE_SCHEMA_VERSION || format.blockLength !== GATEWAY_TEMPLATES.StreamMetadataResponse.blockLength || body.byteLength < 1) {
         throw new ProtocolError("unsupported Stream metadata response");
     }
     try {
@@ -1176,7 +1181,8 @@ export function decodeStreamMetadata(response) {
 }
 export function decodeListingResponse(response) {
     const message = response.message;
-    if (response.status !== "CONTINUE" || !message || message.format.schemaId !== MARKET_SCHEMA_ID || message.format.templateId !== 107 || message.format.version !== 21 || message.format.blockLength !== 2)
+    if (response.status !== "CONTINUE" || !message || message.format.schemaId !== GATEWAY_SCHEMA_ID || message.format.templateId !== GATEWAY_TEMPLATES.ListingLatestEvent.templateId || message.format.version !== 21
+        || message.format.blockLength !== GATEWAY_TEMPLATES.ListingLatestEvent.blockLength)
         throw new ProtocolError("unsupported listing response");
     return decodeListingEvent(message.body);
 }
