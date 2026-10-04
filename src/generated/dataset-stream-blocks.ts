@@ -6,5 +6,14 @@ export const DATASET_STREAM_BLOCKS = {
     "BidAskCandle",
     "BidOhlc"
   ],
+  "sim": [
+    "AskOhlc",
+    "BidAsk",
+    "BidAskCandle",
+    "BidOhlc",
+    "Trade",
+    "TradeOhlcvv",
+    "TradeOhlcvvCandle"
+  ],
   "xetra": []
 } as const;
