@@ -12,11 +12,5 @@ import { BidAskCandle as BidAskCandle } from "./stream-2.js";
 export { BidAskCandle };
 import { BidOhlc as BidOhlc } from "./stream-3.js";
 export { BidOhlc };
-import { Trade as Trade } from "./stream-4.js";
-export { Trade };
-import { TradeOhlcvv as TradeOhlcvv } from "./stream-5.js";
-export { TradeOhlcvv };
-import { TradeOhlcvvCandle as TradeOhlcvvCandle } from "./stream-6.js";
-export { TradeOhlcvvCandle };
-export type PublicExport = AskOhlc | BidAsk | BidAskCandle | BidOhlc | Trade | TradeOhlcvv | TradeOhlcvvCandle;
+export type PublicExport = AskOhlc | BidAsk | BidAskCandle | BidOhlc;
 //# sourceMappingURL=export-blocks.d.ts.map
