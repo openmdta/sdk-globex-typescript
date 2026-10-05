@@ -1,4 +1,4 @@
-export { AuthenticationError, ConnectionClosedError, connect, } from "./connection.js";
+export { DAILY_CANDLE_CADENCE_MICROS, WEEKLY_CANDLE_CADENCE_MICROS, AuthenticationError, ConnectionClosedError, connect, } from "./connection.js";
 export { ProtocolError, RequestError, } from "./protocol.js";
 export { BLOCK_BINDINGS, BLOCK_NAMES, } from "./generated/bindings.js";
 export * from "./generated/export-blocks.js";

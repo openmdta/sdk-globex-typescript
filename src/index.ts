@@ -1,4 +1,6 @@
 export {
+  DAILY_CANDLE_CADENCE_MICROS,
+  WEEKLY_CANDLE_CADENCE_MICROS,
   AuthenticationError,
   ConnectionClosedError,
   connect,

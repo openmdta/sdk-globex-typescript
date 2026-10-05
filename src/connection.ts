@@ -1851,3 +1851,6 @@ class Handle<T> implements SingleRequestHandle<T> {
     for (const waiting of this.#waiting.splice(0)) waiting.reject(error);
   }
 }
+/** Calendar cadence identifiers: actual candle bounds follow the selected source's sessions. */
+export const DAILY_CANDLE_CADENCE_MICROS = 86_400_000_000n;
+export const WEEKLY_CANDLE_CADENCE_MICROS = 604_800_000_000n;

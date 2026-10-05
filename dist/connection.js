@@ -1486,4 +1486,7 @@ class Handle {
             waiting.reject(error);
     }
 }
+/** Calendar cadence identifiers: actual candle bounds follow the selected source's sessions. */
+export const DAILY_CANDLE_CADENCE_MICROS = 86400000000n;
+export const WEEKLY_CANDLE_CADENCE_MICROS = 604800000000n;
 //# sourceMappingURL=connection.js.map

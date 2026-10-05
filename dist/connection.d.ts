@@ -299,5 +299,8 @@ declare class ReconnectingConnection implements Connection {
     }): RequestHandle<ListingEvent>;
     streamMetadata(dataset: string, quality: "RT" | "DL" | "EOD", options?: Pick<StreamMetadataParameters, "trace">): RequestHandle<StreamMetadata>;
 }
+/** Calendar cadence identifiers: actual candle bounds follow the selected source's sessions. */
+export declare const DAILY_CANDLE_CADENCE_MICROS = 86400000000n;
+export declare const WEEKLY_CANDLE_CADENCE_MICROS = 604800000000n;
 export {};
 //# sourceMappingURL=connection.d.ts.map
