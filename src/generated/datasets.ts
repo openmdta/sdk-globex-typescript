@@ -1,6 +1,7 @@
 export const DATASETS = {
   "globex": "globex/globex",
   "lus": "globex/lus",
+  "sim": "globex/sim",
   "xetra": "globex/xetra"
 } as const;
 export const DATASET_CAPABILITIES = {
@@ -9,6 +10,11 @@ export const DATASET_CAPABILITIES = {
     "search"
   ],
   "lus": [
+    "catalog",
+    "latest",
+    "timeseries"
+  ],
+  "sim": [
     "catalog",
     "latest",
     "timeseries"
