@@ -3,7 +3,7 @@
   "environment": {
     "name": "globex",
     "gateway": "gateway",
-    "revision": "8be0e1dac953479c11a261950eedaac686295dcb6451de4f4dadc8e58f2d310a",
+    "revision": "13e9d355709f5cfd23f7ff4b3627fe86a92063df163bb1ece38a339740d9272f",
     "datasets": {
       "globex": {
         "id": "globex/globex",
@@ -751,7 +751,7 @@
             "properties": {
               "close": {
                 "maxLength": 8,
-                "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$",
+                "pattern": "^(([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]|24:00:00)$",
                 "type": [
                   "string",
                   "null"
@@ -817,7 +817,7 @@
             "properties": {
               "close": {
                 "maxLength": 8,
-                "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$",
+                "pattern": "^(([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]|24:00:00)$",
                 "type": "string"
               },
               "open": {
