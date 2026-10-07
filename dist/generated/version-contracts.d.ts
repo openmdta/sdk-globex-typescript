@@ -41,6 +41,13 @@ export declare const VERSION_CONTRACTS: readonly [{
     };
     readonly sha256: "233e8445af5967b2ae6bbb526603b2b40b6135473cb1c908a10c9097e0d9a98b";
 }, {
+    readonly field: "openmdta::BidAskCandleV2";
+    readonly id: {
+        readonly family: "openmdta::BidAskCandle";
+        readonly version: 2;
+    };
+    readonly sha256: "b12bedef787acf79fa13763b28e8631e4c0713a2f8d238e7dd9c31e5edf5bba6";
+}, {
     readonly field: "openmdta::BidDailyOhlc";
     readonly id: {
         readonly family: "openmdta::BidDailyOhlc";
@@ -216,6 +223,13 @@ export declare const VERSION_CONTRACTS: readonly [{
     };
     readonly sha256: "e87202836623adc2bfd9677da1e9f7f97c5fbbaf862e5001356443e1adeb9b23";
 }, {
+    readonly field: "openmdta::TradeCandleV2";
+    readonly id: {
+        readonly family: "openmdta::TradeCandle";
+        readonly version: 2;
+    };
+    readonly sha256: "8ffbdc72ba9e422d80dbe7d08d3aa41361182848cfade2e37b138c3d42425c12";
+}, {
     readonly field: "openmdta::TradeDailyOhlc";
     readonly id: {
         readonly family: "openmdta::TradeDailyOhlc";
@@ -236,6 +250,13 @@ export declare const VERSION_CONTRACTS: readonly [{
         readonly version: 1;
     };
     readonly sha256: "f8a1cc741922ae38f546dfd7dafca95029b2f86f7e17c1b31ffb4570a69bc8ff";
+}, {
+    readonly field: "openmdta::TradeOhlcvvCandleV2";
+    readonly id: {
+        readonly family: "openmdta::TradeOhlcvvCandle";
+        readonly version: 2;
+    };
+    readonly sha256: "3864f6b59d67481c24d8cb796af8f45b5d6d529b25739dd7cdbf6fc5e3c36498";
 }, {
     readonly field: "lus::LusDomainObject";
     readonly id: {

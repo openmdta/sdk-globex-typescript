@@ -83,132 +83,71 @@ export class Decimal {
 
 }
 
-export interface TradeOhlcvvValue {
+export interface TradeValue {
      readonly eventTimeMicros: bigint;
 
-     readonly open: Decimal;
+     readonly price: Decimal;
 
-     readonly high: Decimal;
+     readonly volume: bigint;
 
-     readonly low: Decimal;
-
-     readonly close: Decimal;
-
-     readonly totalQuantity: bigint;
-
-     readonly totalTradedValue: Decimal;
-
-     readonly day: number;
-
-     readonly flags: number;
+     readonly saleConditionFlags: number | null;
 }
-export class TradeOhlcvv {
+export class Trade {
     static readonly SCHEMA_ID = 41957;
-    static readonly TEMPLATE_ID = 51484;
+    static readonly TEMPLATE_ID = 3822;
     static readonly VERSION = 0;
-    static readonly BLOCK_LENGTH = 69;
+    static readonly BLOCK_LENGTH = 26;
     static readonly format: SbeFormat = { schemaId: this.SCHEMA_ID, templateId: this.TEMPLATE_ID, version: this.VERSION, blockLength: this.BLOCK_LENGTH };
      readonly eventTimeMicros: bigint;
 
-     readonly open: Decimal;
+     readonly price: Decimal;
 
-     readonly high: Decimal;
+     readonly volume: bigint;
 
-     readonly low: Decimal;
+     readonly saleConditionFlags: number | null;
 
-     readonly close: Decimal;
-
-     readonly totalQuantity: bigint;
-
-     readonly totalTradedValue: Decimal;
-
-     readonly day: number;
-
-     readonly flags: number;
-
-    constructor(value: TradeOhlcvvValue) {
+    constructor(value: TradeValue) {
         this.eventTimeMicros = value.eventTimeMicros;
 
-        this.open = value.open;
+        this.price = value.price;
 
-        this.high = value.high;
+        this.volume = value.volume;
 
-        this.low = value.low;
-
-        this.close = value.close;
-
-        this.totalQuantity = value.totalQuantity;
-
-        this.totalTradedValue = value.totalTradedValue;
-
-        this.day = value.day;
-
-        this.flags = value.flags;
+        this.saleConditionFlags = value.saleConditionFlags;
     }
-    static decodeBody(source: ArrayBuffer | ArrayBufferView, offset = 0, actingVersion = this.VERSION, actingBlockLength = this.BLOCK_LENGTH): TradeOhlcvv {
+    static decodeBody(source: ArrayBuffer | ArrayBufferView, offset = 0, actingVersion = this.VERSION, actingBlockLength = this.BLOCK_LENGTH): Trade {
         const view = viewOf(source);
         requireBytes(view, offset, actingBlockLength);
         return new this({
             eventTimeMicros: view.getBigUint64(offset + 0, true),
 
-            open: new Decimal({
+            price: new Decimal({
         mantissa: view.getBigInt64(offset + 8 + 0, true),
         exponent: view.getInt8(offset + 8 + 8),
       }),
 
-            high: new Decimal({
-        mantissa: view.getBigInt64(offset + 17 + 0, true),
-        exponent: view.getInt8(offset + 17 + 8),
-      }),
+            volume: view.getBigUint64(offset + 17, true),
 
-            low: new Decimal({
-        mantissa: view.getBigInt64(offset + 26 + 0, true),
-        exponent: view.getInt8(offset + 26 + 8),
-      }),
-
-            close: new Decimal({
-        mantissa: view.getBigInt64(offset + 35 + 0, true),
-        exponent: view.getInt8(offset + 35 + 8),
-      }),
-
-            totalQuantity: view.getBigUint64(offset + 44, true),
-
-            totalTradedValue: new Decimal({
-        mantissa: view.getBigInt64(offset + 52 + 0, true),
-        exponent: view.getInt8(offset + 52 + 8),
-      }),
-
-            day: view.getUint32(offset + 61, true),
-
-            flags: view.getUint32(offset + 65, true),
+            saleConditionFlags: (() => { const decoded = view.getUint8(offset + 25); return decoded === 255 ? null : decoded; })(),
         });
     }
-    static encodeBody(value: TradeOhlcvvValue): Uint8Array {
+    static encodeBody(value: TradeValue): Uint8Array {
         const bytes = new Uint8Array(this.BLOCK_LENGTH);
         const view = new DataView(bytes.buffer);
             view.setBigUint64(0 + 0, value.eventTimeMicros, true);
-    view.setBigInt64(0 + 8 + 0, value.open.mantissa, true);
-    view.setInt8(0 + 8 + 8, value.open.exponent);
-    view.setBigInt64(0 + 17 + 0, value.high.mantissa, true);
-    view.setInt8(0 + 17 + 8, value.high.exponent);
-    view.setBigInt64(0 + 26 + 0, value.low.mantissa, true);
-    view.setInt8(0 + 26 + 8, value.low.exponent);
-    view.setBigInt64(0 + 35 + 0, value.close.mantissa, true);
-    view.setInt8(0 + 35 + 8, value.close.exponent);
-    view.setBigUint64(0 + 44, value.totalQuantity, true);
-    view.setBigInt64(0 + 52 + 0, value.totalTradedValue.mantissa, true);
-    view.setInt8(0 + 52 + 8, value.totalTradedValue.exponent);
-    view.setUint32(0 + 61, value.day, true);
-    view.setUint32(0 + 65, value.flags, true);
+    view.setBigInt64(0 + 8 + 0, value.price.mantissa, true);
+    view.setInt8(0 + 8 + 8, value.price.exponent);
+    view.setBigUint64(0 + 17, value.volume, true);
+    view.setUint8(0 + 25, value.saleConditionFlags ?? 255);
 
         return bytes;
     }
 }
 
-export type PublicExport = TradeOhlcvv;
+export type PublicExport = Trade;
 export const PUBLIC_EXPORT_CODECS = new Map<number, {
     readonly format: SbeFormat;
     decodeBody(source: ArrayBuffer | ArrayBufferView, offset?: number, actingVersion?: number, actingBlockLength?: number): PublicExport;
 }>([
-    [TradeOhlcvv.TEMPLATE_ID, TradeOhlcvv],
+    [Trade.TEMPLATE_ID, Trade],
 ] as const);

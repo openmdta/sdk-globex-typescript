@@ -55,9 +55,9 @@ export class Decimal {
         return formatExact(this.toString());
     }
 }
-export class TradeOhlcvvCandle {
+export class TradeOhlcvv {
     static SCHEMA_ID = 41957;
-    static TEMPLATE_ID = 49382;
+    static TEMPLATE_ID = 51484;
     static VERSION = 0;
     static BLOCK_LENGTH = 69;
     static format = { schemaId: this.SCHEMA_ID, templateId: this.TEMPLATE_ID, version: this.VERSION, blockLength: this.BLOCK_LENGTH };
@@ -66,18 +66,20 @@ export class TradeOhlcvvCandle {
     high;
     low;
     close;
-    totalVolume;
-    tradeCount;
+    totalQuantity;
     totalTradedValue;
+    day;
+    flags;
     constructor(value) {
         this.eventTimeMicros = value.eventTimeMicros;
         this.open = value.open;
         this.high = value.high;
         this.low = value.low;
         this.close = value.close;
-        this.totalVolume = value.totalVolume;
-        this.tradeCount = value.tradeCount;
+        this.totalQuantity = value.totalQuantity;
         this.totalTradedValue = value.totalTradedValue;
+        this.day = value.day;
+        this.flags = value.flags;
     }
     static decodeBody(source, offset = 0, actingVersion = this.VERSION, actingBlockLength = this.BLOCK_LENGTH) {
         const view = viewOf(source);
@@ -100,12 +102,13 @@ export class TradeOhlcvvCandle {
                 mantissa: view.getBigInt64(offset + 35 + 0, true),
                 exponent: view.getInt8(offset + 35 + 8),
             }),
-            totalVolume: view.getBigUint64(offset + 44, true),
-            tradeCount: view.getBigUint64(offset + 52, true),
+            totalQuantity: view.getBigUint64(offset + 44, true),
             totalTradedValue: new Decimal({
-                mantissa: view.getBigInt64(offset + 60 + 0, true),
-                exponent: view.getInt8(offset + 60 + 8),
+                mantissa: view.getBigInt64(offset + 52 + 0, true),
+                exponent: view.getInt8(offset + 52 + 8),
             }),
+            day: view.getUint32(offset + 61, true),
+            flags: view.getUint32(offset + 65, true),
         });
     }
     static encodeBody(value) {
@@ -120,14 +123,15 @@ export class TradeOhlcvvCandle {
         view.setInt8(0 + 26 + 8, value.low.exponent);
         view.setBigInt64(0 + 35 + 0, value.close.mantissa, true);
         view.setInt8(0 + 35 + 8, value.close.exponent);
-        view.setBigUint64(0 + 44, value.totalVolume, true);
-        view.setBigUint64(0 + 52, value.tradeCount, true);
-        view.setBigInt64(0 + 60 + 0, value.totalTradedValue.mantissa, true);
-        view.setInt8(0 + 60 + 8, value.totalTradedValue.exponent);
+        view.setBigUint64(0 + 44, value.totalQuantity, true);
+        view.setBigInt64(0 + 52 + 0, value.totalTradedValue.mantissa, true);
+        view.setInt8(0 + 52 + 8, value.totalTradedValue.exponent);
+        view.setUint32(0 + 61, value.day, true);
+        view.setUint32(0 + 65, value.flags, true);
         return bytes;
     }
 }
 export const PUBLIC_EXPORT_CODECS = new Map([
-    [TradeOhlcvvCandle.TEMPLATE_ID, TradeOhlcvvCandle],
+    [TradeOhlcvv.TEMPLATE_ID, TradeOhlcvv],
 ]);
 //# sourceMappingURL=stream-6.js.map

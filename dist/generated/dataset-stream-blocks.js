@@ -4,16 +4,19 @@ export const DATASET_STREAM_BLOCKS = {
         "AskOhlc",
         "BidAsk",
         "BidAskCandle",
+        "BidAskCandleV2",
         "BidOhlc"
     ],
     "sim": [
         "AskOhlc",
         "BidAsk",
         "BidAskCandle",
+        "BidAskCandleV2",
         "BidOhlc",
         "Trade",
         "TradeOhlcvv",
-        "TradeOhlcvvCandle"
+        "TradeOhlcvvCandle",
+        "TradeOhlcvvCandleV2"
     ],
     "xetra": []
 };

@@ -83,7 +83,7 @@ export class Decimal {
 
 }
 
-export interface TradeOhlcvvValue {
+export interface TradeOhlcvvCandleValue {
      readonly eventTimeMicros: bigint;
 
      readonly open: Decimal;
@@ -94,17 +94,15 @@ export interface TradeOhlcvvValue {
 
      readonly close: Decimal;
 
-     readonly totalQuantity: bigint;
+     readonly totalVolume: bigint;
+
+     readonly tradeCount: bigint;
 
      readonly totalTradedValue: Decimal;
-
-     readonly day: number;
-
-     readonly flags: number;
 }
-export class TradeOhlcvv {
+export class TradeOhlcvvCandle {
     static readonly SCHEMA_ID = 41957;
-    static readonly TEMPLATE_ID = 51484;
+    static readonly TEMPLATE_ID = 49382;
     static readonly VERSION = 0;
     static readonly BLOCK_LENGTH = 69;
     static readonly format: SbeFormat = { schemaId: this.SCHEMA_ID, templateId: this.TEMPLATE_ID, version: this.VERSION, blockLength: this.BLOCK_LENGTH };
@@ -118,15 +116,13 @@ export class TradeOhlcvv {
 
      readonly close: Decimal;
 
-     readonly totalQuantity: bigint;
+     readonly totalVolume: bigint;
+
+     readonly tradeCount: bigint;
 
      readonly totalTradedValue: Decimal;
 
-     readonly day: number;
-
-     readonly flags: number;
-
-    constructor(value: TradeOhlcvvValue) {
+    constructor(value: TradeOhlcvvCandleValue) {
         this.eventTimeMicros = value.eventTimeMicros;
 
         this.open = value.open;
@@ -137,15 +133,13 @@ export class TradeOhlcvv {
 
         this.close = value.close;
 
-        this.totalQuantity = value.totalQuantity;
+        this.totalVolume = value.totalVolume;
+
+        this.tradeCount = value.tradeCount;
 
         this.totalTradedValue = value.totalTradedValue;
-
-        this.day = value.day;
-
-        this.flags = value.flags;
     }
-    static decodeBody(source: ArrayBuffer | ArrayBufferView, offset = 0, actingVersion = this.VERSION, actingBlockLength = this.BLOCK_LENGTH): TradeOhlcvv {
+    static decodeBody(source: ArrayBuffer | ArrayBufferView, offset = 0, actingVersion = this.VERSION, actingBlockLength = this.BLOCK_LENGTH): TradeOhlcvvCandle {
         const view = viewOf(source);
         requireBytes(view, offset, actingBlockLength);
         return new this({
@@ -171,19 +165,17 @@ export class TradeOhlcvv {
         exponent: view.getInt8(offset + 35 + 8),
       }),
 
-            totalQuantity: view.getBigUint64(offset + 44, true),
+            totalVolume: view.getBigUint64(offset + 44, true),
+
+            tradeCount: view.getBigUint64(offset + 52, true),
 
             totalTradedValue: new Decimal({
-        mantissa: view.getBigInt64(offset + 52 + 0, true),
-        exponent: view.getInt8(offset + 52 + 8),
+        mantissa: view.getBigInt64(offset + 60 + 0, true),
+        exponent: view.getInt8(offset + 60 + 8),
       }),
-
-            day: view.getUint32(offset + 61, true),
-
-            flags: view.getUint32(offset + 65, true),
         });
     }
-    static encodeBody(value: TradeOhlcvvValue): Uint8Array {
+    static encodeBody(value: TradeOhlcvvCandleValue): Uint8Array {
         const bytes = new Uint8Array(this.BLOCK_LENGTH);
         const view = new DataView(bytes.buffer);
             view.setBigUint64(0 + 0, value.eventTimeMicros, true);
@@ -195,20 +187,19 @@ export class TradeOhlcvv {
     view.setInt8(0 + 26 + 8, value.low.exponent);
     view.setBigInt64(0 + 35 + 0, value.close.mantissa, true);
     view.setInt8(0 + 35 + 8, value.close.exponent);
-    view.setBigUint64(0 + 44, value.totalQuantity, true);
-    view.setBigInt64(0 + 52 + 0, value.totalTradedValue.mantissa, true);
-    view.setInt8(0 + 52 + 8, value.totalTradedValue.exponent);
-    view.setUint32(0 + 61, value.day, true);
-    view.setUint32(0 + 65, value.flags, true);
+    view.setBigUint64(0 + 44, value.totalVolume, true);
+    view.setBigUint64(0 + 52, value.tradeCount, true);
+    view.setBigInt64(0 + 60 + 0, value.totalTradedValue.mantissa, true);
+    view.setInt8(0 + 60 + 8, value.totalTradedValue.exponent);
 
         return bytes;
     }
 }
 
-export type PublicExport = TradeOhlcvv;
+export type PublicExport = TradeOhlcvvCandle;
 export const PUBLIC_EXPORT_CODECS = new Map<number, {
     readonly format: SbeFormat;
     decodeBody(source: ArrayBuffer | ArrayBufferView, offset?: number, actingVersion?: number, actingBlockLength?: number): PublicExport;
 }>([
-    [TradeOhlcvv.TEMPLATE_ID, TradeOhlcvv],
+    [TradeOhlcvvCandle.TEMPLATE_ID, TradeOhlcvvCandle],
 ] as const);

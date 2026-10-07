@@ -24,37 +24,37 @@ export declare class Decimal {
     toString(): string;
     toLocaleString(locales?: Intl.LocalesArgument, options?: Intl.NumberFormatOptions): string;
 }
-export interface BidOhlcValue {
+export interface TradeOhlcvvCandleV2Value {
     readonly eventTimeMicros: bigint;
     readonly open: Decimal;
     readonly high: Decimal;
     readonly low: Decimal;
     readonly close: Decimal;
-    readonly closingSize: bigint;
-    readonly day: number;
-    readonly flags: number;
+    readonly totalVolume: bigint;
+    readonly tradeCount: bigint | null;
+    readonly totalTradedValue: Decimal | null;
 }
-export declare class BidOhlc {
+export declare class TradeOhlcvvCandleV2 {
     static readonly SCHEMA_ID = 41957;
-    static readonly TEMPLATE_ID = 9015;
+    static readonly TEMPLATE_ID = 310;
     static readonly VERSION = 0;
-    static readonly BLOCK_LENGTH = 60;
+    static readonly BLOCK_LENGTH = 69;
     static readonly format: SbeFormat;
     readonly eventTimeMicros: bigint;
     readonly open: Decimal;
     readonly high: Decimal;
     readonly low: Decimal;
     readonly close: Decimal;
-    readonly closingSize: bigint;
-    readonly day: number;
-    readonly flags: number;
-    constructor(value: BidOhlcValue);
-    static decodeBody(source: ArrayBuffer | ArrayBufferView, offset?: number, actingVersion?: number, actingBlockLength?: number): BidOhlc;
-    static encodeBody(value: BidOhlcValue): Uint8Array;
+    readonly totalVolume: bigint;
+    readonly tradeCount: bigint | null;
+    readonly totalTradedValue: Decimal | null;
+    constructor(value: TradeOhlcvvCandleV2Value);
+    static decodeBody(source: ArrayBuffer | ArrayBufferView, offset?: number, actingVersion?: number, actingBlockLength?: number): TradeOhlcvvCandleV2;
+    static encodeBody(value: TradeOhlcvvCandleV2Value): Uint8Array;
 }
-export type PublicExport = BidOhlc;
+export type PublicExport = TradeOhlcvvCandleV2;
 export declare const PUBLIC_EXPORT_CODECS: Map<number, {
     readonly format: SbeFormat;
     decodeBody(source: ArrayBuffer | ArrayBufferView, offset?: number, actingVersion?: number, actingBlockLength?: number): PublicExport;
 }>;
-//# sourceMappingURL=stream-4.d.ts.map
+//# sourceMappingURL=stream-8.d.ts.map

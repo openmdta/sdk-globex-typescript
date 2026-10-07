@@ -48,6 +48,14 @@ export const VERSION_CONTRACTS = [
     "sha256": "233e8445af5967b2ae6bbb526603b2b40b6135473cb1c908a10c9097e0d9a98b"
   },
   {
+    "field": "openmdta::BidAskCandleV2",
+    "id": {
+      "family": "openmdta::BidAskCandle",
+      "version": 2
+    },
+    "sha256": "b12bedef787acf79fa13763b28e8631e4c0713a2f8d238e7dd9c31e5edf5bba6"
+  },
+  {
     "field": "openmdta::BidDailyOhlc",
     "id": {
       "family": "openmdta::BidDailyOhlc",
@@ -248,6 +256,14 @@ export const VERSION_CONTRACTS = [
     "sha256": "e87202836623adc2bfd9677da1e9f7f97c5fbbaf862e5001356443e1adeb9b23"
   },
   {
+    "field": "openmdta::TradeCandleV2",
+    "id": {
+      "family": "openmdta::TradeCandle",
+      "version": 2
+    },
+    "sha256": "8ffbdc72ba9e422d80dbe7d08d3aa41361182848cfade2e37b138c3d42425c12"
+  },
+  {
     "field": "openmdta::TradeDailyOhlc",
     "id": {
       "family": "openmdta::TradeDailyOhlc",
@@ -270,6 +286,14 @@ export const VERSION_CONTRACTS = [
       "version": 1
     },
     "sha256": "f8a1cc741922ae38f546dfd7dafca95029b2f86f7e17c1b31ffb4570a69bc8ff"
+  },
+  {
+    "field": "openmdta::TradeOhlcvvCandleV2",
+    "id": {
+      "family": "openmdta::TradeOhlcvvCandle",
+      "version": 2
+    },
+    "sha256": "3864f6b59d67481c24d8cb796af8f45b5d6d529b25739dd7cdbf6fc5e3c36498"
   },
   {
     "field": "lus::LusDomainObject",

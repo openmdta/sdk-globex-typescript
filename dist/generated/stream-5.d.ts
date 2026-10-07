@@ -24,37 +24,27 @@ export declare class Decimal {
     toString(): string;
     toLocaleString(locales?: Intl.LocalesArgument, options?: Intl.NumberFormatOptions): string;
 }
-export interface TradeOhlcvvValue {
+export interface TradeValue {
     readonly eventTimeMicros: bigint;
-    readonly open: Decimal;
-    readonly high: Decimal;
-    readonly low: Decimal;
-    readonly close: Decimal;
-    readonly totalQuantity: bigint;
-    readonly totalTradedValue: Decimal;
-    readonly day: number;
-    readonly flags: number;
+    readonly price: Decimal;
+    readonly volume: bigint;
+    readonly saleConditionFlags: number | null;
 }
-export declare class TradeOhlcvv {
+export declare class Trade {
     static readonly SCHEMA_ID = 41957;
-    static readonly TEMPLATE_ID = 51484;
+    static readonly TEMPLATE_ID = 3822;
     static readonly VERSION = 0;
-    static readonly BLOCK_LENGTH = 69;
+    static readonly BLOCK_LENGTH = 26;
     static readonly format: SbeFormat;
     readonly eventTimeMicros: bigint;
-    readonly open: Decimal;
-    readonly high: Decimal;
-    readonly low: Decimal;
-    readonly close: Decimal;
-    readonly totalQuantity: bigint;
-    readonly totalTradedValue: Decimal;
-    readonly day: number;
-    readonly flags: number;
-    constructor(value: TradeOhlcvvValue);
-    static decodeBody(source: ArrayBuffer | ArrayBufferView, offset?: number, actingVersion?: number, actingBlockLength?: number): TradeOhlcvv;
-    static encodeBody(value: TradeOhlcvvValue): Uint8Array;
+    readonly price: Decimal;
+    readonly volume: bigint;
+    readonly saleConditionFlags: number | null;
+    constructor(value: TradeValue);
+    static decodeBody(source: ArrayBuffer | ArrayBufferView, offset?: number, actingVersion?: number, actingBlockLength?: number): Trade;
+    static encodeBody(value: TradeValue): Uint8Array;
 }
-export type PublicExport = TradeOhlcvv;
+export type PublicExport = Trade;
 export declare const PUBLIC_EXPORT_CODECS: Map<number, {
     readonly format: SbeFormat;
     decodeBody(source: ArrayBuffer | ArrayBufferView, offset?: number, actingVersion?: number, actingBlockLength?: number): PublicExport;

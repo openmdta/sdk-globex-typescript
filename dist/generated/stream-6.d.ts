@@ -24,19 +24,20 @@ export declare class Decimal {
     toString(): string;
     toLocaleString(locales?: Intl.LocalesArgument, options?: Intl.NumberFormatOptions): string;
 }
-export interface TradeOhlcvvCandleValue {
+export interface TradeOhlcvvValue {
     readonly eventTimeMicros: bigint;
     readonly open: Decimal;
     readonly high: Decimal;
     readonly low: Decimal;
     readonly close: Decimal;
-    readonly totalVolume: bigint;
-    readonly tradeCount: bigint;
+    readonly totalQuantity: bigint;
     readonly totalTradedValue: Decimal;
+    readonly day: number;
+    readonly flags: number;
 }
-export declare class TradeOhlcvvCandle {
+export declare class TradeOhlcvv {
     static readonly SCHEMA_ID = 41957;
-    static readonly TEMPLATE_ID = 49382;
+    static readonly TEMPLATE_ID = 51484;
     static readonly VERSION = 0;
     static readonly BLOCK_LENGTH = 69;
     static readonly format: SbeFormat;
@@ -45,14 +46,15 @@ export declare class TradeOhlcvvCandle {
     readonly high: Decimal;
     readonly low: Decimal;
     readonly close: Decimal;
-    readonly totalVolume: bigint;
-    readonly tradeCount: bigint;
+    readonly totalQuantity: bigint;
     readonly totalTradedValue: Decimal;
-    constructor(value: TradeOhlcvvCandleValue);
-    static decodeBody(source: ArrayBuffer | ArrayBufferView, offset?: number, actingVersion?: number, actingBlockLength?: number): TradeOhlcvvCandle;
-    static encodeBody(value: TradeOhlcvvCandleValue): Uint8Array;
+    readonly day: number;
+    readonly flags: number;
+    constructor(value: TradeOhlcvvValue);
+    static decodeBody(source: ArrayBuffer | ArrayBufferView, offset?: number, actingVersion?: number, actingBlockLength?: number): TradeOhlcvv;
+    static encodeBody(value: TradeOhlcvvValue): Uint8Array;
 }
-export type PublicExport = TradeOhlcvvCandle;
+export type PublicExport = TradeOhlcvv;
 export declare const PUBLIC_EXPORT_CODECS: Map<number, {
     readonly format: SbeFormat;
     decodeBody(source: ArrayBuffer | ArrayBufferView, offset?: number, actingVersion?: number, actingBlockLength?: number): PublicExport;

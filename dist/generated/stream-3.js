@@ -55,75 +55,139 @@ export class Decimal {
         return formatExact(this.toString());
     }
 }
-export class BidOhlc {
-    static SCHEMA_ID = 41957;
-    static TEMPLATE_ID = 9015;
-    static VERSION = 0;
-    static BLOCK_LENGTH = 60;
-    static format = { schemaId: this.SCHEMA_ID, templateId: this.TEMPLATE_ID, version: this.VERSION, blockLength: this.BLOCK_LENGTH };
-    eventTimeMicros;
+export class QuoteSideCandleV2 {
     open;
     high;
     low;
     close;
     closingSize;
-    day;
-    flags;
     constructor(value) {
-        this.eventTimeMicros = value.eventTimeMicros;
         this.open = value.open;
         this.high = value.high;
         this.low = value.low;
         this.close = value.close;
         this.closingSize = value.closingSize;
-        this.day = value.day;
-        this.flags = value.flags;
+    }
+}
+export class BidAskCandleV2 {
+    static SCHEMA_ID = 41957;
+    static TEMPLATE_ID = 32795;
+    static VERSION = 0;
+    static BLOCK_LENGTH = 97;
+    static format = { schemaId: this.SCHEMA_ID, templateId: this.TEMPLATE_ID, version: this.VERSION, blockLength: this.BLOCK_LENGTH };
+    eventTimeMicros;
+    bid;
+    ask;
+    quoteCount;
+    closingQuoteCondition;
+    constructor(value) {
+        this.eventTimeMicros = value.eventTimeMicros;
+        this.bid = value.bid;
+        this.ask = value.ask;
+        this.quoteCount = value.quoteCount;
+        this.closingQuoteCondition = value.closingQuoteCondition;
     }
     static decodeBody(source, offset = 0, actingVersion = this.VERSION, actingBlockLength = this.BLOCK_LENGTH) {
         const view = viewOf(source);
         requireBytes(view, offset, actingBlockLength);
         return new this({
             eventTimeMicros: view.getBigUint64(offset + 0, true),
-            open: new Decimal({
-                mantissa: view.getBigInt64(offset + 8 + 0, true),
-                exponent: view.getInt8(offset + 8 + 8),
-            }),
-            high: new Decimal({
-                mantissa: view.getBigInt64(offset + 17 + 0, true),
-                exponent: view.getInt8(offset + 17 + 8),
-            }),
-            low: new Decimal({
-                mantissa: view.getBigInt64(offset + 26 + 0, true),
-                exponent: view.getInt8(offset + 26 + 8),
-            }),
-            close: new Decimal({
-                mantissa: view.getBigInt64(offset + 35 + 0, true),
-                exponent: view.getInt8(offset + 35 + 8),
-            }),
-            closingSize: view.getBigUint64(offset + 44, true),
-            day: view.getUint32(offset + 52, true),
-            flags: view.getUint32(offset + 56, true),
+            bid: (() => {
+                if (view.getBigInt64(offset + 8 + 0 + 0, true) === -9223372036854775808n && view.getInt8(offset + 8 + 0 + 8) === -128)
+                    return null;
+                return new QuoteSideCandleV2({
+                    open: new Decimal({
+                        mantissa: view.getBigInt64(offset + 8 + 0 + 0, true),
+                        exponent: view.getInt8(offset + 8 + 0 + 8),
+                    }),
+                    high: new Decimal({
+                        mantissa: view.getBigInt64(offset + 8 + 9 + 0, true),
+                        exponent: view.getInt8(offset + 8 + 9 + 8),
+                    }),
+                    low: new Decimal({
+                        mantissa: view.getBigInt64(offset + 8 + 18 + 0, true),
+                        exponent: view.getInt8(offset + 8 + 18 + 8),
+                    }),
+                    close: new Decimal({
+                        mantissa: view.getBigInt64(offset + 8 + 27 + 0, true),
+                        exponent: view.getInt8(offset + 8 + 27 + 8),
+                    }),
+                    closingSize: (() => { const decoded = view.getUint32(offset + 8 + 36, true); return decoded === 4294967295 ? null : decoded; })(),
+                });
+            })(),
+            ask: (() => {
+                if (view.getBigInt64(offset + 48 + 0 + 0, true) === -9223372036854775808n && view.getInt8(offset + 48 + 0 + 8) === -128)
+                    return null;
+                return new QuoteSideCandleV2({
+                    open: new Decimal({
+                        mantissa: view.getBigInt64(offset + 48 + 0 + 0, true),
+                        exponent: view.getInt8(offset + 48 + 0 + 8),
+                    }),
+                    high: new Decimal({
+                        mantissa: view.getBigInt64(offset + 48 + 9 + 0, true),
+                        exponent: view.getInt8(offset + 48 + 9 + 8),
+                    }),
+                    low: new Decimal({
+                        mantissa: view.getBigInt64(offset + 48 + 18 + 0, true),
+                        exponent: view.getInt8(offset + 48 + 18 + 8),
+                    }),
+                    close: new Decimal({
+                        mantissa: view.getBigInt64(offset + 48 + 27 + 0, true),
+                        exponent: view.getInt8(offset + 48 + 27 + 8),
+                    }),
+                    closingSize: (() => { const decoded = view.getUint32(offset + 48 + 36, true); return decoded === 4294967295 ? null : decoded; })(),
+                });
+            })(),
+            quoteCount: (() => { const decoded = view.getBigUint64(offset + 88, true); return decoded === 18446744073709551615n ? null : decoded; })(),
+            closingQuoteCondition: (() => { const decoded = view.getUint8(offset + 96); return decoded === 255 ? null : decoded; })(),
         });
     }
     static encodeBody(value) {
         const bytes = new Uint8Array(this.BLOCK_LENGTH);
         const view = new DataView(bytes.buffer);
         view.setBigUint64(0 + 0, value.eventTimeMicros, true);
-        view.setBigInt64(0 + 8 + 0, value.open.mantissa, true);
-        view.setInt8(0 + 8 + 8, value.open.exponent);
-        view.setBigInt64(0 + 17 + 0, value.high.mantissa, true);
-        view.setInt8(0 + 17 + 8, value.high.exponent);
-        view.setBigInt64(0 + 26 + 0, value.low.mantissa, true);
-        view.setInt8(0 + 26 + 8, value.low.exponent);
-        view.setBigInt64(0 + 35 + 0, value.close.mantissa, true);
-        view.setInt8(0 + 35 + 8, value.close.exponent);
-        view.setBigUint64(0 + 44, value.closingSize, true);
-        view.setUint32(0 + 52, value.day, true);
-        view.setUint32(0 + 56, value.flags, true);
+        {
+            const encoded = value.bid;
+            if (encoded === null) {
+                view.setBigInt64(0 + 8 + 0 + 0, -9223372036854775808n, true);
+                view.setInt8(0 + 8 + 0 + 8, -128);
+            }
+            else {
+                view.setBigInt64(0 + 8 + 0 + 0, encoded.open.mantissa, true);
+                view.setInt8(0 + 8 + 0 + 8, encoded.open.exponent);
+                view.setBigInt64(0 + 8 + 9 + 0, encoded.high.mantissa, true);
+                view.setInt8(0 + 8 + 9 + 8, encoded.high.exponent);
+                view.setBigInt64(0 + 8 + 18 + 0, encoded.low.mantissa, true);
+                view.setInt8(0 + 8 + 18 + 8, encoded.low.exponent);
+                view.setBigInt64(0 + 8 + 27 + 0, encoded.close.mantissa, true);
+                view.setInt8(0 + 8 + 27 + 8, encoded.close.exponent);
+                view.setUint32(0 + 8 + 36, encoded.closingSize ?? 4294967295, true);
+            }
+        }
+        {
+            const encoded = value.ask;
+            if (encoded === null) {
+                view.setBigInt64(0 + 48 + 0 + 0, -9223372036854775808n, true);
+                view.setInt8(0 + 48 + 0 + 8, -128);
+            }
+            else {
+                view.setBigInt64(0 + 48 + 0 + 0, encoded.open.mantissa, true);
+                view.setInt8(0 + 48 + 0 + 8, encoded.open.exponent);
+                view.setBigInt64(0 + 48 + 9 + 0, encoded.high.mantissa, true);
+                view.setInt8(0 + 48 + 9 + 8, encoded.high.exponent);
+                view.setBigInt64(0 + 48 + 18 + 0, encoded.low.mantissa, true);
+                view.setInt8(0 + 48 + 18 + 8, encoded.low.exponent);
+                view.setBigInt64(0 + 48 + 27 + 0, encoded.close.mantissa, true);
+                view.setInt8(0 + 48 + 27 + 8, encoded.close.exponent);
+                view.setUint32(0 + 48 + 36, encoded.closingSize ?? 4294967295, true);
+            }
+        }
+        view.setBigUint64(0 + 88, value.quoteCount ?? 18446744073709551615n, true);
+        view.setUint8(0 + 96, value.closingQuoteCondition ?? 255);
         return bytes;
     }
 }
 export const PUBLIC_EXPORT_CODECS = new Map([
-    [BidOhlc.TEMPLATE_ID, BidOhlc],
+    [BidAskCandleV2.TEMPLATE_ID, BidAskCandleV2],
 ]);
 //# sourceMappingURL=stream-3.js.map
