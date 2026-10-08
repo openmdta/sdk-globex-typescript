@@ -1,11 +1,11 @@
 export const VERSION_CONTRACTS = [
   {
-    "field": "globex::DisplayName",
+    "field": "firds::FirdsRecord",
     "id": {
-      "family": "globex::DisplayName",
+      "family": "firds::FirdsRecord",
       "version": 1
     },
-    "sha256": "d5e109bbe1e2830d2397537c402bf22edb576bd6a489baff0c6a860c399ffb99"
+    "sha256": "39fe664547812b0cd462750ea14b67509104175bf9d90406f963580a1edf69a3"
   },
   {
     "field": "openmdta::AskDailyOhlc",
@@ -294,6 +294,14 @@ export const VERSION_CONTRACTS = [
       "version": 2
     },
     "sha256": "3864f6b59d67481c24d8cb796af8f45b5d6d529b25739dd7cdbf6fc5e3c36498"
+  },
+  {
+    "field": "globex::DisplayName",
+    "id": {
+      "family": "globex::DisplayName",
+      "version": 1
+    },
+    "sha256": "d5e109bbe1e2830d2397537c402bf22edb576bd6a489baff0c6a860c399ffb99"
   },
   {
     "field": "lus::LusDomainObject",

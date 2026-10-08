@@ -1,10 +1,10 @@
 export declare const VERSION_CONTRACTS: readonly [{
-    readonly field: "globex::DisplayName";
+    readonly field: "firds::FirdsRecord";
     readonly id: {
-        readonly family: "globex::DisplayName";
+        readonly family: "firds::FirdsRecord";
         readonly version: 1;
     };
-    readonly sha256: "d5e109bbe1e2830d2397537c402bf22edb576bd6a489baff0c6a860c399ffb99";
+    readonly sha256: "39fe664547812b0cd462750ea14b67509104175bf9d90406f963580a1edf69a3";
 }, {
     readonly field: "openmdta::AskDailyOhlc";
     readonly id: {
@@ -257,6 +257,13 @@ export declare const VERSION_CONTRACTS: readonly [{
         readonly version: 2;
     };
     readonly sha256: "3864f6b59d67481c24d8cb796af8f45b5d6d529b25739dd7cdbf6fc5e3c36498";
+}, {
+    readonly field: "globex::DisplayName";
+    readonly id: {
+        readonly family: "globex::DisplayName";
+        readonly version: 1;
+    };
+    readonly sha256: "d5e109bbe1e2830d2397537c402bf22edb576bd6a489baff0c6a860c399ffb99";
 }, {
     readonly field: "lus::LusDomainObject";
     readonly id: {

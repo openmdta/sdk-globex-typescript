@@ -1,4 +1,20 @@
 export declare const DATASET_CATALOG_FIELDS: {
+    readonly firds: readonly [import("../catalog.js").CatalogFieldDescriptor<"classification", import("./catalog-openmdta.js").ClassificationValue> & {
+        readonly multiple: true;
+        readonly property: "classification";
+    }, import("../catalog.js").CatalogFieldDescriptor<"instrument_names", import("./catalog-openmdta.js").InstrumentNamesValue> & {
+        readonly multiple: false;
+        readonly property: "instrumentNames";
+    }, import("../catalog.js").CatalogFieldDescriptor<"listing_quotation", import("./catalog-openmdta.js").ListingQuotationValue> & {
+        readonly multiple: false;
+        readonly property: "listingQuotation";
+    }, import("../catalog.js").CatalogFieldDescriptor<"listing_trading_dates", import("./catalog-openmdta.js").ListingTradingDatesValue> & {
+        readonly multiple: false;
+        readonly property: "listingTradingDates";
+    }, import("../catalog.js").CatalogFieldDescriptor<"listing_venue", import("./catalog-openmdta.js").ListingVenueValue> & {
+        readonly multiple: false;
+        readonly property: "listingVenue";
+    }];
     readonly globex: readonly [import("../catalog.js").CatalogFieldDescriptor<"DisplayName", import("./catalog-globex.js").DisplayNameValue> & {
         readonly multiple: false;
         readonly property: "globexDisplayName";

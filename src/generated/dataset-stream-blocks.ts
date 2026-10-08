@@ -1,4 +1,5 @@
 export const DATASET_STREAM_BLOCKS = {
+  "firds": [],
   "globex": [],
   "lus": [
     "AskOhlc",
