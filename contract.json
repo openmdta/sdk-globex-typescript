@@ -3,7 +3,7 @@
   "environment": {
     "name": "globex",
     "gateway": "gateway",
-    "revision": "cdeb0bef8145a6e45d20c5bf44478ac2a57a4d0f4be8fbc65b016ced262da0a7",
+    "revision": "abf42479652030a68d3ad342c106e0f12fd8d3f67b564efc053f5fd3a1f14ee6",
     "datasets": {
       "firds": {
         "id": "globex/firds",
